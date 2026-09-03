@@ -1,0 +1,47 @@
+{
+  "name": "cici",
+  "version": "0.1.0",
+  "description": "Claude In Chrome Id — find the Claude in Chrome extension's bridgeDeviceId for every Chrome profile, without opening DevTools.",
+  "type": "module",
+  "bin": {
+    "cici": "./bin/cici.js"
+  },
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "README.ko.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/",
+    "start": "node bin/cici.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "claude-in-chrome",
+    "chrome",
+    "extension",
+    "leveldb",
+    "bridgeDeviceId",
+    "cli"
+  ],
+  "author": "ldg030201",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ldg030201/cici.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ldg030201/cici/issues"
+  },
+  "homepage": "https://github.com/ldg030201/cici#readme"
+}
