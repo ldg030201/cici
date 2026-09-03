@@ -46,13 +46,18 @@ function assertBytesEqual(a, b, message) {
   assert.ok(Buffer.from(a).equals(Buffer.from(b)), message ?? 'bytes differ');
 }
 
-/** @param {() => unknown} fn */
-function assertThrowsError(fn, label) {
+/**
+ * @param {() => unknown} fn
+ * @param {string} label
+ * @param {RegExp} [message] the decoder's own error message must match this
+ */
+function assertThrowsError(fn, label, message) {
   assert.throws(
     fn,
     (err) => {
       assert.ok(err instanceof Error, `${label}: thrown value is not an Error`);
       assert.ok(typeof err.message === 'string' && err.message.length > 0, `${label}: empty error message`);
+      if (message) assert.match(err.message, message, `${label}: unexpected error message`);
       return true;
     },
     label,
@@ -119,6 +124,35 @@ test('long literals use the 1/2/3-byte extended length encoding', () => {
     assert.ok(ops[0].length > 60, `compress() of ${length} random bytes should use an extended literal length`);
     assertBytesEqual(uncompress(compressed), data, `compress roundtrip ${length}`);
   }
+});
+
+test('a 4-byte literal length (tag upper bits 63) is read as unsigned', () => {
+  // The compressor only reaches tag 63 for literals above 16 MiB, so these are
+  // hand-built: 5 bytes of "abcde" encoded as length-1 = 4 in four bytes.
+  const s = stream(5, [63 << 2, 4, 0, 0, 0], 'abcde');
+  assert.equal(s[1] >>> 2, 63, 'premise: tag upper bits are 63');
+  assert.equal(text(uncompress(s)), 'abcde');
+
+  // length - 1 = 0x80000000: the 4th byte is shifted by 24, so a signed shift
+  // would make the length negative and skip every bounds check.
+  assertThrowsError(
+    () => uncompress(stream(100, [63 << 2, 0x00, 0x00, 0x00, 0x80], 'a')),
+    'literal length with bit 31 set',
+    /^snappy: truncated literal data$/,
+  );
+});
+
+test('a copy4 offset with bit 31 set is read as unsigned', () => {
+  assertThrowsError(
+    () => uncompress(stream(8, literal('abcd'), copy4(4, 0x80000000))),
+    'copy4 offset 2^31',
+    /^snappy: copy offset 2147483648 reaches before the start of the output/,
+  );
+  assertThrowsError(
+    () => uncompress(stream(8, literal('abcd'), copy4(4, 0xffffffff))),
+    'copy4 offset 2^32-1',
+    /^snappy: copy offset 4294967295 reaches before the start of the output/,
+  );
 });
 
 test('copy with 1-byte offset (tag & 3 == 1)', () => {

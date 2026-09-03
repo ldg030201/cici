@@ -222,7 +222,11 @@ export async function listProfiles(userDataDir) {
       const dir = path.join(userDataDir, dirName);
       const warnings = [];
       let name = nonEmptyString(info.name);
-      if (!(await isDirectory(dir))) {
+      const kind = await statKind(dir);
+      const err = kindError(kind);
+      if (err) {
+        warnings.push(`cannot stat the profile directory ${dir}: ${errorMessage(err)}`);
+      } else if (kind !== 'dir') {
         warnings.push(`profile directory listed in Local State but not found: ${dir}`);
       } else if (name === null) {
         name = await readPreferencesName(dir);
@@ -249,13 +253,19 @@ export async function listProfiles(userDataDir) {
     throw e;
   }
   for (const dirent of dirents) {
-    if (!dirent.isDirectory()) continue;
+    if (!(await direntIsDirectory(dirent, userDataDir))) continue;
     const dirName = dirent.name;
     if (seen.has(dirName) || EXCLUDED_PROFILE_DIRS.has(dirName)) continue;
     const dir = path.join(userDataDir, dirName);
-    if (!(await isFile(path.join(dir, 'Preferences')))) continue;
+    const prefs = path.join(dir, 'Preferences');
+    const prefsKind = await statKind(prefs);
+    const prefsError = kindError(prefsKind);
+    // An unreadable directory must not look like "no profile here": keep the
+    // row so the warning reaches the user.
+    if (!prefsError && prefsKind !== 'file') continue;
     seen.add(dirName);
     const warnings = [...localStateWarnings];
+    if (prefsError) warnings.push(`cannot stat ${prefs}: ${errorMessage(prefsError)}`);
     if (infoCache) warnings.push(`profile not listed in Local State info_cache: ${dirName}`);
     profiles.push({
       dir,
@@ -283,24 +293,34 @@ export async function listProfiles(userDataDir) {
  * @returns {Promise<ExtensionInfo|null>}
  */
 export async function findExtension(profileDir, extensionIds) {
+  /** @type {ExtensionInfo[]} */
+  const matches = [];
   for (const id of extensionIds) {
     if (typeof id !== 'string' || !isPlainDirName(id)) continue;
     const storageDir = path.join(profileDir, 'Local Extension Settings', id);
     const extensionDir = path.join(profileDir, 'Extensions', id);
-    const [hasStorage, hasExtensionDir] = await Promise.all([
-      isDirectory(storageDir),
-      isDirectory(extensionDir),
+    const [storageKind, extensionKind] = await Promise.all([
+      statKind(storageDir),
+      statKind(extensionDir),
     ]);
+    // A directory we are not allowed to stat counts as present: readBridgeInfo
+    // then reports the real reason (EACCES, ...) instead of the row silently
+    // reading "not installed".
+    const hasStorage = storageKind === 'dir' || kindError(storageKind) !== null;
+    const hasExtensionDir = extensionKind === 'dir' || kindError(extensionKind) !== null;
     if (!hasStorage && !hasExtensionDir) continue;
     const version = hasExtensionDir ? await highestVersionDir(extensionDir) : null;
-    return {
+    matches.push({
       id,
       version,
       storageDir: hasStorage ? storageDir : null,
       installed: true,
-    };
+    });
   }
-  return null;
+  // Several Claude builds can be installed side by side (the Web Store one and
+  // an internal build). The paired one is whichever has storage; the declared
+  // order only breaks ties.
+  return matches.find((m) => m.storageDir !== null) ?? matches[0] ?? null;
 }
 
 /**
@@ -379,7 +399,7 @@ async function highestVersionDir(extensionDir) {
   }
   let best = null;
   for (const dirent of dirents) {
-    if (!dirent.isDirectory()) continue;
+    if (!(await direntIsDirectory(dirent, extensionDir))) continue;
     const version = parseVersionDirName(dirent.name);
     if (version === null) continue;
     if (best === null || compareVersions(version, best) > 0) best = version;
@@ -402,22 +422,48 @@ async function readPreferencesName(profileDir) {
   }
 }
 
-/** @param {string} p */
-async function isDirectory(p) {
+/**
+ * Whether a directory entry is a directory, following symlinks (and Windows
+ * junctions), which readdir reports as links rather than directories. Profile
+ * and extension-version directories are sometimes symlinked to another disk.
+ *
+ * @param {import('node:fs').Dirent} dirent
+ * @param {string} parentDir directory the entry was listed from
+ * @returns {Promise<boolean>}
+ */
+async function direntIsDirectory(dirent, parentDir) {
+  if (dirent.isDirectory()) return true;
+  if (!dirent.isSymbolicLink()) return false;
+  return isDirectory(path.join(parentDir, dirent.name));
+}
+
+/**
+ * What a path is, or why we cannot tell. "Does not exist" (ENOENT/ENOTDIR) is
+ * reported as null; every other error (EACCES on a profile copied from another
+ * account, a Windows ACL, ELOOP, a dead network mount) comes back as an object
+ * so the caller can say so instead of silently treating it as "not installed".
+ *
+ * @param {string} p
+ * @returns {Promise<'dir'|'file'|'other'|null|{ error: NodeJS.ErrnoException }>}
+ */
+async function statKind(p) {
   try {
-    return (await fs.stat(p)).isDirectory();
-  } catch {
-    return false;
+    const st = await fs.stat(p);
+    return st.isDirectory() ? 'dir' : st.isFile() ? 'file' : 'other';
+  } catch (err) {
+    if (err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return null;
+    return { error: err };
   }
 }
 
+/** @param {unknown} kind a {@link statKind} result */
+function kindError(kind) {
+  return kind !== null && typeof kind === 'object' ? kind.error : null;
+}
+
 /** @param {string} p */
-async function isFile(p) {
-  try {
-    return (await fs.stat(p)).isFile();
-  } catch {
-    return false;
-  }
+async function isDirectory(p) {
+  return (await statKind(p)) === 'dir';
 }
 
 /**

@@ -128,9 +128,17 @@ function decodeJsonValue(raw) {
   }
 }
 
-/** @param {string} s */
+/**
+ * A short, printable excerpt of a stored value for a warning. Whitespace is
+ * collapsed and the remaining control characters are escaped: these bytes come
+ * from a file cici does not control, and the warning goes to a terminal.
+ *
+ * @param {string} s
+ */
 function preview(s) {
-  const one = String(s).replace(/\s+/g, ' ');
+  const one = String(s)
+    .replace(/\s+/g, ' ')
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, (c) => `\\x${c.codePointAt(0).toString(16).padStart(2, '0')}`);
   return one.length > 60 ? `${one.slice(0, 57)}...` : one;
 }
 

@@ -233,6 +233,65 @@ describe('scan', () => {
     assert.deepEqual(await scan({ userDataDirs: [emptyDir], includeUninstalled: true }), []);
   });
 
+  test('the same directory given twice does not duplicate rows', async () => {
+    const once = await scan({ userDataDirs: [root] });
+    for (const dirs of [
+      [root, root],
+      [root, `${root}${path.sep}`],
+      [root, path.join(root, 'Default')],
+      [path.join(root, 'Default'), root],
+    ]) {
+      const rows = await scan({ userDataDirs: dirs });
+      assert.deepEqual(
+        rows.map((r) => r.profileDir),
+        [...new Set(rows.map((r) => r.profileDir))],
+        `duplicate profileDir for ${JSON.stringify(dirs)}`,
+      );
+      assert.ok(rows.length <= once.length, `${JSON.stringify(dirs)} should not add rows`);
+    }
+    assert.deepEqual(await scan({ userDataDirs: [root, root] }), once);
+  });
+
+  test('several custom dirs are labelled by directory name so rows stay distinguishable', async () => {
+    const other = await fs.mkdtemp(path.join(os.tmpdir(), 'cici-second-'));
+    try {
+      await writeJson(path.join(other, 'Default', 'Preferences'), { profile: { name: 'Other' } });
+      await fs.mkdir(path.join(other, 'Default', 'Local Extension Settings', EXT_ID), { recursive: true });
+
+      const rows = await scan({ userDataDirs: [root, other] });
+      const defaults = rows.filter((r) => r.profileDirName === 'Default');
+      assert.equal(defaults.length, 2, 'both user-data dirs have a Default profile');
+      assert.notEqual(defaults[0].browserName, defaults[1].browserName, 'labels must differ');
+      for (const r of defaults) assert.match(r.browserName, /^Custom \(cici-/);
+
+      // A single dir keeps the plain "Custom" label.
+      const single = await scan({ userDataDirs: [other] });
+      assert.equal(single[0].browserName, 'Custom');
+      assert.equal(single[0].browser, 'custom');
+    } finally {
+      await fs.rm(other, { recursive: true, force: true });
+    }
+  });
+
+  test('a well-known user-data dir passed explicitly is named after its browser', async () => {
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'cici-home-'));
+    try {
+      const chrome = path.join(home, 'Library', 'Application Support', 'Google', 'Chrome');
+      await writeJson(path.join(chrome, 'Default', 'Preferences'), { profile: { name: 'Real' } });
+      await fs.mkdir(path.join(chrome, 'Default', 'Local Extension Settings', EXT_ID), { recursive: true });
+
+      const report = await scanReport({ userDataDirs: [chrome], platform: 'darwin', home, env: {} });
+      assert.equal(report.rows.length, 1);
+      assert.equal(report.rows[0].browser, 'chrome');
+      assert.equal(report.rows[0].browserName, 'Google Chrome');
+      // The "where did I look" hint names it too, instead of "Custom".
+      assert.equal(report.searched[0].browserName, 'Google Chrome');
+      assert.equal(report.searched[0].browser, 'chrome');
+    } finally {
+      await fs.rm(home, { recursive: true, force: true });
+    }
+  });
+
   test('scanReport records the searched dirs and reports a missing one as a warning', async () => {
     const missing = path.join(root, 'does-not-exist');
     const report = await scanReport({ userDataDirs: [root, missing] });
@@ -279,7 +338,13 @@ describe('main', () => {
     assert.equal(await main(['--user-data-dir', root, '--all', '--json'], io), 0);
     const parsed = JSON.parse(stdout());
     assert.deepEqual(parsed.map((r) => r.profileDirName), ['Default', 'Profile 1', 'Profile 2', 'Profile 10']);
-    assert.match(stderr(), /^cici: warning: Custom\/Profile 2: /m);
+    // The warning names the profile directory, so several --user-data-dir
+    // arguments with a "Default" profile each stay distinguishable.
+    const prefix = `cici: warning: ${path.join(root, 'Profile 2')}: `;
+    assert.ok(
+      stderr().split('\n').some((line) => line.startsWith(prefix)),
+      `stderr should carry a warning prefixed with the profile dir:\n${stderr()}`,
+    );
   });
 
   test('--all table shows "not installed" and -q silences warnings', async () => {
@@ -341,5 +406,139 @@ describe('main', () => {
     const c = captureIo();
     assert.equal(await main(['--ext-id', 'nope', '--user-data-dir', root], c.io), 2);
     assert.match(c.stderr(), /invalid extension id/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// regressions from the code review
+
+describe('scan: browser auto-discovery (no --user-data-dir)', () => {
+  /** @type {string} */
+  let home;
+  /** @type {string} */
+  let chromeDir;
+  /** @type {string} */
+  let braveDir;
+
+  before(async () => {
+    home = await fs.mkdtemp(path.join(os.tmpdir(), 'cici-discover-'));
+    const support = path.join(home, 'Library', 'Application Support');
+    chromeDir = path.join(support, 'Google', 'Chrome');
+    braveDir = path.join(support, 'BraveSoftware', 'Brave-Browser');
+    for (const dir of [chromeDir, braveDir]) {
+      await writeJson(path.join(dir, 'Default', 'Preferences'), { profile: { name: 'Only' } });
+      await fs.mkdir(path.join(dir, 'Default', 'Local Extension Settings', EXT_ID), { recursive: true });
+    }
+  });
+
+  after(async () => {
+    await fs.rm(home, { recursive: true, force: true });
+  });
+
+  test('discovers the installed browsers and orders rows by BROWSERS, not by disk order', async () => {
+    const report = await scanReport({ platform: 'darwin', home, env: {} });
+    assert.deepEqual(report.rows.map((r) => r.browser), ['chrome', 'brave']);
+    assert.deepEqual(report.rows.map((r) => r.userDataDir), [chromeDir, braveDir]);
+    assert.equal(report.rows[0].browserName, 'Google Chrome');
+
+    // Every well-known location is reported, so the "here is where I looked"
+    // hint can list the ones that do not exist.
+    assert.ok(report.searched.length >= 10, `all candidates should be listed: ${report.searched.length}`);
+    const existing = report.searched.filter((s) => s.exists);
+    assert.deepEqual(existing.map((s) => s.userDataDir).sort(), [braveDir, chromeDir].sort());
+    for (const s of existing) assert.equal(s.profileCount, 1);
+    for (const s of report.searched.filter((s2) => !s2.exists)) assert.equal(s.profileCount, 0);
+  });
+
+  test('BROWSERS order wins over the order the directories were given in', async () => {
+    const rows = await scan({ userDataDirs: [braveDir, chromeDir], platform: 'darwin', home, env: {} });
+    assert.deepEqual(rows.map((r) => r.browser), ['chrome', 'brave']);
+  });
+
+  test('a well-known directory spelled in another case keeps its browser name', async (t) => {
+    const variant = path.join(home, 'library', 'application support', 'google', 'chrome');
+    try {
+      const [a, b] = await Promise.all([fs.stat(chromeDir), fs.stat(variant)]);
+      if (a.ino !== b.ino) throw new Error('different directory');
+    } catch {
+      t.skip('the filesystem here is case-sensitive');
+      return;
+    }
+    const report = await scanReport({ userDataDirs: [variant], platform: 'darwin', home, env: {} });
+    assert.equal(report.rows.length, 1);
+    assert.equal(report.rows[0].browser, 'chrome');
+    assert.equal(report.rows[0].browserName, 'Google Chrome');
+  });
+});
+
+describe('scan: path handling', () => {
+  test('a leading ~ is expanded (a quoted "~/..." reaches us verbatim)', async () => {
+    const expected = await scan({ userDataDirs: [root] });
+    assert.ok(expected.length > 0, 'premise: the fixture has rows');
+
+    const tilde = await scan({ userDataDirs: [`~/${path.basename(root)}`], home: path.dirname(root) });
+    assert.deepEqual(tilde, expected, 'a tilde path must find the same profiles');
+
+    const bare = await scan({ userDataDirs: ['~'], home: root });
+    assert.deepEqual(bare, expected, 'a bare ~ is the home directory itself');
+  });
+
+  test('the same directory in a different case is scanned once', async (t) => {
+    const variant = path.join(path.dirname(root), path.basename(root).toUpperCase());
+    try {
+      const [a, b] = await Promise.all([fs.stat(root), fs.stat(variant)]);
+      if (a.ino !== b.ino) throw new Error('different directory');
+    } catch {
+      t.skip('the filesystem here is case-sensitive');
+      return;
+    }
+    const once = await scan({ userDataDirs: [root] });
+    const report = await scanReport({ userDataDirs: [root, variant] });
+    assert.deepEqual(report.rows, once, 'every bridgeDeviceId would otherwise be listed twice');
+    assert.equal(
+      report.searched.reduce((n, s) => n + s.profileCount, 0),
+      once.length > 0 ? report.searched.find((s) => s.exists).profileCount : 0,
+      'profiles must not be counted twice either',
+    );
+  });
+});
+
+describe('warnings from the extension storage', () => {
+  /** @type {string} */
+  let broken;
+
+  before(async () => {
+    broken = await fs.mkdtemp(path.join(os.tmpdir(), 'cici-broken-'));
+    const def = path.join(broken, 'Default');
+    await writeJson(path.join(def, 'Preferences'), { profile: { name: 'Broken' } });
+    await writeLogFile(path.join(def, 'Local Extension Settings', EXT_ID, '000003.log'), [
+      { sequence: 1, records: [{ type: TYPE_VALUE, key: 'bridgeDeviceId', value: J('not-a-uuid') }] },
+    ]);
+  });
+
+  after(async () => {
+    await fs.rm(broken, { recursive: true, force: true });
+  });
+
+  test('readBridgeInfo warnings end up on the row', async () => {
+    const rows = await scan({ userDataDirs: [broken] });
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].deviceId, 'not-a-uuid', 'the stored value is still reported');
+    assert.match(rows[0].warnings.join('\n'), /does not look like a UUID/);
+  });
+
+  test('main prints them on stderr, prefixed with the profile directory', async () => {
+    const { io, stderr } = captureIo();
+    await main(['--user-data-dir', broken], io);
+    const prefix = `cici: warning: ${path.join(broken, 'Default')}: `;
+    const lines = stderr().split('\n').filter((l) => l.startsWith(prefix));
+    assert.ok(lines.length > 0, `stderr should carry the profile's warnings:\n${stderr()}`);
+    assert.match(lines.join('\n'), /does not look like a UUID/);
+  });
+
+  test('-q silences them', async () => {
+    const { io, stderr } = captureIo();
+    await main(['--user-data-dir', broken, '-q'], io);
+    assert.doesNotMatch(stderr(), /does not look like a UUID/);
   });
 });

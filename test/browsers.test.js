@@ -145,9 +145,15 @@ describe('candidateUserDataDirs', () => {
     const rows = candidateUserDataDirs();
     assert.ok(Array.isArray(rows));
     assert.ok(rows.length > 0);
+    // The expected root depends on the platform: everything but Windows lives
+    // under the home directory, except on Linux where $XDG_CONFIG_HOME (which
+    // containers and CI often point outside $HOME) wins.
+    let root = null;
+    if (process.platform === 'darwin') root = path.join(os.homedir(), 'Library', 'Application Support');
+    else if (process.platform !== 'win32') root = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
     for (const r of rows) {
       assert.ok(path.isAbsolute(r.userDataDir), r.userDataDir);
-      assert.ok(r.userDataDir.startsWith(os.homedir()) || process.platform === 'win32');
+      if (root !== null) assert.ok(r.userDataDir.startsWith(root), `${r.userDataDir} should start with ${root}`);
     }
   });
 });
@@ -322,6 +328,26 @@ describe('listProfiles', () => {
     const dir = path.join(await mkTemp(), 'nope');
     await assert.rejects(() => listProfiles(dir), /nope/);
   });
+
+  test('a symlinked profile directory is found by the directory scan', async (t) => {
+    const dir = await mkTemp();
+    const elsewhere = await mkTemp();
+    await writeJson(path.join(elsewhere, 'linked', 'Preferences'), { profile: { name: 'Linked' } });
+    await writeJson(path.join(dir, 'Default', 'Preferences'), { profile: { name: 'Dflt' } });
+    await writeJson(path.join(dir, 'Local State'), {
+      profile: { info_cache: { Default: { name: 'Dflt' } } },
+    });
+    try {
+      await fs.symlink(path.join(elsewhere, 'linked'), path.join(dir, 'Profile 1'), 'junction');
+    } catch (err) {
+      t.skip(`cannot create symlinks here: ${err.message}`);
+      return;
+    }
+
+    const profiles = await listProfiles(dir);
+    assert.deepEqual(profiles.map((p) => p.dirName), ['Default', 'Profile 1']);
+    assert.equal(profiles[1].name, 'Linked');
+  });
 });
 
 describe('compareProfileDirNames', () => {
@@ -399,11 +425,69 @@ describe('findExtension', () => {
     assert.equal(ext.version, null);
   });
 
+  test('a symlinked version directory still counts as the highest version', async (t) => {
+    const profileDir = await mkTemp();
+    const elsewhere = await mkTemp();
+    await fs.mkdir(path.join(elsewhere, '1.0.90_0'), { recursive: true });
+    await fs.mkdir(path.join(profileDir, 'Extensions', EXT_ID, '1.0.80_0'), { recursive: true });
+    try {
+      await fs.symlink(path.join(elsewhere, '1.0.90_0'), path.join(profileDir, 'Extensions', EXT_ID, '1.0.90_0'), 'junction');
+    } catch (err) {
+      t.skip(`cannot create symlinks here: ${err.message}`);
+      return;
+    }
+    assert.equal((await findExtension(profileDir, [EXT_ID])).version, '1.0.90');
+  });
+
   test('a storage dir that is a file, not a directory, does not count', async () => {
     const profileDir = await mkTemp();
     await fs.mkdir(path.join(profileDir, 'Local Extension Settings'), { recursive: true });
     await fs.writeFile(path.join(profileDir, 'Local Extension Settings', EXT_ID), 'x');
     assert.equal(await findExtension(profileDir, [EXT_ID]), null);
+  });
+
+  test('an id with storage wins over an earlier id that has none', async () => {
+    // The realistic mixed setup the three-id list exists for: the Web Store
+    // build is installed but was never paired, an internal build holds the
+    // bridgeDeviceId. Stopping at the first installed id would lose it.
+    const profileDir = await mkTemp();
+    await fs.mkdir(path.join(profileDir, 'Extensions', EXT_ID, '1.0.90_0'), { recursive: true });
+    await fs.mkdir(path.join(profileDir, 'Local Extension Settings', OTHER_ID), { recursive: true });
+
+    const ext = await findExtension(profileDir, [EXT_ID, OTHER_ID]);
+    assert.equal(ext.id, OTHER_ID);
+    assert.equal(ext.storageDir, path.join(profileDir, 'Local Extension Settings', OTHER_ID));
+  });
+
+  test('ids that are not a single path component can never escape the profile', async () => {
+    const profileDir = await mkTemp();
+    // Every traversal target below exists on disk, so only the guard can
+    // explain a null result.
+    await fs.mkdir(path.join(profileDir, 'Local Extension Settings'), { recursive: true });
+    await fs.mkdir(path.join(profileDir, 'Extensions'), { recursive: true });
+    await fs.mkdir(path.join(path.dirname(profileDir), 'Outside'), { recursive: true });
+
+    for (const id of ['..', '../..', '../../Outside', 'a/b', 'a\\b', '.', '', 'x\u0000y']) {
+      assert.equal(await findExtension(profileDir, [id]), null, `id ${JSON.stringify(id)} must be rejected`);
+    }
+  });
+
+  test('a directory we may not stat is reported, not silently "not installed"', async (t) => {
+    if (process.platform === 'win32' || process.getuid?.() === 0) {
+      t.skip('needs POSIX permissions and a non-root user');
+      return;
+    }
+    const profileDir = await mkTemp();
+    const settings = path.join(profileDir, 'Local Extension Settings');
+    await fs.mkdir(path.join(settings, EXT_ID), { recursive: true });
+    await fs.chmod(settings, 0o000);
+    try {
+      const ext = await findExtension(profileDir, [EXT_ID]);
+      assert.ok(ext, 'EACCES must not look like "the extension is not installed"');
+      assert.equal(ext.storageDir, path.join(settings, EXT_ID), 'readBridgeInfo then reports the real reason');
+    } finally {
+      await fs.chmod(settings, 0o700);
+    }
   });
 });
 
@@ -423,5 +507,31 @@ describe('version helpers', () => {
     assert.equal(compareVersions('1.0', '1.0.0'), 0);
     assert.ok(compareVersions('1.0.0.1', '1.0') > 0);
     assert.ok(compareVersions('2', '1.99.99') > 0);
+  });
+});
+
+describe('listProfiles under a permission error', () => {
+  test('a profile directory that cannot be read is listed with a warning', async (t) => {
+    if (process.platform === 'win32' || process.getuid?.() === 0) {
+      t.skip('needs POSIX permissions and a non-root user');
+      return;
+    }
+    const userDataDir = await mkTemp();
+    const profileDir = path.join(userDataDir, 'Default');
+    await fs.mkdir(profileDir, { recursive: true });
+    await fs.writeFile(path.join(profileDir, 'Preferences'), '{}');
+    await fs.chmod(profileDir, 0o000);
+    try {
+      const profiles = await listProfiles(userDataDir);
+      // "I could not look" must never be reported the same way as "nothing here".
+      assert.equal(profiles.length, 1, 'the profile must not vanish because of EACCES');
+      assert.equal(profiles[0].dirName, 'Default');
+      assert.ok(
+        profiles[0].warnings.some((w) => /cannot stat/.test(w)),
+        `the permission error must be reported: ${JSON.stringify(profiles[0].warnings)}`,
+      );
+    } finally {
+      await fs.chmod(profileDir, 0o700);
+    }
   });
 });

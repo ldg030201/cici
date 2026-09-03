@@ -10,7 +10,7 @@
  */
 import os from 'node:os';
 import path from 'node:path';
-import { stat } from 'node:fs/promises';
+import { realpath, stat } from 'node:fs/promises';
 
 import {
   BROWSERS,
@@ -109,6 +109,37 @@ async function pathKind(p) {
 }
 
 /**
+ * A key that identifies a directory even when it is spelled differently.
+ * fs.realpath() resolves symlinks and, on macOS and Windows, restores the real
+ * case, so "…/Google/Chrome" and "…/google/chrome" collapse into one scan
+ * instead of listing every bridgeDeviceId twice. Paths that do not exist (or
+ * that we may not resolve) keep their own spelling.
+ *
+ * @param {string} absPath
+ * @returns {Promise<string>}
+ */
+async function canonicalKey(absPath) {
+  try {
+    return await realpath(absPath);
+  } catch {
+    return absPath;
+  }
+}
+
+/**
+ * Case-folded lookup key for the well-known-directory map. macOS and Windows
+ * filesystems are case-insensitive, so a lowercase argument still names the
+ * browser instead of falling back to "Custom".
+ *
+ * @param {string} p
+ * @param {string} platform
+ * @returns {string}
+ */
+function foldKey(p, platform) {
+  return platform === 'win32' || platform === 'darwin' ? p.toLowerCase() : p;
+}
+
+/**
  * Expand a leading "~" (shells do this, but a quoted "~/..." reaches us verbatim)
  * and make the path absolute.
  *
@@ -138,6 +169,56 @@ async function resolveUserDataDir(dir) {
     return { userDataDir: path.dirname(dir), onlyProfile: path.basename(dir) };
   }
   return { userDataDir: dir, onlyProfile: null };
+}
+
+/**
+ * Label the user-data directories that were named explicitly. A directory that
+ * is one of the well-known locations gets that browser's name; the rest stay
+ * "Custom", disambiguated by directory name when several were given so two
+ * "Default" rows can be told apart.
+ *
+ * @param {string[]} dirs absolute, de-duplicated
+ * @param {Map<string, { browser: string, browserName: string }>} known well-known dirs by path
+ * @returns {Map<string, { browser: string, browserName: string }>}
+ */
+function labelExplicitDirs(dirs, known, platform) {
+  /** @type {Map<string, number>} */
+  const basenameCount = new Map();
+  for (const dir of dirs) {
+    if (lookupKnown(known, dir, platform)) continue;
+    const base = path.basename(dir) || dir;
+    basenameCount.set(base, (basenameCount.get(base) ?? 0) + 1);
+  }
+
+  /** @type {Map<string, { browser: string, browserName: string }>} */
+  const labels = new Map();
+  for (const dir of dirs) {
+    const match = lookupKnown(known, dir, platform);
+    if (match) {
+      labels.set(dir, { browser: match.browser, browserName: match.browserName });
+      continue;
+    }
+    let browserName = CUSTOM_BROWSER.name;
+    if (dirs.length > 1) {
+      const base = path.basename(dir) || dir;
+      browserName = `${CUSTOM_BROWSER.name} (${basenameCount.get(base) > 1 ? dir : base})`;
+    }
+    labels.set(dir, { browser: CUSTOM_BROWSER.id, browserName });
+  }
+  return labels;
+}
+
+/**
+ * Look a directory up in the well-known map, tolerating a different spelling of
+ * the same case-insensitive path.
+ *
+ * @param {Map<string, { browser: string, browserName: string }>} known
+ * @param {string} dir
+ * @param {string} platform
+ * @returns {{ browser: string, browserName: string }|undefined}
+ */
+function lookupKnown(known, dir, platform) {
+  return known.get(dir) ?? known.get(foldKey(dir, platform));
 }
 
 /**
@@ -242,21 +323,43 @@ export async function scanReport(options = {}) {
   const includeUninstalled = Boolean(options.includeUninstalled);
   const discovery = { platform: options.platform, home: options.home, env: options.env };
   const home = options.home ?? os.homedir();
+  const platform = options.platform ?? process.platform;
 
   /** @type {string[]} */
   const warnings = [];
   /** @type {SearchedDir[]} */
   const searched = [];
 
+  /**
+   * Well-known user-data directories by absolute path, for labelling.
+   * @type {Map<string, { browser: string, browserName: string }>}
+   */
+  let known = new Map();
+  /** Directories the caller named explicitly: always scanned, missing ones warn. */
+  const explicitDirs = new Set();
+
   if (Array.isArray(options.userDataDirs) && options.userDataDirs.length > 0) {
+    // The same directory can arrive twice ("X" and "X/", or "X" and its
+    // profile "X/Default"); scanning it once keeps rows unique.
+    const dirs = [];
+    const seenDirs = new Set();
     for (const dir of options.userDataDirs) {
-      searched.push({
-        browser: CUSTOM_BROWSER.id,
-        browserName: CUSTOM_BROWSER.name,
-        userDataDir: normalizeDir(dir, home),
-        exists: false,
-        profileCount: 0,
-      });
+      const abs = normalizeDir(dir, home);
+      const key = await canonicalKey(abs);
+      if (seenDirs.has(key)) continue;
+      seenDirs.add(key);
+      dirs.push(abs);
+    }
+    known = new Map();
+    for (const candidate of candidateUserDataDirs(discovery)) {
+      known.set(candidate.userDataDir, candidate);
+      const folded = foldKey(candidate.userDataDir, platform);
+      if (!known.has(folded)) known.set(folded, candidate);
+    }
+    const labels = labelExplicitDirs(dirs, known, platform);
+    for (const dir of dirs) {
+      explicitDirs.add(dir);
+      searched.push({ ...labels.get(dir), userDataDir: dir, exists: false, profileCount: 0 });
     }
   } else {
     const found = new Set((await discoverBrowsers(discovery)).map((b) => b.userDataDir));
@@ -267,9 +370,11 @@ export async function scanReport(options = {}) {
 
   /** @type {Array<{ row: Row, order: number, rank: [number, number, string] }>} */
   const collected = [];
+  /** Profile directories already collected, so overlapping arguments cannot duplicate a row. */
+  const seenProfileDirs = new Set();
 
   for (const [order, entry] of searched.entries()) {
-    if (entry.browser === CUSTOM_BROWSER.id) {
+    if (explicitDirs.has(entry.userDataDir)) {
       entry.exists = (await pathKind(entry.userDataDir)) === 'dir';
       if (!entry.exists) {
         warnings.push(`${entry.userDataDir}: directory not found`);
@@ -299,13 +404,22 @@ export async function scanReport(options = {}) {
     entry.profileCount = profiles.length;
 
     const target = { browser: entry.browser, browserName: entry.browserName, userDataDir };
+    const match = target.browser === CUSTOM_BROWSER.id ? lookupKnown(known, userDataDir, platform) : null;
+    if (match) {
+      // A profile directory of a well-known browser was given: name the browser.
+      target.browser = match.browser;
+      target.browserName = match.browserName;
+    }
     for (const profile of profiles) {
+      const profileKey = await canonicalKey(profile.dir);
+      if (seenProfileDirs.has(profileKey)) continue;
       let row = null;
       try {
         row = await buildRow(target, profile, extensionIds, includeUninstalled);
       } catch (err) {
         warnings.push(`${profile.dir}: ${err && err.message ? err.message : String(err)}`);
       }
+      seenProfileDirs.add(profileKey);
       if (row) collected.push({ row, order, rank: profileRank(row.profileDirName) });
     }
   }

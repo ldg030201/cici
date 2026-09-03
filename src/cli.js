@@ -58,9 +58,19 @@ export function parseArgs(argv) {
     errors: [],
   };
   const args = Array.isArray(argv) ? argv.map(String) : [];
+  /** Set by "--": everything after it is a plain argument, never an option. */
+  let optionsEnded = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
+    if (!optionsEnded && arg === '--') {
+      optionsEnded = true;
+      continue;
+    }
+    if (optionsEnded) {
+      result.errors.push(`unexpected argument: ${arg}`);
+      continue;
+    }
     let name = arg;
     /** @type {string|undefined} */
     let inlineValue;
@@ -75,9 +85,19 @@ export function parseArgs(argv) {
     /** @returns {string|null} */
     const takeValue = () => {
       if (inlineValue !== undefined) return inlineValue;
-      if (i + 1 < args.length) return args[++i];
-      result.errors.push(`${name} requires a value`);
-      return null;
+      const next = i + 1 < args.length ? args[i + 1] : undefined;
+      if (next === undefined) {
+        result.errors.push(`${name} requires a value`);
+        return null;
+      }
+      if (next.length > 1 && next.startsWith('-')) {
+        // Swallowing the next option would silently scan a directory named
+        // "--json"; a value that really starts with "-" needs "--flag=value".
+        result.errors.push(`${name} requires a value (got the option "${next}"; use ${name}=<value> for a value starting with "-")`);
+        return null;
+      }
+      i++;
+      return next;
     };
     /** @returns {boolean} */
     const flagOnly = () => {
@@ -158,12 +178,15 @@ export function stripAnsi(s) {
  * @type {Array<[number, number]>}
  */
 const ZERO_WIDTH = [
+  [0x00ad, 0x00ad],
   [0x0300, 0x036f], [0x0483, 0x0489], [0x0591, 0x05bd], [0x05bf, 0x05bf], [0x05c1, 0x05c2],
-  [0x05c4, 0x05c5], [0x05c7, 0x05c7], [0x0610, 0x061a], [0x064b, 0x065f], [0x0670, 0x0670],
+  [0x05c4, 0x05c5], [0x05c7, 0x05c7], [0x0610, 0x061a], [0x061c, 0x061c], [0x064b, 0x065f], [0x0670, 0x0670],
   [0x06d6, 0x06dc], [0x06df, 0x06e4], [0x06e7, 0x06e8], [0x06ea, 0x06ed], [0x0900, 0x0902],
   [0x093a, 0x093a], [0x093c, 0x093c], [0x0941, 0x0948], [0x094d, 0x094d], [0x0951, 0x0957],
   [0x0962, 0x0963], [0x0e31, 0x0e31], [0x0e34, 0x0e3a], [0x0e47, 0x0e4e], [0x1160, 0x11ff],
+  [0x180e, 0x180e],
   [0x1ab0, 0x1aff], [0x1dc0, 0x1dff], [0x200b, 0x200f], [0x2028, 0x202e], [0x2060, 0x2064],
+  [0x2066, 0x2069],
   [0x20d0, 0x20ff], [0x302a, 0x302d], [0x3099, 0x309a], [0xd7b0, 0xd7ff], [0xfe00, 0xfe0f],
   [0xfe20, 0xfe2f], [0xfeff, 0xfeff], [0xe0100, 0xe01ef],
 ];
@@ -232,6 +255,29 @@ export function charWidth(cp) {
 }
 
 /**
+ * Characters that must never reach the terminal verbatim: C0 controls
+ * (including ESC, newline and tab), DEL, C1 controls, and the invisible
+ * formatting/bidi code points — the legacy embeddings/overrides (U+202A-U+202E)
+ * and the Unicode 6.3 isolates (U+2066-U+2069) that replaced them, plus the
+ * other zero-ink formatting characters (U+00AD, U+061C, U+180E). Profile names, account names and the pairing
+ * name come from files cici does not control, so an escape sequence in one of
+ * them could retitle the window, colour the rest of the line or break the
+ * table across rows.
+ */
+const UNSAFE_RE =
+  /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/g;
+
+/**
+ * Make an untrusted string safe to print in a table cell.
+ *
+ * @param {unknown} s
+ * @returns {string}
+ */
+export function sanitizeCell(s) {
+  return String(s).replace(UNSAFE_RE, '?');
+}
+
+/**
  * Terminal cells used by a string (ANSI escapes ignored, CJK counted as 2).
  *
  * @param {string} s
@@ -270,6 +316,91 @@ const LEGEND =
   'bridgeDeviceId is the id Claude Code shows in its browser picker when more than one browser is connected.';
 
 /**
+ * Columns that may be shortened when the table is wider than the terminal.
+ * Never the profile and never the bridgeDeviceId: those two are the answer the
+ * tool exists to give, and a UUID broken across a wrapped line cannot be
+ * double-clicked or copied.
+ */
+const FLEX_COLUMNS = [2, 3, 4];
+const MIN_FLEX_WIDTH = 3;
+/** Shrunk only after the three text columns are already at their minimum. */
+const LAST_RESORT_COLUMNS = [0];
+const MIN_BROWSER_WIDTH = 7;
+const ELLIPSIS = '\u2026';
+
+/**
+ * Shorten a string to at most `max` terminal cells, ending with an ellipsis and
+ * never splitting a wide character.
+ *
+ * @param {string} text
+ * @param {number} max
+ * @returns {string}
+ */
+function truncateToWidth(text, max) {
+  if (max <= 0) return '';
+  if (displayWidth(text) <= max) return text;
+  let out = '';
+  let width = 0;
+  for (const ch of text) {
+    const cw = charWidth(ch.codePointAt(0));
+    if (width + cw > max - 1) break;
+    out += ch;
+    width += cw;
+  }
+  return out + ELLIPSIS;
+}
+
+/**
+ * Shrink the flexible columns (in place) until the table fits the budget.
+ *
+ * @param {number[]} widths
+ * @param {number} budget total terminal cells available
+ */
+function shrinkToWidth(widths, budget) {
+  if (!Number.isFinite(budget)) return;
+  let total = widths.reduce((a, b) => a + b, 0) + 2 * (widths.length - 1);
+  const tiers = [
+    { columns: FLEX_COLUMNS, min: MIN_FLEX_WIDTH },
+    { columns: LAST_RESORT_COLUMNS, min: MIN_BROWSER_WIDTH },
+  ];
+  while (total > budget) {
+    let target = -1;
+    for (const tier of tiers) {
+      for (const i of tier.columns) {
+        if (widths[i] > tier.min && (target === -1 || widths[i] > widths[target])) target = i;
+      }
+      if (target !== -1) break;
+    }
+    if (target === -1) return; // nothing left to give: let the terminal wrap
+    widths[target] -= 1;
+    total -= 1;
+  }
+}
+
+/**
+ * Break a sentence into lines of at most `width` cells (words are never split).
+ *
+ * @param {string} text
+ * @param {number} width
+ * @returns {string[]}
+ */
+function wrapText(text, width) {
+  if (!Number.isFinite(width) || width < 20) return [text];
+  const lines = [];
+  let line = '';
+  for (const word of text.split(' ')) {
+    if (line === '') line = word;
+    else if (displayWidth(line) + 1 + displayWidth(word) <= width) line += ` ${word}`;
+    else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  if (line !== '') lines.push(line);
+  return lines;
+}
+
+/**
  * @param {string} text
  * @param {string} style key of STYLE_CODES
  * @param {boolean} color
@@ -286,7 +417,7 @@ function paint(text, style, color) {
  * @returns {string}
  */
 function orDash(value) {
-  return value === null || value === undefined || value === '' ? '-' : String(value);
+  return value === null || value === undefined || value === '' ? '-' : sanitizeCell(value);
 }
 
 /**
@@ -297,7 +428,7 @@ function rowCells(row) {
   const installed = row.extensionId !== null && row.extensionId !== undefined;
   /** @type {{ text: string, style: string }} */
   let idCell;
-  if (row.deviceId) idCell = { text: String(row.deviceId), style: 'id' };
+  if (row.deviceId) idCell = { text: sanitizeCell(row.deviceId), style: 'id' };
   else if (installed) idCell = { text: NOT_PAIRED, style: 'muted' };
   else idCell = { text: NOT_INSTALLED, style: 'muted' };
 
@@ -320,8 +451,9 @@ function rowCells(row) {
  */
 function renderLine(cells, widths, color) {
   const parts = cells.map((cell, i) => {
-    const padding = ' '.repeat(Math.max(0, widths[i] - displayWidth(cell.text)));
-    return paint(cell.text, cell.style, color) + padding;
+    const text = truncateToWidth(cell.text, widths[i]);
+    const padding = ' '.repeat(Math.max(0, widths[i] - displayWidth(text)));
+    return paint(text, cell.style, color) + padding;
   });
   return parts.join('  ').trimEnd();
 }
@@ -330,23 +462,35 @@ function renderLine(cells, widths, color) {
  * Render rows as a human-readable table followed by a one-line legend.
  *
  * @param {Row[]} rows
- * @param {{ color?: boolean }} [options]
+ * @param {{ color?: boolean, profileCount?: number, width?: number }} [options]
+ *   profileCount is how many profiles were seen in total, so an empty table can
+ *   say whether there were no profiles at all or none with the extension;
+ *   width is the terminal width to fit into (omit for unlimited, which is what
+ *   a pipe or a file wants)
  * @returns {string}
  */
 export function formatTable(rows, options = {}) {
   const color = Boolean(options.color);
+  const profileCount = Number.isFinite(options.profileCount) ? Number(options.profileCount) : 0;
+  const width = Number.isFinite(options.width) && Number(options.width) > 0 ? Number(options.width) : Infinity;
   const body = (Array.isArray(rows) ? rows : []).map(rowCells);
   const widths = HEADERS.map((header, i) =>
     Math.max(displayWidth(header), ...body.map((cells) => displayWidth(cells[i].text))),
   );
+  shrinkToWidth(widths, width);
 
   const lines = [];
   lines.push(renderLine(HEADERS.map((text) => ({ text, style: 'header' })), widths, color));
   lines.push(renderLine(widths.map((w) => ({ text: '-'.repeat(w), style: 'muted' })), widths, color));
-  if (body.length === 0) lines.push(paint(NO_PROFILES, 'muted', color));
+  if (body.length === 0) {
+    const empty = profileCount > 0
+      ? `(${profileCount} profile${profileCount === 1 ? '' : 's'} found, none with the Claude in Chrome extension; use --all to list them)`
+      : NO_PROFILES;
+    for (const line of wrapText(empty, width)) lines.push(paint(line, 'muted', color));
+  }
   for (const cells of body) lines.push(renderLine(cells, widths, color));
   lines.push('');
-  lines.push(paint(LEGEND, 'muted', color));
+  for (const line of wrapText(LEGEND, width)) lines.push(paint(line, 'muted', color));
   return lines.join('\n') + '\n';
 }
 
@@ -394,10 +538,12 @@ export function helpText() {
     '  --json                 Print rows as JSON instead of a table',
     '  --all                  Include profiles where the extension is not installed',
     '  --user-data-dir <dir>  Scan this browser user-data directory (repeatable);',
-    '                         disables auto-discovery of installed browsers',
+    '                         disables auto-discovery of installed browsers. Use',
+    '                         --user-data-dir=<dir> for a directory starting with "-"',
     '  --ext-id <id>          Extension id to look for (repeatable); defaults to the',
     '                         known Claude in Chrome ids',
-    '  --no-color             Disable ANSI colors (NO_COLOR is honored as well)',
+    '  --no-color             Disable ANSI colors (NO_COLOR, FORCE_COLOR=0 and',
+    '                         TERM=dumb are honored as well)',
     '  -q, --quiet            Suppress warnings on stderr',
     '  -h, --help             Show this help',
     '  -v, --version          Print the version',
@@ -420,8 +566,9 @@ export function helpText() {
 // ---------------------------------------------------------------------------
 
 /**
- * Decide whether to emit ANSI colors: never after --no-color or with NO_COLOR
- * set, always with FORCE_COLOR set, otherwise only when stdout is a TTY.
+ * Decide whether to emit ANSI colors: never after --no-color, with NO_COLOR set
+ * or with FORCE_COLOR=0/false (the supports-color convention), always with any
+ * other FORCE_COLOR value, otherwise only when stdout is a TTY.
  *
  * @param {ParsedArgs} args
  * @param {Partial<Io>} [io]
@@ -431,7 +578,8 @@ export function resolveColor(args, io = {}) {
   if (!args.color) return false;
   const env = io.env ?? process.env;
   if (typeof env.NO_COLOR === 'string' && env.NO_COLOR !== '') return false;
-  if (typeof env.FORCE_COLOR === 'string' && env.FORCE_COLOR !== '' && env.FORCE_COLOR !== '0') return true;
+  if (env.FORCE_COLOR === '0' || env.FORCE_COLOR === 'false') return false;
+  if (typeof env.FORCE_COLOR === 'string' && env.FORCE_COLOR !== '') return true;
   if (env.TERM === 'dumb') return false;
   return io.isTTY ?? Boolean(process.stdout && process.stdout.isTTY);
 }
@@ -458,9 +606,10 @@ function noResultHint(report, args) {
   const custom = args.userDataDirs.length > 0;
 
   const describe = (s) => {
-    if (!s.exists) return `  ${s.browserName}: ${s.userDataDir} (not found)`;
+    const where = `${sanitizeCell(s.browserName)}: ${sanitizeCell(s.userDataDir)}`;
+    if (!s.exists) return `  ${where} (not found)`;
     const n = s.profileCount;
-    return `  ${s.browserName}: ${s.userDataDir} (${n} profile${n === 1 ? '' : 's'})`;
+    return `  ${where} (${n} profile${n === 1 ? '' : 's'})`;
   };
 
   if (custom) {
@@ -521,23 +670,29 @@ export async function main(argv, io) {
       includeUninstalled: args.all,
     });
   } catch (err) {
-    stderr(`cici: ${errorMessage(err)}\n`);
+    stderr(`cici: ${sanitizeCell(errorMessage(err))}\n`);
     return 1;
   }
 
   const rows = Array.isArray(report.rows) ? report.rows : [];
 
   if (!args.quiet) {
-    for (const w of report.warnings ?? []) stderr(`cici: warning: ${w}\n`);
+    // Warnings quote file content (a profile name, a stored bridgeDeviceId, the
+    // CURRENT file), so they get the same sanitising as the table: stderr is
+    // the same terminal, and an escape sequence there is just as dangerous.
+    for (const w of report.warnings ?? []) stderr(`cici: warning: ${sanitizeCell(w)}\n`);
     for (const row of rows) {
+      // The profile directory, not "<browser>/<profile>": several --user-data-dir
+      // arguments can each have a "Default" profile.
       for (const w of row.warnings ?? []) {
-        stderr(`cici: warning: ${row.browserName}/${row.profileDirName}: ${w}\n`);
+        stderr(`cici: warning: ${sanitizeCell(row.profileDir)}: ${sanitizeCell(w)}\n`);
       }
     }
   }
 
+  const profileCount = (report.searched ?? []).reduce((n, s) => n + (Number(s.profileCount) || 0), 0);
   if (args.json) stdout(`${formatJson(rows)}\n`);
-  else stdout(formatTable(rows, { color: resolveColor(args, io) }));
+  else stdout(formatTable(rows, { color: resolveColor(args, io), profileCount, width: io ? io.columns : undefined }));
 
   if (rows.some((row) => Boolean(row.deviceId))) return 0;
   stderr(noResultHint(report, args));

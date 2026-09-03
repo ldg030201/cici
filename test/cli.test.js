@@ -123,6 +123,40 @@ describe('parseArgs', () => {
     assert.match(parseArgs(['--user-data-dir=']).errors[0], /non-empty/);
   });
 
+  test('a following option is not swallowed as a value', () => {
+    const a = parseArgs(['--user-data-dir', '--json']);
+    assert.deepEqual(a.userDataDirs, [], 'must not scan a directory called "--json"');
+    assert.equal(a.json, true, 'the next argument is still parsed as the option it is');
+    assert.equal(a.errors.length, 1);
+    assert.match(a.errors[0], /--user-data-dir requires a value/);
+    assert.match(a.errors[0], /--user-data-dir=<value>/, 'the error explains the escape hatch');
+
+    const b = parseArgs(['--user-data-dir', '-q']);
+    assert.deepEqual(b.userDataDirs, []);
+    assert.equal(b.quiet, true);
+    assert.equal(b.errors.length, 1);
+
+    const c = parseArgs(['--ext-id', '--all']);
+    assert.deepEqual(c.extensionIds, []);
+    assert.equal(c.all, true);
+    assert.match(c.errors[0], /--ext-id requires a value/);
+
+    // A directory whose name starts with "-" is still reachable inline.
+    const d = parseArgs(['--user-data-dir=-weird']);
+    assert.deepEqual(d.userDataDirs, ['-weird']);
+    assert.deepEqual(d.errors, []);
+  });
+
+  test('"--" ends option parsing', () => {
+    const bare = parseArgs(['--json', '--']);
+    assert.equal(bare.json, true);
+    assert.deepEqual(bare.errors, []);
+
+    const after = parseArgs(['--', '--json']);
+    assert.equal(after.json, false, 'after "--" nothing is an option any more');
+    assert.deepEqual(after.errors, ['unexpected argument: --json']);
+  });
+
   test('unknown flags are errors, not exceptions', () => {
     const args = parseArgs(['--bogus', '-x', '--json']);
     assert.equal(args.json, true);
@@ -277,6 +311,38 @@ describe('formatTable', () => {
     assert.match(out, /bridgeDeviceId is the id/);
   });
 
+  test('an empty table says so differently when profiles exist but lack the extension', () => {
+    const out = formatTable([], { color: false, profileCount: 2 });
+    assert.doesNotMatch(out, /\(no profiles found\)/, 'two profiles were found, so this would be wrong');
+    assert.match(out, /\(2 profiles found, none with the Claude in Chrome extension; use --all to list them\)/);
+    assert.match(formatTable([], { color: false, profileCount: 1 }), /\(1 profile found,/);
+  });
+
+  test('control characters in untrusted names are neutralised', () => {
+    const cases = [
+      { field: 'profileName', value: 'evil\x1b]0;PWNED\x07name' },
+      { field: 'displayName', value: 'x\x1b[31mRED' },
+      { field: 'profileName', value: 'multi\nline' },
+      { field: 'profileName', value: 'tab\there' },
+      { field: 'email', value: 'a\rb' },
+      { field: 'deviceId', value: `${UUID}\x1b[2A` },
+      { field: 'extensionVersion', value: '1.0\u2028x' },
+    ];
+    for (const { field, value } of cases) {
+      const out = formatTable([row({ [field]: value })], { color: false });
+      assert.doesNotMatch(out, /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/, `${field}: control characters reached stdout`);
+      assert.equal(out.split('\n').length, 6, `${field}: the row must stay on one line`);
+      assert.doesNotMatch(out, ANSI, `${field}: escape sequence reached stdout`);
+    }
+  });
+
+  test('a name with control characters keeps the columns aligned', () => {
+    const rows2 = [row(), row({ profileDirName: 'Profile 1', profileName: 'evil\x1b]0;PWNED\x07name' })];
+    const lines = formatTable(rows2, { color: false }).split('\n');
+    const idx = lines.map((l) => l.indexOf(UUID));
+    assert.equal(displayWidth(lines[2].slice(0, idx[2])), displayWidth(lines[3].slice(0, idx[3])));
+  });
+
   test('lines never end in trailing whitespace', () => {
     for (const line of formatTable(rows, { color: true }).split('\n')) {
       assert.equal(line, line.trimEnd());
@@ -350,8 +416,14 @@ describe('resolveColor', () => {
 
   test('FORCE_COLOR enables color without a TTY, TERM=dumb disables it', () => {
     assert.equal(resolveColor(on, { env: { FORCE_COLOR: '1' }, isTTY: false }), true);
-    assert.equal(resolveColor(on, { env: { FORCE_COLOR: '0' }, isTTY: true }), true);
     assert.equal(resolveColor(on, { env: { TERM: 'dumb' }, isTTY: true }), false);
+  });
+
+  test('FORCE_COLOR=0 disables color even on a TTY (supports-color convention)', () => {
+    assert.equal(resolveColor(on, { env: { FORCE_COLOR: '0' }, isTTY: true }), false);
+    assert.equal(resolveColor(on, { env: { FORCE_COLOR: 'false' }, isTTY: true }), false);
+    assert.equal(resolveColor(on, { env: { FORCE_COLOR: '0' }, isTTY: false }), false);
+    assert.equal(resolveColor(on, { env: { FORCE_COLOR: '' }, isTTY: true }), true, 'empty FORCE_COLOR is ignored');
   });
 });
 

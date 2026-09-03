@@ -11,8 +11,12 @@ import {
   writeLogFile,
   writeManifest,
   buildLogFile,
+  buildManifest,
   encodeInternalKey,
   fileNumberName,
+  crc32c,
+  maskCrc,
+  unmaskCrc,
   TABLE_MAGIC,
   FOOTER_SIZE,
   WAL_BLOCK_SIZE,
@@ -220,6 +224,27 @@ test('an empty directory yields no entries and does not throw', async (t) => {
   assert.equal(db.entries.size, 0);
   assert.deepEqual(db.files.tables, []);
   assert.deepEqual(db.files.logs, []);
+
+  // Default options take the MANIFEST path: a directory with nothing in it
+  // must not complain about the missing CURRENT either.
+  const withManifest = await readLevelDb(dir);
+  assert.equal(withManifest.entries.size, 0);
+  assert.deepEqual(withManifest.warnings, []);
+  assert.deepEqual(withManifest.files, { tables: [], logs: [], manifest: null });
+});
+
+test('a freshly created store (CURRENT + MANIFEST + empty log) is silent and empty', async (t) => {
+  // What Chrome leaves behind for an extension that has written nothing yet.
+  const dir = await tmpDir(t);
+  await writeLogFile(path.join(dir, '000003.log'), []);
+  await writeManifest(dir, { logNumber: 3, lastSequence: 0, liveTables: [] });
+  await fs.writeFile(path.join(dir, 'LOCK'), '');
+
+  const db = await readLevelDb(dir);
+  assert.equal(db.entries.size, 0);
+  assert.deepEqual(db.warnings, []);
+  assert.deepEqual(basenames(db.files.logs), ['000003.log']);
+  assert.equal((await fs.stat(path.join(dir, '000003.log'))).size, 0, 'premise: the log is empty');
 });
 
 // ---------------------------------------------------------------------------
@@ -509,6 +534,114 @@ test('WAL block trailer shorter than a header is padding, next record starts in 
   assert.deepEqual(db.warnings, []);
 });
 
+test('WAL block trailer of exactly 7 bytes becomes a zero-length FIRST fragment', async (t) => {
+  // log_writer.cc only pads when fewer than 7 bytes are left; with exactly 7 it
+  // emits a header with no payload and continues in the next block. The reader
+  // must not mistake that for the zero padding it looks like.
+  const value = 'p'.repeat(32754 - 12 - 1 - 1 - 1 - 3);
+  const dir = await makeDb(t, {
+    logs: [
+      {
+        number: 4,
+        batches: [
+          { sequence: 1, records: [{ type: TYPE_VALUE, key: 'k', value }] },
+          { sequence: 2, records: [{ type: TYPE_VALUE, key: 'z', value: J('next block') }] },
+        ],
+      },
+    ],
+  });
+  const raw = await fs.readFile(path.join(dir, '000004.log'));
+  const lastHeader = WAL_BLOCK_SIZE - WAL_HEADER_SIZE;
+  assert.equal(raw[lastHeader + 6], RECORD_FIRST, 'premise: the block ends with a FIRST fragment');
+  assert.equal(raw.readUInt16LE(lastHeader + 4), 0, 'premise: that fragment carries no payload');
+  assert.equal(raw[WAL_BLOCK_SIZE + 6], RECORD_LAST, 'premise: the next block starts with LAST');
+
+  const db = await readLevelDb(dir);
+  assert.equal(text(db.entries, 'k'), value);
+  assert.equal(text(db.entries, 'z'), J('next block'));
+  assert.deepEqual(db.warnings, []);
+});
+
+// ---------------------------------------------------------------------------
+// (6b) damaged WAL records: the damaged block is dropped, later blocks are not
+
+/**
+ * A two-block log: k1, k2, k3 (spanning both blocks) and bridgeDeviceId in the
+ * second block, so damage to record 2 can be seen to cost only its block.
+ * @param {import('node:test').TestContext} t
+ * @param {(raw: Buffer, offsets: number[]) => void} damage
+ */
+async function makeDamagedLog(t, damage) {
+  const dir = await tmpDir(t);
+  const logPath = path.join(dir, '000004.log');
+  const filler = 'f'.repeat(20000);
+  const raw = buildLogFile([
+    { sequence: 1, records: [{ type: TYPE_VALUE, key: 'k1', value: J('one') }] },
+    { sequence: 2, records: [{ type: TYPE_VALUE, key: 'k2', value: filler }] },
+    { sequence: 3, records: [{ type: TYPE_VALUE, key: 'k3', value: filler }] },
+    { sequence: 4, records: [{ type: TYPE_VALUE, key: 'bridgeDeviceId', value: J('survivor') }] },
+  ]);
+  // physical record offsets: record 1 at 0, record 2 right after it
+  const offsets = [0, WAL_HEADER_SIZE + raw.readUInt16LE(4)];
+  assert.ok(raw.length > WAL_BLOCK_SIZE, 'premise: the log spans more than one block');
+  damage(raw, offsets);
+  await fs.writeFile(logPath, raw);
+  await writeManifest(dir, { logNumber: 4, lastSequence: 4, liveTables: [] });
+  return dir;
+}
+
+test('WAL bad record length: only that block is lost, later blocks still read', async (t) => {
+  const dir = await makeDamagedLog(t, (raw, offsets) => raw.writeUInt16LE(60000, offsets[1] + 4));
+  const db = await readLevelDb(dir);
+  assert.equal(text(db.entries, 'k1'), J('one'), 'records before the damage survive');
+  assert.equal(text(db.entries, 'bridgeDeviceId'), J('survivor'), 'the next block is still read');
+  assert.ok(db.warnings.some((w) => /bad record length/.test(w)), JSON.stringify(db.warnings));
+  assert.ok(!db.warnings.some((w) => /this is normal/.test(w)), 'corruption must not be reported as a normal truncation');
+});
+
+test('WAL unknown record type: that record is skipped, the rest of the file is read', async (t) => {
+  const dir = await makeDamagedLog(t, (raw, offsets) => {
+    // The crc covers the type byte, so repair it: this must exercise the
+    // unknown-type path, not the checksum path.
+    raw[offsets[1] + 6] = 9;
+    const length = raw.readUInt16LE(offsets[1] + 4);
+    const payload = raw.subarray(offsets[1] + WAL_HEADER_SIZE, offsets[1] + WAL_HEADER_SIZE + length);
+    raw.writeUInt32LE(maskCrc(crc32c(payload, crc32c(Buffer.from([9])))), offsets[1]);
+  });
+  const db = await readLevelDb(dir);
+  assert.equal(text(db.entries, 'k1'), J('one'));
+  assert.equal(text(db.entries, 'k3'), 'f'.repeat(20000), 'the next record in the same block is still read');
+  assert.equal(text(db.entries, 'bridgeDeviceId'), J('survivor'));
+  assert.ok(db.warnings.some((w) => /unknown record type 9/.test(w)), JSON.stringify(db.warnings));
+});
+
+test('WAL checksum mismatch: the damaged value is dropped instead of returned', async (t) => {
+  const dir = await makeDamagedLog(t, (raw, offsets) => {
+    // flip one byte of record 2's payload; length and type stay valid
+    raw[offsets[1] + WAL_HEADER_SIZE + 20] ^= 0xff;
+  });
+  const db = await readLevelDb(dir);
+  assert.equal(text(db.entries, 'k1'), J('one'));
+  assert.equal(db.entries.has('k2'), false, 'a record whose crc does not match must not be used');
+  assert.equal(text(db.entries, 'bridgeDeviceId'), J('survivor'));
+  assert.ok(db.warnings.some((w) => /checksum mismatch/.test(w)), JSON.stringify(db.warnings));
+});
+
+test('WAL bad write batch: only that record is ignored', async (t) => {
+  const dir = await makeDamagedLog(t, (raw, offsets) => {
+    // claim 99 records in batch 2 and repair the crc, so only the batch is bad
+    const length = raw.readUInt16LE(offsets[1] + 4);
+    const payload = raw.subarray(offsets[1] + WAL_HEADER_SIZE, offsets[1] + WAL_HEADER_SIZE + length);
+    payload.writeUInt32LE(99, 8);
+    raw.writeUInt32LE(maskCrc(crc32c(payload, crc32c(Buffer.from([raw[offsets[1] + 6]])))), offsets[1]);
+  });
+  const db = await readLevelDb(dir);
+  assert.equal(text(db.entries, 'k1'), J('one'));
+  assert.equal(db.entries.has('k2'), false);
+  assert.equal(text(db.entries, 'bridgeDeviceId'), J('survivor'), 'later records are still applied');
+  assert.ok(db.warnings.some((w) => /not a valid write batch/.test(w)), JSON.stringify(db.warnings));
+});
+
 // ---------------------------------------------------------------------------
 // (7) truncated trailing WAL record
 
@@ -726,6 +859,124 @@ test('missing CURRENT: falls back to scanning every file and warns', async (t) =
   assert.equal(db.files.manifest, null);
 });
 
+test('a MANIFEST full of garbage: falls back to scanning every file and warns', async (t) => {
+  const dir = await makeManifestDb(t, { viaDeletedEdit: false });
+  const garbage = Buffer.alloc(500);
+  for (let i = 0; i < garbage.length; i++) garbage[i] = (i * 97 + 13) & 0xff;
+  await fs.writeFile(path.join(dir, 'MANIFEST-000001'), garbage);
+
+  const db = await readLevelDb(dir);
+  assert.equal(text(db.entries, 'bridgeDeviceId'), J('STALE-LOG'), 'every table and log is scanned');
+  assert.equal(text(db.entries, 'onlyInStale'), '1');
+  assert.equal(db.files.manifest, null);
+  assert.ok(db.warnings.some((w) => /could not be parsed/.test(w)), JSON.stringify(db.warnings));
+});
+
+test('a zero-byte MANIFEST: falls back to scanning every file and warns', async (t) => {
+  const dir = await makeManifestDb(t, { viaDeletedEdit: false });
+  await fs.writeFile(path.join(dir, 'MANIFEST-000001'), Buffer.alloc(0));
+
+  const db = await readLevelDb(dir);
+  assert.equal(text(db.entries, 'bridgeDeviceId'), J('STALE-LOG'));
+  assert.equal(db.files.manifest, null);
+  assert.ok(db.warnings.some((w) => /could not be parsed/.test(w)), JSON.stringify(db.warnings));
+});
+
+test('a MANIFEST truncated inside its second edit keeps the first edit', async (t) => {
+  const dir = await tmpDir(t);
+  const a = await writeSstFile(path.join(dir, '000005.ldb'), [{ key: 'k', sequence: 1, type: TYPE_VALUE, value: J('from-5') }]);
+  const b = await writeSstFile(path.join(dir, '000007.ldb'), [{ key: 'k', sequence: 2, type: TYPE_VALUE, value: J('from-7') }]);
+  const meta = (n, r) => ({ level: 0, number: n, size: r.size, smallest: r.smallest, largest: r.largest });
+  const edits = [
+    { comparator: 'leveldb.BytewiseComparator', logNumber: 6, nextFileNumber: 8, lastSequence: 1, newFiles: [meta(5, a)] },
+    { logNumber: 8, nextFileNumber: 9, lastSequence: 2, newFiles: [meta(7, b)] },
+  ];
+  const manifest = buildManifest(edits);
+  const firstLen = WAL_HEADER_SIZE + manifest.readUInt16LE(4);
+  await fs.writeFile(path.join(dir, 'MANIFEST-000001'), manifest.subarray(0, firstLen + WAL_HEADER_SIZE + 3));
+  await fs.writeFile(path.join(dir, 'CURRENT'), 'MANIFEST-000001\n');
+
+  // Chrome is mid-append: the version from the complete records is still valid.
+  const db = await readLevelDb(dir);
+  assert.deepEqual(basenames(db.files.tables), ['000005.ldb']);
+  assert.equal(text(db.entries, 'k'), J('from-5'));
+  assert.equal(typeof db.files.manifest, 'string');
+  assert.ok(db.warnings.some((w) => /truncated record/.test(w)), JSON.stringify(db.warnings));
+});
+
+test('a corrupt VersionEdit in the middle of a MANIFEST falls back to scanning every file', async (t) => {
+  const dir = await tmpDir(t);
+  const a = await writeSstFile(path.join(dir, '000007.ldb'), [
+    { key: 'bridgeDeviceId', sequence: 5, type: TYPE_VALUE, value: J('from-7') },
+  ]);
+  const b = await writeSstFile(path.join(dir, '000009.ldb'), [{ key: 'other', sequence: 6, type: TYPE_VALUE, value: J('from-9') }]);
+  const meta = (n, r) => ({ level: 0, number: n, size: r.size, smallest: r.smallest, largest: r.largest });
+  const edits = [
+    { comparator: 'leveldb.BytewiseComparator', logNumber: 10, nextFileNumber: 11, lastSequence: 4 },
+    { lastSequence: 5, newFiles: [meta(7, a)] },
+    { lastSequence: 6, newFiles: [meta(9, b)] },
+  ];
+  const manifest = buildManifest(edits);
+  // corrupt the tag byte of the *second* edit; the third one stays intact
+  const firstLen = WAL_HEADER_SIZE + manifest.readUInt16LE(4);
+  const secondPayload = firstLen + WAL_HEADER_SIZE;
+  manifest[secondPayload] = 99;
+  manifest.writeUInt32LE(
+    maskCrc(
+      crc32c(
+        manifest.subarray(secondPayload, secondPayload + manifest.readUInt16LE(firstLen + 4)),
+        crc32c(Buffer.from([manifest[firstLen + 6]])),
+      ),
+    ),
+    firstLen,
+  );
+  await fs.writeFile(path.join(dir, 'MANIFEST-000001'), manifest);
+  await fs.writeFile(path.join(dir, 'CURRENT'), 'MANIFEST-000001\n');
+
+  // Keeping the half-applied version would drop 000007.ldb and report the
+  // profile as "not paired" even though the value is right there on disk.
+  const db = await readLevelDb(dir);
+  assert.equal(text(db.entries, 'bridgeDeviceId'), J('from-7'));
+  assert.equal(text(db.entries, 'other'), J('from-9'));
+  assert.deepEqual(basenames(db.files.tables), ['000007.ldb', '000009.ldb']);
+  assert.equal(db.files.manifest, null);
+  assert.ok(db.warnings.some((w) => /could not be parsed/.test(w)), JSON.stringify(db.warnings));
+  assert.ok(db.warnings.some((w) => /VersionEdit/.test(w)), JSON.stringify(db.warnings));
+});
+
+test('a live table missing from the directory: every table AND every log is scanned', async (t) => {
+  // Chrome finished a memtable flush between our readdir() and our read of the
+  // MANIFEST: the new table is not in our listing and the log that still holds
+  // its contents is below log_number. Dropping that log would lose the key.
+  const dir = await tmpDir(t);
+  const stale = await writeSstFile(path.join(dir, '000005.ldb'), [
+    { key: 'bridgeDisplayName', sequence: 1, type: TYPE_VALUE, value: J('old name') },
+  ]);
+  await writeLogFile(path.join(dir, '000009.log'), [
+    {
+      sequence: 2,
+      records: [
+        { type: TYPE_VALUE, key: 'bridgeDeviceId', value: J('new-id') },
+        { type: TYPE_VALUE, key: 'bridgeDisplayName', value: J('new name') },
+      ],
+    },
+  ]);
+  await writeManifest(dir, {
+    logNumber: 11,
+    lastSequence: 3,
+    liveTables: [
+      { level: 0, number: 5, size: stale.size, smallest: stale.smallest, largest: stale.largest },
+      { level: 0, number: 10, size: 1, smallest: 'a', largest: 'z' },
+    ],
+  });
+
+  const db = await readLevelDb(dir);
+  assert.equal(text(db.entries, 'bridgeDeviceId'), J('new-id'), 'the log that the missing table replaced is still read');
+  assert.equal(text(db.entries, 'bridgeDisplayName'), J('new name'));
+  assert.deepEqual(basenames(db.files.logs), ['000009.log']);
+  assert.ok(db.warnings.some((w) => /missing from/.test(w)), JSON.stringify(db.warnings));
+});
+
 test('CURRENT pointing at a missing MANIFEST: falls back to scanning and warns', async (t) => {
   const dir = await makeDb(t, {
     tables: [
@@ -799,8 +1050,14 @@ test('integration: real Claude in Chrome storage has a UUID-shaped bridgeDeviceI
     return;
   }
   const db = await readLevelDb(REAL_CHROME_STORAGE);
+  assert.ok(db.files.tables.length + db.files.logs.length > 0, 'the storage directory should hold LevelDB files');
   const raw = text(db.entries, 'bridgeDeviceId');
-  assert.ok(raw !== undefined, 'bridgeDeviceId should be present');
+  if (raw === undefined) {
+    // The extension writes bridgeDeviceId only when the bridge first runs, so
+    // an installed-but-never-paired profile legitimately has no such key.
+    t.skip('the Claude in Chrome extension is installed here but has never been paired');
+    return;
+  }
   const parsed = JSON.parse(raw);
   assert.equal(typeof parsed, 'string');
   assert.match(parsed, UUID_RE);
@@ -817,4 +1074,221 @@ test('helper sanity: buildLogFile framing', () => {
   assert.equal(buf[6], RECORD_FULL);
   assert.equal(buf.readBigUInt64LE(WAL_HEADER_SIZE), 7n);
   assert.equal(buf.readUInt32LE(WAL_HEADER_SIZE + 8), 1);
+  // the reader verifies this crc, so a wrong helper crc would look like corruption
+  assert.equal(buf.readUInt32LE(0), maskCrc(crc32c(buf.subarray(WAL_HEADER_SIZE), crc32c(Buffer.from([RECORD_FULL])))));
+});
+
+test('helper sanity: crc32c matches the LevelDB test vectors', () => {
+  const of = (bytes) => crc32c(Uint8Array.from(bytes));
+  // crc32c_test.cc: StandardResults
+  assert.equal(of(new Array(32).fill(0x00)), 0x8a9136aa);
+  assert.equal(of(new Array(32).fill(0xff)), 0x62a8ab43);
+  assert.equal(of(Array.from({ length: 32 }, (_, i) => i)), 0x46dd794e);
+  assert.equal(of(Array.from({ length: 32 }, (_, i) => 31 - i)), 0x113fdb5c);
+  // the classic check value
+  assert.equal(crc32c(Buffer.from('123456789')), 0xe3069283);
+  // Extend(crc, data) must equal Value(concatenation)
+  assert.equal(crc32c(Buffer.from('world'), crc32c(Buffer.from('hello '))), crc32c(Buffer.from('hello world')));
+  // mask / unmask round-trip, and masking really does change the value
+  for (const crc of [0, 1, 0xe3069283, 0xffffffff]) {
+    assert.equal(unmaskCrc(maskCrc(crc)), crc >>> 0);
+    assert.notEqual(maskCrc(crc), crc >>> 0);
+  }
+});
+
+test('helper sanity: block trailer crc of a written table', async () => {
+  const built = buildSstFile([{ key: 'k', sequence: 1, type: TYPE_VALUE, value: J('v') }]);
+  const handle = built.indexHandle;
+  const type = built.buffer[handle.offset + handle.size];
+  const stored = built.buffer.readUInt32LE(handle.offset + handle.size + 1);
+  const body = built.buffer.subarray(handle.offset, handle.offset + handle.size);
+  assert.equal(stored, maskCrc(crc32c(Buffer.from([type]), crc32c(body))));
+});
+
+// ---------------------------------------------------------------------------
+// (12) regressions from the code review
+
+test('WAL zero record inside a fragmented record: the record is dropped WITH a warning', async (t) => {
+  const dir = await tmpDir(t);
+  const raw = buildLogFile([
+    { sequence: 1, records: [{ type: TYPE_VALUE, key: 'first', value: J('one') }] },
+    { sequence: 2, records: [{ type: TYPE_VALUE, key: 'bridgeDeviceId', value: 'x'.repeat(40000) }] },
+  ]);
+  assert.ok(raw.length > WAL_BLOCK_SIZE, 'premise: the second record spans two blocks');
+  assert.equal(raw[WAL_BLOCK_SIZE + 6], RECORD_LAST, 'premise: the second block starts with the LAST fragment');
+  // A crash can leave a preallocated / never-written continuation block zeroed.
+  raw.fill(0, WAL_BLOCK_SIZE, WAL_BLOCK_SIZE + WAL_HEADER_SIZE);
+  await fs.writeFile(path.join(dir, '000004.log'), raw);
+
+  const db = await readLevelDb(dir, { useManifest: false });
+  assert.equal(text(db.entries, 'first'), J('one'), 'the intact record is still read');
+  assert.equal(db.entries.has('bridgeDeviceId'), false);
+  assert.ok(
+    db.warnings.some((w) => /zero\/padding record .* fragmented record/.test(w)),
+    `losing a fragmented record must be reported: ${J(db.warnings)}`,
+  );
+});
+
+test('MANIFEST whose fragmented edit is cut by a zero record: falls back to scanning every file', async (t) => {
+  const dir = await tmpDir(t);
+  const uuid = '11111111-2222-4333-8444-555555555555';
+  const table = await writeSstFile(path.join(dir, '000007.ldb'), [
+    { key: 'bridgeDeviceId', sequence: 5, type: TYPE_VALUE, value: J(uuid) },
+  ]);
+  // The edit that adds 000007.ldb is larger than a log block, so it is written
+  // as FIRST (block 0) + LAST (block 1).
+  await writeManifest(dir, {
+    edits: [
+      { comparator: 'leveldb.BytewiseComparator', logNumber: 8, nextFileNumber: 9, lastSequence: 5 },
+      {
+        newFiles: [
+          { level: 0, number: 7, size: table.size, smallest: 'a'.repeat(40000), largest: 'bridgeDeviceId' },
+        ],
+      },
+    ],
+  });
+  const manifestPath = path.join(dir, 'MANIFEST-000001');
+  const raw = await fs.readFile(manifestPath);
+  assert.ok(raw.length > WAL_BLOCK_SIZE, 'premise: the second edit is fragmented');
+  assert.equal(raw[WAL_BLOCK_SIZE + 6], RECORD_LAST, 'premise: block 1 starts with the LAST fragment');
+  raw.fill(0, WAL_BLOCK_SIZE, WAL_BLOCK_SIZE + WAL_HEADER_SIZE);
+  await fs.writeFile(manifestPath, raw);
+
+  const db = await readLevelDb(dir);
+  // A half-applied version would drop 000007.ldb from the live set and report
+  // the profile as "not paired" with no warning at all.
+  assert.equal(text(db.entries, 'bridgeDeviceId'), J(uuid));
+  assert.equal(db.files.manifest, null, 'the damaged manifest must not be trusted');
+  assert.ok(db.warnings.length > 0, 'the fallback must be reported');
+});
+
+test('WAL write batch that encodes more records than it claims is ignored, not half-applied', async (t) => {
+  const dir = await makeDamagedLog(t, (raw, offsets) => {
+    const length = raw.readUInt16LE(offsets[1] + 4);
+    const payload = raw.subarray(offsets[1] + WAL_HEADER_SIZE, offsets[1] + WAL_HEADER_SIZE + length);
+    payload.writeUInt32LE(0, 8); // header says 0 records, one is encoded
+    raw.writeUInt32LE(maskCrc(crc32c(payload, crc32c(Buffer.from([raw[offsets[1] + 6]])))), offsets[1]);
+  });
+  const db = await readLevelDb(dir);
+  assert.equal(text(db.entries, 'k1'), J('one'));
+  assert.equal(db.entries.has('k2'), false, 'a batch with a wrong count must not be applied');
+  assert.equal(text(db.entries, 'bridgeDeviceId'), J('survivor'), 'later records are still applied');
+  assert.ok(db.warnings.some((w) => /not a valid write batch/.test(w)), J(db.warnings));
+});
+
+/**
+ * Offsets of every entry value inside an uncompressed block.
+ * @param {Buffer} contents
+ * @returns {Array<{ valueStart: number, valueLen: number }>}
+ */
+function blockEntryValues(contents) {
+  const numRestarts = contents.readUInt32LE(contents.length - 4);
+  const end = contents.length - 4 - 4 * numRestarts;
+  const out = [];
+  let pos = 0;
+  while (pos < end) {
+    const shared = decodeVarint32(contents, pos);
+    const nonShared = decodeVarint32(contents, shared.next);
+    const valueLen = decodeVarint32(contents, nonShared.next);
+    const valueStart = valueLen.next + nonShared.value;
+    out.push({ valueStart, valueLen: valueLen.value });
+    pos = valueStart + valueLen.value;
+  }
+  return out;
+}
+
+/**
+ * Recompute the trailer crc of the block at `handle` after damaging it, so a
+ * test can isolate "malformed contents" from "bad checksum".
+ * @param {Buffer} file
+ * @param {{ offset: number, size: number }} handle
+ */
+function repairBlockCrc(file, handle) {
+  const end = handle.offset + handle.size;
+  file.writeUInt32LE(maskCrc(crc32c(file.subarray(handle.offset, end + 1))), end + 1);
+}
+
+test('SSTable: one unreadable index entry costs its data block, not the whole table', async (t) => {
+  const dir = await tmpDir(t);
+  const entries = ['a', 'b', 'c', 'd', 'e'].map((key, i) => ({
+    key,
+    sequence: i + 1,
+    type: TYPE_VALUE,
+    value: J(`${key}-value-${'p'.repeat(100)}`),
+  }));
+  const built = buildSstFile(entries, { blockSize: 64, restartInterval: 1 });
+  assert.equal(built.dataBlocks, entries.length, 'premise: one data block per key');
+
+  const file = Buffer.from(built.buffer);
+  const index = built.indexHandle;
+  const contents = file.subarray(index.offset, index.offset + index.size);
+  const values = blockEntryValues(contents);
+  assert.equal(values.length, entries.length, 'premise: one index entry per data block');
+  // Break the handle of the third data block (an all-continuation varint), then
+  // repair the block checksum so this is a malformed entry, not a bad crc.
+  contents.fill(0x80, values[2].valueStart, values[2].valueStart + values[2].valueLen);
+  repairBlockCrc(file, index);
+  await fs.writeFile(path.join(dir, '000005.ldb'), file);
+
+  const db = await readLevelDb(dir, { useManifest: false });
+  assert.equal(text(db.entries, 'a'), J(`a-value-${'p'.repeat(100)}`), 'blocks before the damage survive');
+  assert.equal(text(db.entries, 'e'), J(`e-value-${'p'.repeat(100)}`), 'blocks after the damage survive');
+  assert.equal(db.entries.has('c'), false, 'only the damaged block is lost');
+  assert.ok(db.warnings.some((w) => /unreadable block handle/.test(w)), J(db.warnings));
+});
+
+test('SSTable: a data block whose crc does not match is skipped, never returned as data', async (t) => {
+  const dir = await tmpDir(t);
+  const uuid = '11111111-2222-4333-8444-555555555555';
+  const built = buildSstFile(
+    [
+      { key: 'bridgeDeviceId', sequence: 1, type: TYPE_VALUE, value: J(uuid) },
+      { key: 'zz', sequence: 2, type: TYPE_VALUE, value: J('untouched') },
+    ],
+    { blockSize: 1, restartInterval: 1 },
+  );
+  assert.equal(built.dataBlocks, 2, 'premise: the two keys live in different data blocks');
+
+  const file = Buffer.from(built.buffer);
+  const at = file.indexOf(uuid, 0, 'utf8');
+  assert.ok(at > 0, 'premise: the uuid is stored uncompressed');
+  file[at] ^= 0x40; // one flipped bit, stale trailer crc
+  await fs.writeFile(path.join(dir, '000005.ldb'), file);
+
+  const db = await readLevelDb(dir, { useManifest: false });
+  assert.equal(db.entries.has('bridgeDeviceId'), false, 'a corrupted UUID must never be handed to the user');
+  assert.equal(text(db.entries, 'zz'), J('untouched'), 'the intact block is still read');
+  assert.ok(db.warnings.some((w) => /checksum mismatch/.test(w)), J(db.warnings));
+});
+
+test('a symlinked LevelDB file that is not a regular file is ignored, not read', async (t) => {
+  const dir = await tmpDir(t);
+  await writeLogFile(path.join(dir, '000004.log'), [
+    { sequence: 1, records: [{ type: TYPE_VALUE, key: 'bridgeDeviceId', value: J('intact') }] },
+  ]);
+  const elsewhere = await tmpDir(t);
+  try {
+    // Stands in for the real hazard, a symlink to a FIFO: readFile() on that
+    // never resolves, so the link has to be resolved before it is read.
+    await fs.symlink(elsewhere, path.join(dir, '000005.log'), 'junction');
+  } catch (err) {
+    t.skip(`cannot create symlinks here: ${err.message}`);
+    return;
+  }
+  const db = await readLevelDb(dir, { useManifest: false });
+  assert.equal(text(db.entries, 'bridgeDeviceId'), J('intact'));
+  assert.deepEqual(basenames(db.files.logs), ['000004.log']);
+  assert.ok(db.warnings.some((w) => /not a regular file/.test(w)), J(db.warnings));
+});
+
+test('helper sanity: the crc mask constants pin the rotation direction', () => {
+  // maskCrc rotates RIGHT by 15 before adding the delta. A left rotation is
+  // just as invertible, so only fixed vectors can catch a flipped direction —
+  // and the reader verifies every WAL record with unmaskCrc.
+  assert.equal(maskCrc(0), 0xa282ead8);
+  assert.equal(maskCrc(1), 0xa284ead8, 'a left rotation would give 0xa2836ad8');
+  assert.equal(maskCrc(0xe3069283), 0xc78ab0e5);
+  assert.equal(maskCrc(0xffffffff), 0xa282ead7);
+  assert.equal(unmaskCrc(0xa284ead8), 1);
+  assert.equal(unmaskCrc(0xc78ab0e5), 0xe3069283);
 });

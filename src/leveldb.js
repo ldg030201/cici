@@ -7,19 +7,21 @@
  *   - SSTables (*.ldb / *.sst): footer, index block, data blocks, prefix
  *     compressed entries, snappy compressed blocks (zstd is reported and
  *     skipped)
- *   - write-ahead logs (*.log): 32 KiB block framing, fragment reassembly,
- *     write batches
+ *   - write-ahead logs (*.log): 32 KiB block framing, crc32c verification,
+ *     fragment reassembly, write batches
  *   - CURRENT + MANIFEST-*: VersionEdit replay to find the live table set and
  *     the oldest log that still matters
  *
  * Everything is best effort: a corrupt or partially written file produces a
- * warning and is skipped from that point on; readLevelDb() never throws
- * because of file contents.
+ * warning and, like LevelDB's own recovery, costs at most the damaged part of
+ * the file (the rest of a 32 KiB log block, one data block of a table, or the
+ * whole MANIFEST, which falls back to scanning every file). readLevelDb()
+ * never throws because of file contents.
  *
  * @module leveldb
  */
 
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { uncompress } from './snappy.js';
 
@@ -64,6 +66,63 @@ const TAG_PREV_LOG_NUMBER = 9;
 const RE_TABLE = /^(\d+)\.(ldb|sst)$/;
 const RE_LOG = /^(\d+)\.log$/;
 const RE_MANIFEST = /^MANIFEST-(\d+)$/;
+
+// ---------------------------------------------------------------------------
+// CRC32C (Castagnoli) + LevelDB's crc masking
+// ---------------------------------------------------------------------------
+
+const CRC32C_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0x82f63b78 ^ (c >>> 1) : c >>> 1;
+    table[i] = c >>> 0;
+  }
+  return table;
+})();
+
+/** LevelDB rotates the crc before storing it so a raw crc never appears on disk. */
+const CRC_MASK_DELTA = 0xa282ead8;
+
+/**
+ * crc32c(data), or crc32c::Extend(crc, data) when `crc` is given.
+ *
+ * @param {Uint8Array} data
+ * @param {number} [crc] crc of everything before `data`
+ * @returns {number} unsigned 32 bit
+ */
+function crc32c(data, crc = 0) {
+  let c = (crc ^ 0xffffffff) >>> 0;
+  for (let i = 0; i < data.length; i++) c = CRC32C_TABLE[(c ^ data[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+/**
+ * Undo crc32c::Mask (rotate right by 15, then add the delta).
+ *
+ * @param {number} masked
+ * @returns {number}
+ */
+function unmaskCrc(masked) {
+  const rot = (masked - CRC_MASK_DELTA) >>> 0;
+  return ((rot >>> 17) | (rot << 15)) >>> 0;
+}
+
+/** One reusable 1-byte buffer for the record type that the crc covers. */
+const CRC_TYPE_BYTE = Buffer.alloc(1);
+
+/**
+ * crc32c of a log record as LevelDB computes it: the type byte followed by the
+ * payload.
+ *
+ * @param {number} type
+ * @param {Uint8Array} payload
+ * @returns {number}
+ */
+function logRecordCrc(type, payload) {
+  CRC_TYPE_BYTE[0] = type & 0xff;
+  return crc32c(payload, crc32c(CRC_TYPE_BYTE));
+}
 
 // ---------------------------------------------------------------------------
 // varints / internal keys
@@ -224,6 +283,14 @@ function readBlock(file, handle) {
     throw new Error(`block handle (offset ${handle.offset}, size ${handle.size}) is outside the file`);
   }
   const compression = file[end];
+  // The trailer crc covers the block contents plus the compression type byte.
+  // LevelDB makes this optional (ReadOptions::verify_checksums defaults to
+  // false), but cici's whole output is a UUID the user pastes somewhere, so a
+  // silently wrong value is the worst failure mode: check it and let the
+  // caller drop just this block.
+  if (unmaskCrc(file.readUInt32LE(end + 1)) !== crc32c(file.subarray(handle.offset, end + 1))) {
+    throw new Error('block checksum mismatch');
+  }
   const raw = file.subarray(handle.offset, end);
   switch (compression) {
     case COMPRESSION_NONE:
@@ -277,11 +344,18 @@ export function readTableBuffer(file, { onEntry, onBlock, warnings = [], label =
   try {
     const index = readBlock(file, indexHandle);
     forEachBlockEntry(index.contents, (_key, value) => {
-      dataHandles.push(decodeBlockHandle(value, 0).value);
+      // One unreadable handle costs its own data block, not the whole table.
+      try {
+        dataHandles.push(decodeBlockHandle(value, 0).value);
+      } catch (err) {
+        warn(`index entry ${dataHandles.length} has an unreadable block handle: ${err.message}; that data block is skipped`);
+      }
     });
   } catch (err) {
-    warn(`cannot read index block: ${err.message}`);
-    return;
+    // Damage in the middle of the index block still leaves the entries before
+    // it usable, exactly like LevelDB's two-level iterator.
+    warn(`index block unusable after ${dataHandles.length} entr${dataHandles.length === 1 ? 'y' : 'ies'}: ${err.message}`);
+    if (dataHandles.length === 0) return;
   }
 
   for (let i = 0; i < dataHandles.length; i++) {
@@ -304,19 +378,30 @@ export function readTableBuffer(file, { onEntry, onBlock, warnings = [], label =
 // ---------------------------------------------------------------------------
 
 /**
+ * @typedef {object} LogScanResult
+ * @property {number} records number of complete records delivered
+ * @property {boolean} truncated the file ends in the middle of a record (the
+ *   writer is probably still appending; LevelDB treats this as end-of-file)
+ * @property {boolean} corrupt a record was damaged (bad length, unknown type,
+ *   checksum mismatch, orphaned fragment)
+ */
+
+/**
  * Iterate over the logical records of a LevelDB log file.
- * Stops at the first sign of corruption after pushing a warning. A record cut
- * off by the end of the file is treated as end-of-file like LevelDB does (the
- * complete records before it are still delivered), but it is reported as a
- * warning so callers can tell a cleanly closed log from one that is still
- * being appended to.
+ *
+ * Follows log::Reader: a damaged record is reported and the rest of its 32 KiB
+ * block is dropped, then reading resumes at the next block, so records written
+ * after the damage are still delivered. A record cut off by the end of the file
+ * is treated as end-of-file (the writer may still be appending) and stops the
+ * scan. Every record's masked crc32c is verified, which is what makes resyncing
+ * safe.
  *
  * @param {Buffer} file
  * @param {object} options
  * @param {(record: Buffer, index: number) => void} options.onRecord
  * @param {string[]} [options.warnings]
  * @param {string} [options.label]
- * @returns {number} number of complete records delivered
+ * @returns {LogScanResult}
  */
 export function readLogBuffer(file, { onRecord, warnings = [], label = 'log' }) {
   const warn = (msg) => warnings.push(`${label}: ${msg}`);
@@ -324,14 +409,25 @@ export function readLogBuffer(file, { onRecord, warnings = [], label = 'log' }) 
     warn(`truncated record at offset ${pos} (${detail}; the writer may still be appending, so this is normal); rest of file ignored`);
   let pos = 0;
   let count = 0;
+  let wasTruncated = false;
+  let corrupt = false;
   /** @type {Buffer[] | null} fragments of the record being reassembled */
   let fragments = null;
+
+  /** Damaged record: drop what was reassembled and skip the rest of the block. */
+  const dropBlock = (blockEnd, msg) => {
+    warn(msg);
+    corrupt = true;
+    fragments = null;
+    return blockEnd;
+  };
 
   while (pos < file.length) {
     const blockStart = pos - (pos % LOG_BLOCK_SIZE);
     const blockEnd = blockStart + LOG_BLOCK_SIZE;
     if (blockEnd - pos < LOG_HEADER_SIZE) {
-      // trailer of a block: zero padding
+      // trailer of a block: zero padding. A fragmented record continues in the
+      // next block, so pending fragments are kept.
       pos = blockEnd;
       continue;
     }
@@ -339,45 +435,72 @@ export function readLogBuffer(file, { onRecord, warnings = [], label = 'log' }) 
       // partial header at EOF: the writer has not finished this record
       truncated(pos, `only ${file.length - pos} of the ${LOG_HEADER_SIZE} header bytes are present`);
       fragments = null;
+      wasTruncated = true;
       break;
     }
     const length = file.readUInt16LE(pos + 4);
     const type = file[pos + 6];
+    const recordEnd = pos + LOG_HEADER_SIZE + length;
 
-    if (type === RECORD_ZERO && length === 0) {
-      // zero-filled area (preallocated or padded): skip the rest of the block
-      pos = blockEnd;
-      fragments = null;
+    // A genuine record never reaches past its own block. Past the block but
+    // inside the final, partial block means the writer was interrupted (EOF);
+    // anywhere else it is a corrupt length.
+    if (recordEnd > blockEnd || recordEnd > file.length) {
+      if (blockEnd > file.length) {
+        truncated(pos, `${length} payload bytes declared, ${Math.max(0, file.length - pos - LOG_HEADER_SIZE)} present`);
+        fragments = null;
+        wasTruncated = true;
+        break;
+      }
+      pos = dropBlock(blockEnd, `bad record length ${length} at offset ${pos}: it does not fit in its 32 KiB block; rest of the block ignored`);
       continue;
     }
-    const recordEnd = pos + LOG_HEADER_SIZE + length;
-    if (recordEnd > file.length) {
-      // partial payload at EOF: the writer has not finished this record
-      truncated(pos, `${length} payload bytes declared, ${file.length - pos - LOG_HEADER_SIZE} present`);
-      fragments = null;
-      break;
-    }
-    if (recordEnd > blockEnd) {
-      warn(`record at offset ${pos} has a length (${length}) that crosses its block; stopping`);
-      break;
+
+    if (type === RECORD_ZERO && length === 0) {
+      // Zero-filled area (preallocated or padded): skip the rest of the block.
+      // log::Reader treats a zero record as kBadRecord, which only *matters*
+      // when a fragmented record is pending — then it reports "error in middle
+      // of record", because the rest of that record is gone.
+      if (fragments) {
+        pos = dropBlock(
+          blockEnd,
+          `zero/padding record at offset ${pos} interrupts a fragmented record; the record is dropped and the rest of the block ignored`,
+        );
+        continue;
+      }
+      pos = blockEnd;
+      continue;
     }
 
     const payload = file.subarray(pos + LOG_HEADER_SIZE, recordEnd);
+    const storedCrc = file.readUInt32LE(pos);
+    if (unmaskCrc(storedCrc) !== logRecordCrc(type, payload)) {
+      pos = dropBlock(blockEnd, `checksum mismatch for the record at offset ${pos}; rest of the block ignored`);
+      continue;
+    }
+    const recordStart = pos;
     pos = recordEnd;
 
     switch (type) {
       case RECORD_FULL:
-        if (fragments) warn('unfinished fragmented record dropped');
+        if (fragments) {
+          warn('unfinished fragmented record dropped');
+          corrupt = true;
+        }
         fragments = null;
         onRecord(payload, count++);
         break;
       case RECORD_FIRST:
-        if (fragments) warn('unfinished fragmented record dropped');
+        if (fragments) {
+          warn('unfinished fragmented record dropped');
+          corrupt = true;
+        }
         fragments = [payload];
         break;
       case RECORD_MIDDLE:
         if (!fragments) {
           warn('MIDDLE fragment without a FIRST fragment ignored');
+          corrupt = true;
         } else {
           fragments.push(payload);
         }
@@ -385,6 +508,7 @@ export function readLogBuffer(file, { onRecord, warnings = [], label = 'log' }) 
       case RECORD_LAST:
         if (!fragments) {
           warn('LAST fragment without a FIRST fragment ignored');
+          corrupt = true;
         } else {
           fragments.push(payload);
           onRecord(Buffer.concat(fragments), count++);
@@ -392,14 +516,18 @@ export function readLogBuffer(file, { onRecord, warnings = [], label = 'log' }) 
         }
         break;
       default:
-        warn(`unknown record type ${type} at offset ${pos - length - LOG_HEADER_SIZE}; stopping`);
-        return count;
+        // log::Reader reports the drop and carries on with the next record.
+        warn(`unknown record type ${type} at offset ${recordStart} ignored`);
+        corrupt = true;
+        fragments = null;
+        break;
     }
   }
   if (fragments) {
     warn('fragmented record without a LAST fragment at end of file dropped (the writer may still be appending, so this is normal)');
+    wasTruncated = true;
   }
-  return count;
+  return { records: count, truncated: wasTruncated, corrupt };
 }
 
 /**
@@ -548,37 +676,43 @@ export function parseVersionEdit(payload) {
  */
 
 /**
- * Replay a MANIFEST file and return the resulting live state. Like LevelDB,
- * a record cut off at the end of the file is treated as end-of-file; a corrupt
- * record in the middle stops the replay, keeping the version reconstructed so
- * far (a warning is pushed).
+ * Replay a MANIFEST file and return the resulting live state.
+ *
+ * Like LevelDB, a record cut off at the end of the file is treated as
+ * end-of-file: the version reconstructed from the complete records is kept
+ * (Chrome may be appending right now, and every table of the previous version
+ * is still on disk). Anything else — a damaged record or a VersionEdit that
+ * does not decode — makes the whole MANIFEST unusable, exactly as
+ * VersionSet::Recover would: a partial live set would silently hide the tables
+ * added by the edits after the damage, so the caller must fall back to
+ * scanning every file instead.
  *
  * @param {Buffer} file
  * @param {object} options
  * @param {string[]} options.warnings
  * @param {string} options.label
  * @returns {{ state: ManifestState|null, reason: string|null }} state is null when
- *   not a single edit could be applied; reason then says why
+ *   the MANIFEST cannot be trusted; reason then says why
  */
 function replayManifest(file, { warnings, label }) {
   const liveTables = new Set();
   let logNumber = null;
   let prevLogNumber = null;
   let edits = 0;
-  let stopped = false;
+  let badEdit = false;
   const localWarnings = [];
 
-  readLogBuffer(file, {
+  const scan = readLogBuffer(file, {
     warnings: localWarnings,
     label,
     onRecord(payload, index) {
-      if (stopped) return;
+      if (badEdit) return;
       let edit;
       try {
         edit = parseVersionEdit(payload);
       } catch (err) {
-        localWarnings.push(`${label}: record ${index} is not a valid VersionEdit (${err.message}); later edits ignored`);
-        stopped = true;
+        localWarnings.push(`${label}: record ${index} is not a valid VersionEdit (${err.message})`);
+        badEdit = true;
         return;
       }
       for (const d of edit.deletedFiles) liveTables.delete(Number(d.file));
@@ -589,9 +723,9 @@ function replayManifest(file, { warnings, label }) {
     },
   });
 
-  if (edits === 0) {
+  if (badEdit || scan.corrupt || edits === 0) {
     const reason = localWarnings.length > 0
-      ? localWarnings.map((w) => w.slice(label.length + 2)).join('; ')
+      ? localWarnings.map((w) => (w.startsWith(`${label}: `) ? w.slice(label.length + 2) : w)).join('; ')
       : 'no version edits found';
     return { state: null, reason };
   }
@@ -602,6 +736,69 @@ function replayManifest(file, { warnings, label }) {
 /** @param {number} n */
 function tableFileName(n) {
   return `${String(n).padStart(6, '0')}.ldb`;
+}
+
+/**
+ * Look for the SSTable with file number `n` by name. The directory listing can
+ * predate a flush or compaction that created it, in which case the MANIFEST
+ * mentions a table the listing does not have.
+ *
+ * @param {string} dir
+ * @param {number} n
+ * @returns {Promise<string|null>} the file name, or null when neither
+ *   NNNNNN.ldb nor NNNNNN.sst is there
+ */
+async function findTableFile(dir, n) {
+  const base = String(n).padStart(6, '0');
+  for (const ext of ['ldb', 'sst']) {
+    const name = `${base}.${ext}`;
+    try {
+      if ((await stat(path.join(dir, name))).isFile()) return name;
+    } catch {
+      // not there (or not readable): try the next extension
+    }
+  }
+  return null;
+}
+
+/**
+ * Whether a directory entry is worth reading as a file. readdir does not follow
+ * symlinks, so a link named "000005.log" that points at a FIFO, a device or a
+ * file on an unreachable mount would otherwise be read: readFile() on a FIFO
+ * never resolves and hangs cici forever. Resolve the link first, exactly like
+ * browsers.js does for directories.
+ *
+ * @param {import('node:fs').Dirent} dirent
+ * @param {string} dir directory the entry was listed from
+ * @param {string[]} warnings
+ * @returns {Promise<boolean>}
+ */
+async function direntIsFile(dirent, dir, warnings) {
+  if (dirent.isFile()) return true;
+  if (!dirent.isSymbolicLink()) return false;
+  const target = path.join(dir, dirent.name);
+  try {
+    if ((await stat(target)).isFile()) return true;
+    warnings.push(`${target} is a symlink to something that is not a regular file; ignored`);
+  } catch (err) {
+    // A dangling link is normal enough (a profile moved between disks); the
+    // per-file read below reports it if the name matters.
+    if (!err || err.code !== 'ENOENT') warnings.push(`cannot resolve the symlink ${target}: ${err.message}; ignored`);
+  }
+  return false;
+}
+
+/**
+ * Render untrusted file content for a warning: quoted, with control characters
+ * escaped, so a CURRENT file full of ANSI escapes cannot repaint the terminal
+ * of whoever prints the warning.
+ *
+ * @param {string} s
+ * @returns {string}
+ */
+function quoteText(s) {
+  const escaped = String(s).replace(/[\u0000-\u001f\u007f-\u009f]/g, (c) => `\\x${c.codePointAt(0).toString(16).padStart(2, '0')}`);
+  return `"${escaped.length > 80 ? `${escaped.slice(0, 77)}...` : escaped}"`;
 }
 
 // ---------------------------------------------------------------------------
@@ -654,7 +851,8 @@ export async function readLevelDb(dir, options = {}) {
   let names;
   try {
     const dirents = await readdir(dir, { withFileTypes: true });
-    names = dirents.filter((d) => d.isFile() || d.isSymbolicLink()).map((d) => d.name);
+    const kept = await Promise.all(dirents.map((d) => direntIsFile(d, dir, warnings)));
+    names = dirents.filter((_d, i) => kept[i]).map((d) => d.name);
   } catch (err) {
     warnings.push(`cannot list ${dir}: ${err.message}`);
     return { entries: new Map(), warnings, files };
@@ -692,7 +890,7 @@ export async function readLevelDb(dir, options = {}) {
       if (manifestName !== null) {
         const manifestPath = path.join(dir, manifestName);
         if (!RE_MANIFEST.test(manifestName) || !names.includes(manifestName)) {
-          warnings.push(`CURRENT points to ${manifestName} which does not exist in ${dir}; scanning every table and log`);
+          warnings.push(`CURRENT points to ${quoteText(manifestName)} which does not exist in ${dir}; scanning every table and log`);
         } else {
           let buf = null;
           try {
@@ -714,22 +912,38 @@ export async function readLevelDb(dir, options = {}) {
     }
 
     if (state !== null) {
-      const missing = [...state.liveTables].filter((n) => !tableByNumber.has(n));
+      // A live table can be missing from the listing when the directory moved
+      // on between readdir() and reading the MANIFEST (Chrome just finished a
+      // flush or compaction), so look it up by name before giving up.
+      const missing = [];
+      for (const n of state.liveTables) {
+        if (tableByNumber.has(n)) continue;
+        const name = await findTableFile(dir, n);
+        if (name === null) missing.push(n);
+        else {
+          tableByNumber.set(n, name);
+          tableNumbers = [...tableByNumber.keys()].sort((a, b) => a - b);
+        }
+      }
+
       if (missing.length > 0) {
-        // The directory moved on since the MANIFEST we read (a compaction just
-        // replaced tables). Scanning every table on disk is a superset and the
-        // sequence-number rule still picks the newest value for each key.
-        warnings.push(`${files.manifest}: live table(s) ${missing.map(tableFileName).join(', ')} are missing from ${dir}; scanning every table on disk`);
+        // The version we read is not what is on disk any more. Scanning every
+        // table AND every log is a superset of any consistent version, and the
+        // sequence-number rule still picks the newest value for each key —
+        // whereas applying only half of this version (its tables are gone, but
+        // its log_number would drop the log that still holds their contents)
+        // could lose a key entirely.
+        warnings.push(`${files.manifest}: live table(s) ${missing.map(tableFileName).join(', ')} are missing from ${dir}; scanning every table and log on disk`);
       } else {
         // Only the live set: anything else on disk is a stale table that has
         // not been unlinked yet (or an orphan from a crash) and may hold values
         // that a later, already compacted-away deletion superseded.
         tableNumbers = tableNumbers.filter((n) => state.liveTables.has(n));
-      }
-      if (state.logNumber !== null) {
-        const minLog = state.logNumber;
-        const prevLog = state.prevLogNumber;
-        logNumbers = logNumbers.filter((n) => BigInt(n) >= minLog || (prevLog !== null && BigInt(n) === prevLog));
+        if (state.logNumber !== null) {
+          const minLog = state.logNumber;
+          const prevLog = state.prevLogNumber;
+          logNumbers = logNumbers.filter((n) => BigInt(n) >= minLog || (prevLog !== null && BigInt(n) === prevLog));
+        }
       }
     }
   }
@@ -767,18 +981,17 @@ export async function readLevelDb(dir, options = {}) {
       continue;
     }
     files.logs.push(filePath);
-    let stopped = false;
     readLogBuffer(buf, {
       warnings,
       label: filePath,
       onRecord(payload, index) {
-        if (stopped) return;
         let batch;
         try {
           batch = parseWriteBatch(payload);
         } catch (err) {
-          warnings.push(`${filePath}: record ${index} is not a valid write batch (${err.message}); rest of file ignored`);
-          stopped = true;
+          // Like DBImpl::RecoverLogFile with paranoid_checks off: report the
+          // damaged batch and carry on with the following records.
+          warnings.push(`${filePath}: record ${index} is not a valid write batch (${err.message}); record ignored`);
           return;
         }
         for (let i = 0; i < batch.records.length; i++) {
