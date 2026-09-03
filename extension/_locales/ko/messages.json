@@ -1,0 +1,191 @@
+{
+  "extName": {
+    "message": "cici — Claude in Chrome 기기 ID",
+    "description": "확장 이름. 웹스토어와 확장 관리 화면에 표시된다."
+  },
+  "extDesc": {
+    "message": "Claude Code 브라우저 선택 목록의 UUID가 어느 크롬 프로필인지 알려줍니다. 현재 프로필의 bridgeDeviceId를 바로 보여줍니다.",
+    "description": "웹스토어 설명. 132자 이내."
+  },
+
+  "appTitle": {
+    "message": "cici",
+    "description": "팝업 헤더의 제품 이름."
+  },
+  "appSubtitle": {
+    "message": "Claude in Chrome 브리지 ID",
+    "description": "팝업 헤더의 한 줄 설명."
+  },
+  "refresh": {
+    "message": "다시 검사",
+    "description": "헤더의 새로고침 버튼."
+  },
+
+  "loadingProfiles": {
+    "message": "프로필을 찾는 중…",
+    "description": "로딩 화면의 제목."
+  },
+  "loadingHint": {
+    "message": "이 컴퓨터의 브라우저 프로필을 훑고 있어요.",
+    "description": "로딩 화면의 보조 설명."
+  },
+
+  "needFileAccessTitle": {
+    "message": "파일 URL 접근 권한이 필요합니다",
+    "description": "파일 접근 토글이 꺼져 있을 때의 제목."
+  },
+  "needFileAccessWhy": {
+    "message": "bridgeDeviceId는 크롬 프로필 폴더 안에 저장돼 있습니다. 그 파일을 읽으려면 '파일 URL에 대한 액세스 허용'을 켜야 합니다.",
+    "description": "권한이 필요한 이유."
+  },
+  "howToTitle": {
+    "message": "켜는 방법",
+    "description": "단계 안내의 제목."
+  },
+  "howToStep1": {
+    "message": "아래 버튼으로 이 확장의 세부정보 페이지를 엽니다.",
+    "description": "1단계."
+  },
+  "howToStep2": {
+    "message": "'파일 URL에 대한 액세스 허용'을 켭니다.",
+    "description": "2단계."
+  },
+  "howToStep3": {
+    "message": "이 팝업을 다시 엽니다.",
+    "description": "3단계."
+  },
+  "needFileAccessNote": {
+    "message": "토글을 켜면 크롬이 확장을 다시 불러오기 때문에, 지금 열려 있는 이 팝업은 그 순간 닫힙니다. 브라우저를 다시 시작할 필요는 없고 팝업만 다시 열면 바로 동작합니다.",
+    "description": "토글이 확장을 리로드한다는 안내."
+  },
+  "openExtensionsPage": {
+    "message": "확장 세부정보 열기",
+    "description": "chrome://extensions 로 가는 버튼."
+  },
+  "copyUrl": {
+    "message": "주소 복사",
+    "description": "chrome://extensions 주소를 복사하는 버튼."
+  },
+  "urlCopyHint": {
+    "message": "버튼을 누르면 이 팝업이 닫힙니다. 주소를 복사해 새 탭에 붙여넣어도 됩니다.",
+    "description": "주소 복사 버튼 옆 설명."
+  },
+
+  "currentProfile": {
+    "message": "현재 프로필",
+    "description": "현재 프로필 카드 위의 구역 제목."
+  },
+  "otherProfiles": {
+    "message": "이 컴퓨터의 다른 프로필",
+    "description": "나머지 프로필 목록의 구역 제목."
+  },
+  "badgeCurrent": {
+    "message": "현재",
+    "description": "현재 프로필 카드의 배지."
+  },
+  "deviceIdLabel": {
+    "message": "bridgeDeviceId",
+    "description": "UUID 위의 라벨. 번역하지 않는다."
+  },
+  "pairingNameLabel": {
+    "message": "페어링 이름",
+    "description": "bridgeDisplayName 의 라벨."
+  },
+  "clickToCopy": {
+    "message": "클릭하면 복사됩니다",
+    "description": "UUID 버튼의 툴팁."
+  },
+  "copy": {
+    "message": "복사",
+    "description": "복사 버튼."
+  },
+  "copied": {
+    "message": "복사됨",
+    "description": "복사 성공 피드백."
+  },
+  "copyFailed": {
+    "message": "복사하지 못했습니다. 직접 선택해서 복사해 주세요.",
+    "description": "복사 실패 피드백."
+  },
+  "copyDeviceIdAria": {
+    "message": "bridgeDeviceId 복사",
+    "description": "현재 프로필 UUID 버튼의 스크린리더 이름."
+  },
+  "copyOfAria": {
+    "message": "$PROFILE$ 프로필의 bridgeDeviceId 복사",
+    "description": "목록 행 복사 버튼의 스크린리더 이름.",
+    "placeholders": {
+      "profile": { "content": "$1", "example": "Work" }
+    }
+  },
+
+  "unnamedProfile": {
+    "message": "이름 없는 프로필",
+    "description": "프로필 이름을 읽지 못했을 때."
+  },
+  "notPaired": {
+    "message": "아직 페어링되지 않았습니다",
+    "description": "Claude 확장은 있지만 bridgeDeviceId 가 없을 때."
+  },
+  "notPairedHint": {
+    "message": "Claude 확장에서 이 브라우저를 Claude Code에 한 번 연결하면 ID가 만들어집니다.",
+    "description": "페어링 안 됨 상태의 안내."
+  },
+  "claudeNotInstalled": {
+    "message": "이 프로필에는 Claude 확장이 없습니다",
+    "description": "Local Extension Settings 에 해당 확장 폴더가 없을 때."
+  },
+  "claudeNotInstalledHint": {
+    "message": "Claude in Chrome을 이 프로필에 설치하면 여기에 ID가 나타납니다.",
+    "description": "미설치 상태의 안내."
+  },
+
+  "selfNotFoundTitle": {
+    "message": "현재 프로필을 찾지 못했습니다",
+    "description": "nonce 왕복이 실패했을 때의 제목."
+  },
+  "selfNotFoundHint": {
+    "message": "아래 목록에서 직접 찾아 주세요. 프로필 폴더를 읽지 못하는 경우에 생길 수 있습니다.",
+    "description": "현재 프로필 미탐지 안내."
+  },
+  "noProfilesTitle": {
+    "message": "브라우저 프로필을 하나도 찾지 못했습니다",
+    "description": "프로필 열거가 비었을 때의 제목."
+  },
+  "noProfilesHint": {
+    "message": "파일 URL 접근이 켜져 있는지, 그리고 브라우저가 기본 위치에 설치돼 있는지 확인해 주세요.",
+    "description": "프로필 없음 안내."
+  },
+  "noOtherProfiles": {
+    "message": "다른 프로필은 없습니다.",
+    "description": "프로필이 현재 것 하나뿐일 때."
+  },
+
+  "errorTitle": {
+    "message": "문제가 생겼습니다",
+    "description": "치명적 오류 화면의 제목."
+  },
+  "errorHint": {
+    "message": "'다시 검사'를 눌러 보세요. 계속 실패하면 아래 내용을 이슈로 남겨 주세요.",
+    "description": "오류 화면의 안내."
+  },
+  "retry": {
+    "message": "다시 시도",
+    "description": "오류 화면의 재시도 버튼."
+  },
+  "warnSelfDetect": {
+    "message": "현재 프로필을 찾는 중 문제가 생겼습니다: $DETAIL$",
+    "description": "자기 프로필 탐지가 실패했을 때 경고 목록에 남기는 줄.",
+    "placeholders": {
+      "detail": { "content": "$1", "example": "Failed to fetch" }
+    }
+  },
+  "warningsTitle": {
+    "message": "읽으면서 남은 기록",
+    "description": "경고 목록을 여는 <details> 제목."
+  },
+  "privacyNote": {
+    "message": "cici는 이 컴퓨터의 파일을 읽기만 하고, 아무 데도 보내지 않습니다.",
+    "description": "팝업 하단 각주."
+  }
+}

@@ -1,3 +1,4 @@
+// 이 파일은 scripts/build-extension.mjs 가 자동 생성합니다. 직접 수정하지 마세요. 원본: src/snappy.js
 /**
  * Minimal decoder for the raw snappy block format (the format LevelDB uses
  * for compressed SSTable blocks). This is NOT the snappy *framing* format.

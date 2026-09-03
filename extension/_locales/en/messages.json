@@ -1,0 +1,191 @@
+{
+  "extName": {
+    "message": "cici — Claude in Chrome device ID",
+    "description": "Extension name, shown in the Web Store and on chrome://extensions."
+  },
+  "extDesc": {
+    "message": "Tells you which Chrome profile each UUID in Claude Code's browser picker belongs to, starting with this profile's bridgeDeviceId.",
+    "description": "Web Store description, 132 characters or fewer."
+  },
+
+  "appTitle": {
+    "message": "cici",
+    "description": "Product name in the popup header."
+  },
+  "appSubtitle": {
+    "message": "Claude in Chrome bridge ID",
+    "description": "One-line description in the popup header."
+  },
+  "refresh": {
+    "message": "Scan again",
+    "description": "Refresh button in the header."
+  },
+
+  "loadingProfiles": {
+    "message": "Looking for profiles…",
+    "description": "Loading screen title."
+  },
+  "loadingHint": {
+    "message": "Scanning the browser profiles on this computer.",
+    "description": "Loading screen subtitle."
+  },
+
+  "needFileAccessTitle": {
+    "message": "File URL access is required",
+    "description": "Title shown when the file access toggle is off."
+  },
+  "needFileAccessWhy": {
+    "message": "The bridgeDeviceId lives inside your Chrome profile folder. Reading that file needs \"Allow access to file URLs\" turned on.",
+    "description": "Why the permission is needed."
+  },
+  "howToTitle": {
+    "message": "How to turn it on",
+    "description": "Heading for the step list."
+  },
+  "howToStep1": {
+    "message": "Open this extension's details page with the button below.",
+    "description": "Step 1."
+  },
+  "howToStep2": {
+    "message": "Turn on \"Allow access to file URLs\".",
+    "description": "Step 2."
+  },
+  "howToStep3": {
+    "message": "Open this popup again.",
+    "description": "Step 3."
+  },
+  "needFileAccessNote": {
+    "message": "Flipping that toggle makes Chrome reload the extension, so this popup closes the moment you do. You do not need to restart the browser — just open the popup again and it works.",
+    "description": "Note that the toggle reloads the extension."
+  },
+  "openExtensionsPage": {
+    "message": "Open extension details",
+    "description": "Button that opens chrome://extensions."
+  },
+  "copyUrl": {
+    "message": "Copy address",
+    "description": "Button that copies the chrome://extensions URL."
+  },
+  "urlCopyHint": {
+    "message": "The popup closes when you press the button. You can also copy the address and paste it into a new tab.",
+    "description": "Help text next to the copy button."
+  },
+
+  "currentProfile": {
+    "message": "Current profile",
+    "description": "Section heading above the current profile card."
+  },
+  "otherProfiles": {
+    "message": "Other profiles on this computer",
+    "description": "Section heading for the remaining profiles."
+  },
+  "badgeCurrent": {
+    "message": "current",
+    "description": "Badge on the current profile card."
+  },
+  "deviceIdLabel": {
+    "message": "bridgeDeviceId",
+    "description": "Label above the UUID. Do not translate."
+  },
+  "pairingNameLabel": {
+    "message": "Pairing name",
+    "description": "Label for bridgeDisplayName."
+  },
+  "clickToCopy": {
+    "message": "Click to copy",
+    "description": "Tooltip on the UUID button."
+  },
+  "copy": {
+    "message": "Copy",
+    "description": "Copy button."
+  },
+  "copied": {
+    "message": "Copied",
+    "description": "Copy success feedback."
+  },
+  "copyFailed": {
+    "message": "Could not copy. Please select the text and copy it yourself.",
+    "description": "Copy failure feedback."
+  },
+  "copyDeviceIdAria": {
+    "message": "Copy bridgeDeviceId",
+    "description": "Screen reader name for the current profile's UUID button."
+  },
+  "copyOfAria": {
+    "message": "Copy the bridgeDeviceId of profile $PROFILE$",
+    "description": "Screen reader name for a list row's copy button.",
+    "placeholders": {
+      "profile": { "content": "$1", "example": "Work" }
+    }
+  },
+
+  "unnamedProfile": {
+    "message": "Unnamed profile",
+    "description": "Shown when the profile name could not be read."
+  },
+  "notPaired": {
+    "message": "Not paired yet",
+    "description": "The Claude extension is installed but has no bridgeDeviceId."
+  },
+  "notPairedHint": {
+    "message": "Connect this browser to Claude Code once from the Claude extension and an ID is created.",
+    "description": "Help text for the not-paired state."
+  },
+  "claudeNotInstalled": {
+    "message": "The Claude extension is not in this profile",
+    "description": "No such folder under Local Extension Settings."
+  },
+  "claudeNotInstalledHint": {
+    "message": "Install Claude in Chrome in this profile and its ID shows up here.",
+    "description": "Help text for the not-installed state."
+  },
+
+  "selfNotFoundTitle": {
+    "message": "Could not tell which profile this is",
+    "description": "Title when the nonce round trip failed."
+  },
+  "selfNotFoundHint": {
+    "message": "Pick yours from the list below. This can happen when a profile folder cannot be read.",
+    "description": "Help text when the current profile is unknown."
+  },
+  "noProfilesTitle": {
+    "message": "No browser profiles found",
+    "description": "Title when profile enumeration came back empty."
+  },
+  "noProfilesHint": {
+    "message": "Check that file URL access is on and that your browser is installed in its default location.",
+    "description": "Help text for the empty state."
+  },
+  "noOtherProfiles": {
+    "message": "There are no other profiles.",
+    "description": "Shown when the current profile is the only one."
+  },
+
+  "errorTitle": {
+    "message": "Something went wrong",
+    "description": "Title of the fatal error screen."
+  },
+  "errorHint": {
+    "message": "Try \"Scan again\". If it keeps failing, please open an issue with the details below.",
+    "description": "Help text on the error screen."
+  },
+  "retry": {
+    "message": "Try again",
+    "description": "Retry button on the error screen."
+  },
+  "warnSelfDetect": {
+    "message": "Could not determine the current profile: $DETAIL$",
+    "description": "Warning line when self-detection fails.",
+    "placeholders": {
+      "detail": { "content": "$1", "example": "Failed to fetch" }
+    }
+  },
+  "warningsTitle": {
+    "message": "Notes from the scan",
+    "description": "Summary of the <details> holding warnings."
+  },
+  "privacyNote": {
+    "message": "cici only reads files on this computer. Nothing is ever sent anywhere.",
+    "description": "Footnote at the bottom of the popup."
+  }
+}

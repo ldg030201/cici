@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>cici</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="hd">
+      <div class="hd-text">
+        <h1 class="hd-title" data-i18n="appTitle">cici</h1>
+        <p class="hd-sub" data-i18n="appSubtitle"></p>
+      </div>
+      <button
+        id="btn-refresh"
+        class="icon-btn"
+        type="button"
+        hidden
+        data-i18n-aria="refresh"
+        data-i18n-title="refresh"
+      >
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false">
+          <path
+            d="M13.4 7.2a5.4 5.4 0 1 1-1.6-3.5M13.6 1.9v3.6h-3.6"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+    </header>
+
+    <main id="main">
+      <!-- 1. 로딩 -->
+      <section id="panel-loading" class="panel" hidden>
+        <p class="lead" data-i18n="loadingProfiles"></p>
+        <p class="muted" data-i18n="loadingHint"></p>
+        <div class="skeleton" aria-hidden="true">
+          <div class="sk sk-card"></div>
+          <div class="sk sk-row"></div>
+          <div class="sk sk-row"></div>
+        </div>
+      </section>
+
+      <!-- 2. 파일 URL 접근이 꺼져 있음 -->
+      <section id="panel-access" class="panel" hidden>
+        <div class="notice">
+          <h2 class="notice-title" data-i18n="needFileAccessTitle"></h2>
+          <p class="notice-body" data-i18n="needFileAccessWhy"></p>
+        </div>
+
+        <h3 class="sec-label" data-i18n="howToTitle"></h3>
+        <ol class="steps">
+          <li data-i18n="howToStep1"></li>
+          <li data-i18n="howToStep2"></li>
+          <li class="step-strong" data-i18n="howToStep3"></li>
+        </ol>
+
+        <p class="callout" data-i18n="needFileAccessNote"></p>
+
+        <div class="actions">
+          <button id="btn-open-settings" class="btn btn-primary" type="button" data-i18n="openExtensionsPage"></button>
+          <button id="btn-copy-url" class="btn" type="button" data-i18n="copyUrl"></button>
+        </div>
+        <p class="muted small" data-i18n="urlCopyHint"></p>
+        <p class="url-preview"><code id="settings-url"></code></p>
+      </section>
+
+      <!-- 3. 결과 -->
+      <section id="panel-result" class="panel" hidden>
+        <h2 class="sec-label" data-i18n="currentProfile"></h2>
+        <div id="self-slot"></div>
+
+        <h2 id="others-label" class="sec-label sec-label-gap" data-i18n="otherProfiles"></h2>
+        <ul id="others-slot" class="rows"></ul>
+
+        <details id="warn-box" class="warn-box" hidden>
+          <summary data-i18n="warningsTitle"></summary>
+          <pre id="warn-text" class="warn-text"></pre>
+        </details>
+      </section>
+
+      <!-- 4. 치명적 오류 -->
+      <section id="panel-error" class="panel" hidden>
+        <div class="notice notice-error">
+          <h2 class="notice-title" data-i18n="errorTitle"></h2>
+          <p class="notice-body" data-i18n="errorHint"></p>
+        </div>
+        <pre id="error-text" class="warn-text"></pre>
+        <div class="actions">
+          <button id="btn-retry" class="btn btn-primary" type="button" data-i18n="retry"></button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="ft">
+      <p class="muted small" data-i18n="privacyNote"></p>
+      <!-- 복사 피드백은 각주 자리를 잠깐 덮는다. 데이터가 있는 줄을 가리지 않는다. -->
+      <div id="toast" class="toast" hidden></div>
+    </footer>
+
+    <div id="live" class="sr-only" role="status" aria-live="polite"></div>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

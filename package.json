@@ -19,7 +19,9 @@
   ],
   "scripts": {
     "test": "node --test test/*.test.js",
-    "start": "node bin/cici.js"
+    "start": "node bin/cici.js",
+    "build:ext": "node scripts/build-extension.mjs",
+    "icons": "node scripts/make-icons.mjs"
   },
   "engines": {
     "node": ">=18.17"
