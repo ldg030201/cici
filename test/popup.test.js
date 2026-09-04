@@ -861,7 +861,6 @@ test('정적 문구와 lang 속성이 카탈로그대로 채워진다', async ()
   const app = await mountPopup({ fs, selfProfileDir });
 
   assert.equal(app.text('.hd-title'), msg('appTitle'));
-  assert.equal(app.text('.hd-sub'), msg('appSubtitle'));
   assert.equal(app.doc.getElementById('btn-refresh').getAttribute('aria-label'), msg('refresh'));
   assert.equal(app.doc.getElementById('btn-refresh').title, msg('refresh'));
   // `<html lang>` 은 브라우저 UI 언어가 아니라 **실제로 그려진 언어**여야 한다.

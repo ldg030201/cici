@@ -127,12 +127,6 @@ body {
   letter-spacing: -0.01em;
 }
 
-.hd-sub {
-  margin: 1px 0 0;
-  color: var(--fg-muted);
-  font-size: 11.5px;
-}
-
 .icon-btn {
   flex: none;
   display: inline-flex;

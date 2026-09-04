@@ -7,25 +7,18 @@
     "message": "Tells you which Chrome profile each UUID in Claude Code's browser picker belongs to, starting with this profile's bridgeDeviceId.",
     "description": "Web Store description, 132 characters or fewer."
   },
-
   "htmlLang": {
     "message": "en",
     "description": "BCP 47 tag for the language of this catalog; goes straight into <html lang>. chrome.i18n.getUILanguage() is the wrong answer because it reports the browser UI language, which disagrees with the rendered text whenever Chrome falls back to default_locale. Update this when adding a locale."
   },
-
   "appTitle": {
-    "message": "cici",
+    "message": "Claude in Chrome ID",
     "description": "Product name in the popup header."
-  },
-  "appSubtitle": {
-    "message": "Claude in Chrome bridge ID",
-    "description": "One-line description in the popup header."
   },
   "refresh": {
     "message": "Scan again",
     "description": "Refresh button in the header."
   },
-
   "loadingProfiles": {
     "message": "Looking for profiles…",
     "description": "Loading screen title."
@@ -38,7 +31,6 @@
     "message": "Stop",
     "description": "Button on the loading screen. The way out when one read hangs."
   },
-
   "needFileAccessTitle": {
     "message": "File URL access is required",
     "description": "Title shown when the file access toggle is off."
@@ -79,7 +71,6 @@
     "message": "The popup closes when you press the button. You can also copy the address and paste it into a new tab.",
     "description": "Help text next to the copy button."
   },
-
   "currentProfile": {
     "message": "Current profile",
     "description": "Section heading above the current profile card."
@@ -128,10 +119,12 @@
     "message": "Copy the bridgeDeviceId of profile $PROFILE$",
     "description": "Screen reader name for a list row's copy button.",
     "placeholders": {
-      "profile": { "content": "$1", "example": "Work" }
+      "profile": {
+        "content": "$1",
+        "example": "Work"
+      }
     }
   },
-
   "unnamedProfile": {
     "message": "Unnamed profile",
     "description": "Shown when the profile name could not be read."
@@ -160,7 +153,6 @@
     "message": "The folder could not be read, so whether Claude is installed here is unknown. See the notes below.",
     "description": "Help text for the unreadable state."
   },
-
   "pairingUnknown": {
     "message": "Cannot tell whether this profile is paired",
     "description": "The Claude extension folder is there but its storage could not be read. Must not be conflated with \"Not paired yet\"."
@@ -169,7 +161,6 @@
     "message": "The Claude extension's storage could not be read, so it may already be paired. Try \"Scan again\".",
     "description": "Help text for the pairing-unknown state."
   },
-
   "selfNotFoundTitle": {
     "message": "Could not tell which profile this is",
     "description": "Title when the nonce round trip failed."
@@ -198,7 +189,6 @@
     "message": "There are no other profiles.",
     "description": "Shown when the current profile is the only one."
   },
-
   "statusScanned": {
     "message": "Scan finished. The current profile is $PROFILE$, and there are $COUNT$ other profiles.",
     "description": "Summary read out when the scan finishes.",
@@ -223,7 +213,6 @@
       }
     }
   },
-
   "errorTitle": {
     "message": "Something went wrong",
     "description": "Title of the fatal error screen."
@@ -244,10 +233,12 @@
     "message": "Could not determine the current profile: $DETAIL$",
     "description": "Warning line when self-detection fails.",
     "placeholders": {
-      "detail": { "content": "$1", "example": "Failed to fetch" }
+      "detail": {
+        "content": "$1",
+        "example": "Failed to fetch"
+      }
     }
   },
-
   "warnScanTimeout": {
     "message": "The scan ran out of time, so some profiles may be missing. Try \"Scan again\".",
     "description": "Shown when the overall budget expired or the user stopped the scan."
