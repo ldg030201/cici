@@ -137,5 +137,6 @@ cici 가 보유한 이용자 데이터가 없으므로 열람·정정·삭제를
 
 ---
 
-cici 는 Anthropic 의 제품이 아니며 Anthropic 과 아무 관계가 없는 비공식 도구입니다.
-Claude 와 Claude Code 는 Anthropic 의 상표입니다.
+cici 는 Anthropic 이 만들지 않은 비공식 도구이며, Anthropic 과 제휴 관계가 없고
+Anthropic 의 보증이나 후원을 받지 않았습니다.
+Claude, Claude Code, Claude in Chrome 은 Anthropic 의 상표입니다.

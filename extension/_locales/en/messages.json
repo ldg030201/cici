@@ -4,8 +4,8 @@
     "description": "Extension name, shown in the Web Store and on chrome://extensions."
   },
   "extDesc": {
-    "message": "Tells you which Chrome profile each UUID in Claude Code's browser picker belongs to, starting with this profile's bridgeDeviceId.",
-    "description": "Web Store description, 132 characters or fewer."
+    "message": "Shows which Chrome profile owns each bridgeDeviceId in Claude Code's browser picker. Unofficial, not affiliated with Anthropic.",
+    "description": "Web Store description, 132 characters or fewer (currently 127). Store listings cut the tail off, so what the extension does comes first and the disclaimer follows. The disclaimer starts with \"Unofficial\" so that no truncation of it can read as a claim of affiliation."
   },
   "htmlLang": {
     "message": "en",
@@ -14,6 +14,10 @@
   "appTitle": {
     "message": "Claude in Chrome ID",
     "description": "Product name in the popup header."
+  },
+  "unofficialNote": {
+    "message": "An unofficial tool, not affiliated with Anthropic.",
+    "description": "Disclaimer directly under the header title. The title contains \"Claude in Chrome\", so the denial sits where the misunderstanding is created."
   },
   "refresh": {
     "message": "Scan again",

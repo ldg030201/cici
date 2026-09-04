@@ -10,6 +10,13 @@
     <header class="hd">
       <div class="hd-text">
         <h1 class="hd-title" data-i18n="appTitle">Claude in Chrome ID</h1>
+        <!-- 무관계 고지. 제목에 "Claude in Chrome" 이 들어가고 아이콘도 Claude 의
+             터라코타를 쓰므로 "공식 제품인가?" 라는 오해는 바로 이 자리에서 생긴다.
+             그래서 고지도 여기 둔다. 푸터는 개인정보 안내문과 GitHub 링크로 이미
+             한 줄이 꽉 차 있어(가용 295px 중 안내문 239px) 문구를 더하면 접힌다.
+             제목과 마찬가지로 기본 로케일(ko) 문구를 미리 박아 둔다 — i18n 이
+             어떤 이유로든 비어서 돌아와도 고지는 화면에 남아 있어야 한다. -->
+        <p class="hd-note" data-i18n="unofficialNote">Anthropic 과 무관한 비공식 도구입니다.</p>
       </div>
       <button
         id="btn-refresh"

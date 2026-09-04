@@ -127,6 +127,21 @@ body {
   letter-spacing: -0.01em;
 }
 
+/*
+ * 무관계 고지. 제목보다 확실히 작고 조용하지만 읽히기는 해야 한다.
+ * --fg-muted 는 카드 배경에서 5.5:1(라이트) / 6.0:1(다크) 이라 11px 에서도 읽힌다.
+ * 헤더의 가용 폭은 336px(400 - 좌우 28 - 버튼 28 - 간격 8)이고 두 로케일 모두
+ * 그 안에서 한 줄이다(ko 181px, en 244px 실측). 푸터에 넣지 않은 이유도 폭이다 —
+ * 개인정보 안내문과 GitHub 링크가 가용 295px 를 이미 239px 로 채우고 있어
+ * 한 줄에 합치면 ko·en 모두 두 줄로 접힌다(실측).
+ */
+.hd-note {
+  margin: 2px 0 0;
+  color: var(--fg-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .icon-btn {
   flex: none;
   display: inline-flex;

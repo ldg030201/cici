@@ -1,5 +1,7 @@
 # cici — Claude In Chrome Id
 
+> **Unofficial.** cici is not made by Anthropic and is not affiliated with Anthropic.
+
 > [한국어 README](README.md) is the primary document; this is its English translation.
 
 Tells you which Chrome profile owns the UUID (`bridgeDeviceId`) that Claude Code shows in its
@@ -356,5 +358,5 @@ There is no build step. The extension loads as plain ES modules.
 
 MIT — see [`LICENSE`](LICENSE).
 
-cici is not an Anthropic product and is not affiliated with Anthropic. Claude and Claude Code are
-trademarks of Anthropic.
+cici is an unofficial tool. It is not made by Anthropic, and it is neither affiliated with nor
+endorsed by Anthropic. Claude, Claude Code, and Claude in Chrome are trademarks of Anthropic.

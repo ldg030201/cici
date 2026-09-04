@@ -1,5 +1,7 @@
 # cici — Claude In Chrome Id
 
+> **비공식 도구다.** cici 는 Anthropic 이 만들지 않았고 Anthropic 과 아무 관계가 없다.
+
 Claude Code 가 브라우저 선택창에 띄우는 UUID(`bridgeDeviceId`)가 **어느 크롬 프로필의 것인지** 알려 준다.
 
 브라우저를 두 개 이상 연결해 두면 Claude Code 는 이런 목록을 보여 준다.
@@ -426,5 +428,6 @@ extension/               MV3, 빌드 단계 없음
 
 MIT. 자세한 내용은 [`LICENSE`](LICENSE).
 
-cici 는 Anthropic 의 제품이 아니며 Anthropic 과 아무 관계가 없다.
-Claude 와 Claude Code 는 Anthropic 의 상표다.
+cici 는 Anthropic 이 만들지 않은 비공식 도구이며, Anthropic 과 제휴 관계가 없고
+Anthropic 의 보증이나 후원을 받지 않았다.
+Claude, Claude Code, Claude in Chrome 은 Anthropic 의 상표다.

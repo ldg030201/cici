@@ -21,7 +21,9 @@ cici 확장을 크롬 웹스토어에 올릴 때 그대로 붙여 넣을 문구�
 | Claude 브리지 ID 뷰어 | 14자 | "Claude" 를 앞에 두면 Anthropic 공식 확장으로 오인될 수 있다. 피한다 |
 
 **주의.** 이름에 `Claude` 가 들어가지만 제품명이 앞에 오고 설명 어디에도 공식/제휴를 시사하는 문구가 없어야 한다.
-설명 끝에 "Anthropic 과 관계없는 비공식 도구" 를 반드시 넣는다(아래 §3).
+무관계 고지는 세 곳에 있다. **짧은 설명 끝**(§2 — `extDesc`, chrome://extensions 에도 뜬다),
+**자세한 설명 끝**(§3), 그리고 **팝업 헤더 제목 바로 아래**(`unofficialNote`). 아이콘이 Claude 의
+터라코타를 쓰고 팝업 제목이 "Claude in Chrome ID" 라, 오해가 생기는 자리마다 부인해 둔다.
 
 이름 길이 제한은 대시보드 기준으로 45자 안팎이다. 두 후보 모두 여유가 있다.
 
@@ -31,19 +33,25 @@ cici 확장을 크롬 웹스토어에 올릴 때 그대로 붙여 넣을 문구�
 
 매니페스트의 `__MSG_extDesc__` → `messages.json` 의 `extDesc` 가 그대로 쓰인다.
 
-**한국어 (82자)**
+**한국어 (113자)**
 
 ```
-Claude Code 브라우저 선택 목록의 UUID가 어느 크롬 프로필인지 알려줍니다. 현재 프로필의 bridgeDeviceId를 바로 보여줍니다.
+Claude Code 브라우저 선택 목록의 UUID가 어느 크롬 프로필인지 알려줍니다. 현재 프로필의 bridgeDeviceId를 바로 보여줍니다. 비공식 도구이며 Anthropic 과 관계가 없습니다.
 ```
 
-**English (129자)**
+**English (127자)**
 
 ```
-Tells you which Chrome profile each UUID in Claude Code's browser picker belongs to, starting with this profile's bridgeDeviceId.
+Shows which Chrome profile owns each bridgeDeviceId in Claude Code's browser picker. Unofficial, not affiliated with Anthropic.
 ```
 
-영어판이 129자로 한도에 거의 붙어 있다. `messages.json` 을 고칠 때 길이를 다시 재야 한다.
+**순서에 이유가 있다.** 스토어 목록의 카드에서는 이 문장의 뒤가 잘린다. 그래서
+기능 설명을 앞에 두고 무관계 고지를 뒤에 붙였다 — 잘리면 기능 설명만 남고, 남은 글자가
+거짓이 되지는 않는다. 고지 자체도 "비공식" / "Unofficial" 로 시작한다. `Anthropic` 을
+앞에 두면 하필 그 자리에서 잘렸을 때 `… Anthropic` 만 남아 제휴처럼 읽힐 수 있다.
+
+두 문장 모두 한도(132자)에 여유가 얼마 없다. `messages.json` 의 `extDesc` 를 고치면
+길이를 다시 재고 이 표도 함께 고쳐야 한다.
 
 ---
 
@@ -92,8 +100,12 @@ cici 는 그 한 가지 질문에만 답합니다. 어느 UUID 가 어느 프로
 ■ 지원 브라우저
   Chrome, Chromium, Brave, Microsoft Edge, Vivaldi, Opera, Arc (Chrome 116 이상)
 
-cici 는 Anthropic 의 제품이 아니며 Anthropic 과 아무 관계가 없는 비공식 도구입니다.
-Claude 와 Claude Code 는 Anthropic 의 상표입니다.
+■ 이 확장과 Anthropic 의 관계
+  cici 는 Anthropic 이 만들지 않은 비공식 도구입니다. Anthropic 과 제휴 관계가 없고,
+  Anthropic 의 보증이나 후원을 받지 않았습니다. 개인이 만들어 공개한 오픈소스입니다.
+  Claude, Claude Code, Claude in Chrome 은 Anthropic 의 상표입니다. 이 확장은
+  Claude in Chrome 확장이 이미 저장해 둔 값을 사용자에게 읽어 보여 줄 뿐이며,
+  Anthropic 의 서비스에 접속하지 않습니다.
 ```
 
 ---
@@ -258,6 +270,8 @@ https://github.com/ldg030201/cici/blob/main/docs/privacy-policy.md
 - [ ] `manifest.json` 의 권한이 `storage` + `file:///*` 뿐인지 재확인
 - [ ] `homepage_url` 이 올바른 저장소를 가리키는지 확인
 - [ ] `_locales/ko`, `_locales/en` 의 `extName`·`extDesc` 길이 확인 (이름 45자, 설명 132자)
+- [ ] 무관계 고지가 세 곳에 다 있는지 확인 — `extDesc` 끝(§2), 자세한 설명 끝(§3),
+      팝업 헤더의 `unofficialNote`
 - [ ] 저장소·스크린샷·문서 어디에도 실제 UUID·이메일·프로필 이름이 없는지 확인
 
 ### 패키징

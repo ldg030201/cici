@@ -4,8 +4,8 @@
     "description": "확장 이름. 웹스토어와 확장 관리 화면에 표시된다."
   },
   "extDesc": {
-    "message": "Claude Code 브라우저 선택 목록의 UUID가 어느 크롬 프로필인지 알려줍니다. 현재 프로필의 bridgeDeviceId를 바로 보여줍니다.",
-    "description": "웹스토어 설명. 132자 이내."
+    "message": "Claude Code 브라우저 선택 목록의 UUID가 어느 크롬 프로필인지 알려줍니다. 현재 프로필의 bridgeDeviceId를 바로 보여줍니다. 비공식 도구이며 Anthropic 과 관계가 없습니다.",
+    "description": "웹스토어 설명. 132자 이내(현재 113자). 스토어 목록에서는 뒤가 잘리므로 기능 설명이 먼저 오고 무관계 고지가 뒤에 온다. 고지는 '비공식' 으로 시작한다 — 중간에서 잘려도 남는 글자가 제휴를 암시하지 않게."
   },
   "htmlLang": {
     "message": "ko",
@@ -14,6 +14,10 @@
   "appTitle": {
     "message": "Claude in Chrome ID",
     "description": "팝업 헤더의 제품 이름."
+  },
+  "unofficialNote": {
+    "message": "Anthropic 과 무관한 비공식 도구입니다.",
+    "description": "헤더 제목 바로 아래의 무관계 고지. 제목에 'Claude in Chrome' 이 들어가서 공식 제품으로 오해할 수 있으므로, 오해가 생기는 자리에서 바로 부인한다."
   },
   "refresh": {
     "message": "다시 검사",
