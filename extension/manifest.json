@@ -22,5 +22,9 @@
     }
   },
   "permissions": ["storage"],
-  "host_permissions": ["file:///*"]
+  "host_permissions": ["file:///*"],
+  "homepage_url": "https://github.com/ldg030201/cici",
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; connect-src 'self' file:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; child-src 'none'"
+  }
 }

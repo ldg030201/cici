@@ -18,6 +18,7 @@ import {
   discoverBrowsers,
   listProfiles,
   findExtension,
+  findExtensions,
 } from './browsers.js';
 import {
   CLAUDE_EXTENSION_IDS,
@@ -34,6 +35,7 @@ export {
   discoverBrowsers,
   listProfiles,
   findExtension,
+  findExtensions,
   CLAUDE_EXTENSION_IDS,
   BRIDGE_DEVICE_ID_KEY,
   BRIDGE_DISPLAY_NAME_KEY,
@@ -269,24 +271,47 @@ function compareRank(a, b) {
 async function buildRow(target, profile, extensionIds, includeUninstalled) {
   const warnings = Array.isArray(profile.warnings) ? [...profile.warnings] : [];
 
-  let extension = null;
+  /** @type {import('./browsers.js').ExtensionInfo[]} */
+  let matches = [];
   try {
-    extension = await findExtension(profile.dir, extensionIds);
+    matches = await findExtensions(profile.dir, extensionIds);
   } catch (err) {
     warnings.push(`could not inspect extensions: ${err && err.message ? err.message : String(err)}`);
   }
-  const installed = Boolean(extension && extension.installed);
+  const installed = matches.length > 0;
   if (!installed && !includeUninstalled) return null;
 
+  // Several Claude builds can be installed side by side (the Web Store one and
+  // an internal build). Having a storage directory does not make one "the
+  // paired one" — a build that was installed but never paired has storage too.
+  // So read every candidate's storage and keep the first that actually holds a
+  // value; only fall back to the first readable one when none does. Stopping at
+  // the first storage directory would report "not paired" while the bridge id
+  // sits in the next candidate (the extension popup already picks this way).
+  let extension = null;
   let bridge = { deviceId: null, displayName: null, warnings: [] };
-  if (extension && extension.storageDir) {
+  for (const m of matches) {
+    if (m.storageDir === null) continue;
+    let info;
     try {
-      bridge = await readBridgeInfo(extension.storageDir);
+      info = await readBridgeInfo(m.storageDir);
     } catch (err) {
       warnings.push(`could not read extension storage: ${err && err.message ? err.message : String(err)}`);
+      continue;
     }
-  } else if (installed) {
-    warnings.push('extension is installed but has no storage directory yet (never paired?)');
+    if (info.deviceId !== null || info.displayName !== null) {
+      extension = m;
+      bridge = info;
+      break;
+    }
+    if (extension === null) {
+      extension = m;
+      bridge = info;
+    }
+  }
+  if (extension === null) {
+    extension = matches[0] ?? null;
+    if (installed) warnings.push('extension is installed but has no storage directory yet (never paired?)');
   }
   if (Array.isArray(bridge.warnings)) warnings.push(...bridge.warnings);
 

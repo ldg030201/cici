@@ -8,6 +8,11 @@
     "description": "Web Store description, 132 characters or fewer."
   },
 
+  "htmlLang": {
+    "message": "en",
+    "description": "BCP 47 tag for the language of this catalog; goes straight into <html lang>. chrome.i18n.getUILanguage() is the wrong answer because it reports the browser UI language, which disagrees with the rendered text whenever Chrome falls back to default_locale. Update this when adding a locale."
+  },
+
   "appTitle": {
     "message": "cici",
     "description": "Product name in the popup header."
@@ -28,6 +33,10 @@
   "loadingHint": {
     "message": "Scanning the browser profiles on this computer.",
     "description": "Loading screen subtitle."
+  },
+  "cancelScan": {
+    "message": "Stop",
+    "description": "Button on the loading screen. The way out when one read hangs."
   },
 
   "needFileAccessTitle": {
@@ -78,6 +87,10 @@
   "otherProfiles": {
     "message": "Other profiles on this computer",
     "description": "Section heading for the remaining profiles."
+  },
+  "foundProfiles": {
+    "message": "Profiles found on this computer",
+    "description": "Section title for the list when the current profile could not be identified; it includes the current one."
   },
   "badgeCurrent": {
     "message": "current",
@@ -139,6 +152,23 @@
     "message": "Install Claude in Chrome in this profile and its ID shows up here.",
     "description": "Help text for the not-installed state."
   },
+  "profileUnreadable": {
+    "message": "Could not read this profile folder",
+    "description": "Shown when the profile listing failed, so installation cannot be determined."
+  },
+  "profileUnreadableHint": {
+    "message": "The folder could not be read, so whether Claude is installed here is unknown. See the notes below.",
+    "description": "Help text for the unreadable state."
+  },
+
+  "pairingUnknown": {
+    "message": "Cannot tell whether this profile is paired",
+    "description": "The Claude extension folder is there but its storage could not be read. Must not be conflated with \"Not paired yet\"."
+  },
+  "pairingUnknownHint": {
+    "message": "The Claude extension's storage could not be read, so it may already be paired. Try \"Scan again\".",
+    "description": "Help text for the pairing-unknown state."
+  },
 
   "selfNotFoundTitle": {
     "message": "Could not tell which profile this is",
@@ -153,12 +183,45 @@
     "description": "Title when profile enumeration came back empty."
   },
   "noProfilesHint": {
-    "message": "Check that file URL access is on and that your browser is installed in its default location.",
-    "description": "Help text for the empty state."
+    "message": "Check that your browser is installed in its default location. Browsers started with a custom --user-data-dir cannot be found.",
+    "description": "Help text for the empty state. This screen only appears after file URL access has been confirmed to be on, so it must not tell the user to check that toggle: flipping it only reloads the extension and fixes nothing."
+  },
+  "scanCutShortTitle": {
+    "message": "The scan did not finish",
+    "description": "Shown when the budget expired or the user stopped the scan before any profile was counted. A different state from \"none found\"."
+  },
+  "scanCutShortHint": {
+    "message": "The scan stopped while counting profiles, so there are no results. Try \"Scan again\".",
+    "description": "Help text when the scan was cut short."
   },
   "noOtherProfiles": {
     "message": "There are no other profiles.",
     "description": "Shown when the current profile is the only one."
+  },
+
+  "statusScanned": {
+    "message": "Scan finished. The current profile is $PROFILE$, and there are $COUNT$ other profiles.",
+    "description": "Summary read out when the scan finishes.",
+    "placeholders": {
+      "profile": {
+        "content": "$1",
+        "example": "Work"
+      },
+      "count": {
+        "content": "$2",
+        "example": "2"
+      }
+    }
+  },
+  "statusScannedNoSelf": {
+    "message": "Scan finished. The current profile could not be identified; $COUNT$ profiles were found.",
+    "description": "Summary when self-detection failed.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
   },
 
   "errorTitle": {
@@ -166,18 +229,181 @@
     "description": "Title of the fatal error screen."
   },
   "errorHint": {
-    "message": "Try \"Scan again\". If it keeps failing, please open an issue with the details below.",
+    "message": "Press \"Try again\". If it keeps failing, copy the details below and report them on the project page.",
     "description": "Help text on the error screen."
   },
   "retry": {
     "message": "Try again",
     "description": "Retry button on the error screen."
   },
+  "copyErrorDetails": {
+    "message": "Copy details",
+    "description": "Button that copies the diagnostics on the error screen."
+  },
   "warnSelfDetect": {
     "message": "Could not determine the current profile: $DETAIL$",
     "description": "Warning line when self-detection fails.",
     "placeholders": {
       "detail": { "content": "$1", "example": "Failed to fetch" }
+    }
+  },
+
+  "warnScanTimeout": {
+    "message": "The scan ran out of time, so some profiles may be missing. Try \"Scan again\".",
+    "description": "Shown when the overall budget expired or the user stopped the scan."
+  },
+  "warnStorageUnavailable": {
+    "message": "chrome.storage.local is unavailable, so the current profile cannot be shown. manifest.json needs \"storage\" in \"permissions\".",
+    "description": "Shown when the storage permission is missing."
+  },
+  "warnNoExtensionContext": {
+    "message": "chrome.runtime.id is unavailable. This is not an extension context.",
+    "description": "Shown when the popup document was opened outside the extension."
+  },
+  "warnProfileUnreadable": {
+    "message": "Could not read the folder $PATH$, so whether the extension is installed in this profile is unknown.",
+    "description": "Shown when a profile directory listing failed.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      }
+    }
+  },
+  "warnDirUnreadable": {
+    "message": "Could not read the folder $PATH$.",
+    "description": "Shown when a sub-directory listing failed.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      }
+    }
+  },
+  "warnNoLevelDbFiles": {
+    "message": "No LevelDB files (*.ldb, *.sst, *.log) in $PATH$.",
+    "description": "Shown when the storage directory exists but is empty.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      }
+    }
+  },
+  "warnLevelDbUnreadable": {
+    "message": "Could not read the LevelDB in $PATH$ ($DETAIL$).",
+    "description": "Shown when the parser failed outright.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "cannot read file:///..."
+      }
+    }
+  },
+  "warnParserNote": {
+    "message": "$PATH$: $DETAIL$",
+    "description": "A note from the LevelDB parser. The detail is the parser's own English diagnostic and is not translated.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "CURRENT is missing; scanning every table and log"
+      }
+    }
+  },
+  "warnProfileRead": {
+    "message": "Something went wrong while reading $PATH$: $DETAIL$",
+    "description": "Shown when reading one profile threw.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Failed to fetch"
+      }
+    }
+  },
+  "warnLocalState": {
+    "message": "Could not read Local State in $PATH$: $DETAIL$",
+    "description": "Shown when the file holding profile names and emails could not be read.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Failed to fetch"
+      }
+    }
+  },
+  "warnBadJson": {
+    "message": "$KEY$ is not valid JSON ($DETAIL$): $VALUE$",
+    "description": "Shown when a value on disk does not parse as JSON.",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Unexpected token"
+      },
+      "value": {
+        "content": "$3",
+        "example": "not-json"
+      }
+    }
+  },
+  "warnBadJsonRaw": {
+    "message": "$KEY$ is not valid JSON ($DETAIL$). Using the raw value.",
+    "description": "Shown when the JSON is broken but the raw value looks like a UUID.",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Unexpected token"
+      }
+    }
+  },
+  "warnNotUuid": {
+    "message": "$KEY$ does not look like a UUID: $VALUE$",
+    "description": "Shown when the value was read but is not UUID-shaped.",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "value": {
+        "content": "$2",
+        "example": "nope"
+      }
+    }
+  },
+  "warnNotJsonString": {
+    "message": "$KEY$ is not a JSON string: $VALUE$",
+    "description": "Shown when the value is some other JSON type.",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "value": {
+        "content": "$2",
+        "example": "123"
+      }
     }
   },
   "warningsTitle": {

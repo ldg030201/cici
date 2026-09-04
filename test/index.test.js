@@ -220,6 +220,44 @@ describe('scan', () => {
     assert.match(rows[0].warnings[0], /no storage directory/);
   });
 
+  test('a never-paired first candidate does not hide the paired second one', async () => {
+    // Several Claude builds can be installed side by side; that is the whole
+    // reason the id list has three entries. "Has a storage directory" does not
+    // mean "is the paired one" — a Web Store build that was installed but never
+    // paired has storage too. Stopping there reports "not paired" while the
+    // bridge id sits in the next candidate. The extension popup already walks
+    // every candidate; the CLI must give the same answer for the same disk.
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cici-two-builds-'));
+    const profile = path.join(dir, 'Default');
+    await writeJson(path.join(profile, 'Preferences'), { profile: { name: 'Work' } });
+
+    const first = path.join(profile, 'Local Extension Settings', CLAUDE_EXTENSION_IDS[0]);
+    await writeLogFile(path.join(first, '000003.log'), [
+      { sequence: 1, records: [{ type: TYPE_VALUE, key: 'anonymousId', value: J('x') }] },
+    ]);
+    await writeManifest(first, { logNumber: 3, lastSequence: 1, liveTables: [] });
+
+    const second = path.join(profile, 'Local Extension Settings', CLAUDE_EXTENSION_IDS[2]);
+    await writeLogFile(path.join(second, '000003.log'), [
+      { sequence: 1, records: [{ type: TYPE_VALUE, key: 'bridgeDeviceId', value: J(UUID) }] },
+    ]);
+    await writeManifest(second, { logNumber: 3, lastSequence: 1, liveTables: [] });
+
+    try {
+      const rows = await scan({ userDataDirs: [dir] });
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].deviceId, UUID, 'the paired build holds the id');
+      assert.equal(rows[0].extensionId, CLAUDE_EXTENSION_IDS[2]);
+      assert.equal(
+        rows[0].warnings.some((w) => /not paired|no storage/.test(w)),
+        false,
+        `it must not claim the profile is unpaired: ${rows[0].warnings.join(' | ')}`,
+      );
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('a profile directory given instead of the user-data dir scans just that profile', async () => {
     const rows = await scan({ userDataDirs: [path.join(root, 'Default')] });
     assert.equal(rows.length, 1);

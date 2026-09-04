@@ -23,7 +23,7 @@
 import {
   decodeUtf8,
   fetchBytes,
-  findChildDir,
+  findChildDirEx,
   findChildFile,
   joinPath,
   listDirOrNull,
@@ -262,15 +262,20 @@ export async function listHomes(platform) {
 /**
  * 프로필 디렉터리인지 파일로 확인한다. 이름은 보지 않는다.
  *
+ * **답이 셋이다.** 목록을 못 읽었으면 `'no'` 가 아니라 `'unknown'` 이다. 둘을
+ * 뭉개면 읽지 못한 프로필이 통째로 목록에서 사라지고, 그게 하필 지금 창의
+ * 프로필이면 자기 탐지까지 실패하면서 경고는 한 줄도 안 남는다.
+ *
  * @param {string} profileDir
- * @returns {Promise<boolean>}
+ * @returns {Promise<'yes'|'no'|'unknown'>}
  */
-async function isProfileDir(profileDir) {
+async function probeProfileDir(profileDir) {
   const entries = await listDirOrNull(profileDir);
-  if (!entries) return false;
-  return entries.some(
+  if (!entries) return 'unknown';
+  const hit = entries.some(
     (e) => (!e.isDir && e.name === 'Preferences') || (e.isDir && e.name === 'Local Extension Settings'),
   );
+  return hit ? 'yes' : 'no';
 }
 
 /**
@@ -304,10 +309,16 @@ function compareProfileDirNames(a, b) {
  *
  * 없는 경로는 조용히 건너뛴다. 모든 fetch 는 병렬로 나간다.
  *
+ * **읽지 못한 후보는 조용히 버리지 않는다.** 목록이 실패한 디렉터리는 경고로
+ * 남기고, `Local State` 의 `profile.info_cache` 가 그것을 프로필이라고 확인해
+ * 주면 결과에 그대로 실어 보낸다. 확인해 주지 못하면 (프로필인지 아닌지도 모르는
+ * 잡동사니 디렉터리일 수 있으므로) 행으로 만들지는 않되 경고는 남긴다.
+ *
  * @param {'mac'|'win'|'linux'} [platform] 생략하면 {@link detectPlatform} 으로 판정
+ * @param {Array<{code: string, params: string[]}>} [warnings] 읽지 못한 후보를 적어 둔다
  * @returns {Promise<ProfileDirInfo[]>}
  */
-export async function listProfileDirs(platform) {
+export async function listProfileDirs(platform, warnings) {
   const plat = platform ?? (await detectPlatform());
   const homes = await listHomes(plat);
   const dirs = BROWSER_DIRS[plat] ?? [];
@@ -347,8 +358,29 @@ export async function listProfileDirs(platform) {
     }
   });
 
-  const keep = await Promise.all(candidates.map((c) => isProfileDir(c.profileDir)));
-  const found = candidates.filter((_c, i) => keep[i]);
+  const probes = await Promise.all(candidates.map((c) => probeProfileDir(c.profileDir)));
+  const found = candidates.filter((_c, i) => probes[i] === 'yes');
+  const unknown = candidates.filter((_c, i) => probes[i] === 'unknown');
+
+  if (unknown.length > 0) {
+    // 읽지 못한 후보. 사용자에게는 무조건 알린다.
+    if (Array.isArray(warnings)) {
+      for (const c of unknown) warnings.push({ code: 'warnProfileUnreadable', params: [c.profileDir] });
+    }
+    // 그리고 `Local State` 가 "이건 진짜 프로필"이라고 확인해 주는 것만 목록에
+    // 넣는다. 그 파일은 프로필 디렉터리와 별개라서 프로필 폴더를 못 읽는
+    // 상황에서도 대개 읽힌다. 확인 없이 전부 넣으면 이름만 낯선 디렉터리가
+    // 유령 프로필 행으로 뜬다.
+    const roots = [...new Set(unknown.map((c) => c.userDataDir))];
+    const metas = new Map(
+      await Promise.all(
+        roots.map(async (root) => [root, await readProfileMeta(root).catch(() => new Map())]),
+      ),
+    );
+    for (const c of unknown) {
+      if (metas.get(c.userDataDir)?.has(c.profileDirName)) found.push(c);
+    }
+  }
 
   const order = new Map(BROWSERS.map((b, i) => [b.id, i]));
   found.sort((a, b) => {
@@ -425,39 +457,115 @@ function randomUuid() {
 }
 
 /**
+ * 화면에 보여 줄 문장을 만들 수 있는 에러.
+ *
+ * `message` 는 영어로 고정한다(개발자용). 사람에게 보일 문장은 popup.js 가
+ * `i18nCode` / `i18nParams` 로 `_locales` 에서 만든다. 라이브러리가 한국어
+ * 문장을 직접 던지면 en 로케일 경고 상자에 한글이 그대로 박힌다.
+ *
+ * @param {string} message 영어 개발자용 메시지
+ * @param {string} code `_locales` 메시지 키
+ * @param {...string} params
+ * @returns {Error}
+ */
+function codedError(message, code, ...params) {
+  const err = new Error(message);
+  err.i18nCode = code;
+  err.i18nParams = params.map((p) => String(p));
+  return err;
+}
+
+/**
+ * @typedef {object} NonceHit
+ * @property {boolean} match     nonce 가 그 프로필에 있으면 true
+ * @property {boolean} unreadable 읽지 못해서 판정 자체를 못 했으면 true
+ * @property {Array<{dir: string, note: string}>} notes 파서가 남긴 진단.
+ *   왜 못 읽었는지는 여기에만 있다. 버리면 사용자에게 남는 단서가 0이 된다.
+ */
+
+/**
  * 한 프로필의 우리 확장 저장소에 `nonce` 가 들어 있는지 본다.
  *
  * `chrome.storage.local` 은 값을 JSON 으로 저장하므로 디스크에는 따옴표까지 붙어
  * 있다. 혹시 모르니 날값 비교도 함께 한다.
  *
+ * "우리 확장이 그 프로필에 없다"와 "그 프로필을 못 읽었다"는 다른 답이다.
+ * 뒤엣것을 `false` 로 뭉개면 자기 프로필 탐지가 조용히 실패한다.
+ *
  * @param {string} profileDir 프로필 디렉터리
  * @param {string} selfId 이 확장의 id
  * @param {string} nonce
- * @returns {Promise<boolean>}
+ * @returns {Promise<NonceHit>}
  */
 async function storageHasNonce(profileDir, selfId, nonce) {
   // 우리 확장이 그 프로필에 깔려 있는지부터 목록으로 확인한다. 없는 경로를
   // 그냥 열면 콘솔에 `net::ERR_FILE_NOT_FOUND` 가 남는다.
-  const settingsRoot = await findChildDir(profileDir, 'Local Extension Settings');
-  if (settingsRoot === null) return false;
-  const storageDir = await findChildDir(settingsRoot, selfId);
-  if (storageDir === null) return false;
+  const settings = await findChildDirEx(profileDir, 'Local Extension Settings');
+  if (settings.unreadable) return { match: false, unreadable: true, notes: [] };
+  if (settings.path === null) return { match: false, unreadable: false, notes: [] };
+
+  const storage = await findChildDirEx(settings.path, selfId);
+  if (storage.unreadable) return { match: false, unreadable: true, notes: [] };
+  if (storage.path === null) return { match: false, unreadable: false, notes: [] };
 
   try {
-    const entries = await listDirOrNull(storageDir);
-    const db = await readLevelDbFrom(makeSource(storageDir, entries ? { entries } : {}));
+    const entries = await listDirOrNull(storage.path);
+    if (entries === null) return { match: false, unreadable: true, notes: [] };
+    const source = makeSource(storage.path, { entries });
+    const db = await readLevelDbFrom(source);
     const raw = db.entries.get(NONCE_KEY);
-    if (raw === undefined) return false;
-    const text = decodeUtf8(raw);
-    if (text === nonce) return true;
-    try {
-      return JSON.parse(text) === nonce;
-    } catch {
-      return false;
+    if (raw !== undefined) {
+      const text = decodeUtf8(raw);
+      if (text === nonce) return { match: true, unreadable: false, notes: [] };
+      try {
+        return { match: JSON.parse(text) === nonce, unreadable: false, notes: [] };
+      } catch {
+        return { match: false, unreadable: false, notes: [] };
+      }
     }
-  } catch {
-    return false;
+
+    // 표식이 없다. 그런데 `readLevelDbFrom` 은 파일 읽기 실패에 예외를 던지지
+    // 않고 경고로 삼키므로, 여기까지 오는 길에는 "정말 없다"와 "못 읽어서
+    // 안 보인다" 두 가지가 섞여 있다. 뒤엣것을 `false` 로 뭉개면 자기 프로필
+    // 탐지가 이유 한 줄 없이 실패한다.
+    const failedReads = source.readErrors();
+    const readNothing = db.files.tables.length === 0 && db.files.logs.length === 0;
+    if (failedReads.length === 0 && !readNothing) return { match: false, unreadable: false, notes: [] };
+
+    const notes = [...db.warnings, ...failedReads].map((note) => ({ dir: storage.path, note }));
+    return { match: false, unreadable: true, notes };
+  } catch (err) {
+    return {
+      match: false,
+      unreadable: true,
+      notes: [{ dir: storage.path, note: err instanceof Error ? err.message : String(err) }],
+    };
   }
+}
+
+/**
+ * 자기 표식(nonce)을 `chrome.storage.local` 에 남긴다. 남긴 값을 돌려준다.
+ *
+ * **디렉터리 목록을 훑기 전에 불러야 한다.** 확장을 갓 설치한 프로필에는
+ * `<프로필>/Local Extension Settings/<우리 id>/` 가 아직 없다. 이 디렉터리는
+ * 우리가 storage 에 처음 쓰는 순간 크롬이 만든다. 목록을 먼저 읽어서 캐시에
+ * 굳혀 버리면 그 뒤에 생긴 디렉터리를 못 보고, 첫 팝업이 자기 프로필을 놓친다.
+ * (Chrome 148 실측: 새 프로필에서 첫 번째 팝업은 자기를 못 찾고 두 번째부터
+ * 찾았다. 웹스토어로 갓 설치한 사용자가 정확히 이 경우다.)
+ *
+ * @returns {Promise<string>} 방금 남긴 nonce
+ */
+export async function writeNonce() {
+  const storage = globalThis.chrome?.storage?.local;
+  if (!storage) {
+    throw codedError(
+      'chrome.storage.local is unavailable; manifest.json needs "storage" in "permissions"',
+      'warnStorageUnavailable',
+    );
+  }
+  const nonce = randomUuid();
+  await storage.set({ [NONCE_KEY]: nonce });
+  return nonce;
 }
 
 /**
@@ -468,22 +576,37 @@ async function storageHasNonce(profileDir, selfId, nonce) {
  * (다음 실행에서 새 값으로 덮어쓴다).
  *
  * @param {Array<ProfileDirInfo|string>} profileDirs {@link listProfileDirs} 결과
+ * @param {string} [nonce] 이미 {@link writeNonce} 로 남겨 둔 표식.
+ *   주면 여기서 다시 쓰지 않는다. 디렉터리 목록을 훑기 **전에** 표식을 남겨야
+ *   갓 설치된 프로필에서도 첫 시도에 자기를 찾는다({@link writeNonce} 설명 참고).
+ * @param {Array<{code: string, params: string[]}>} [warnings] 읽지 못한 프로필을
+ *   여기에 적어 둔다. 못 찾은 이유가 "없어서"가 아니라 "못 읽어서"일 수 있다는
+ *   사실이 사용자에게 닿아야 한다.
  * @returns {Promise<{profileDir: string, nonce: string}|null>} 못 찾으면 null
  */
-export async function locateSelf(profileDirs) {
+export async function locateSelf(profileDirs, nonce, warnings) {
   const dirs = (profileDirs ?? []).map((p) => (typeof p === 'string' ? p : p.profileDir));
   if (dirs.length === 0) return null;
 
-  const storage = globalThis.chrome?.storage?.local;
+  const mark = typeof nonce === 'string' && nonce !== '' ? nonce : await writeNonce();
+
   const selfId = globalThis.chrome?.runtime?.id;
-  if (!storage || !selfId) {
-    throw new Error('chrome.storage.local 을 쓸 수 없습니다. manifest.json 의 "permissions" 에 "storage" 가 있어야 합니다.');
+  if (!selfId) {
+    throw codedError('chrome.runtime.id is unavailable; this is not an extension context', 'warnNoExtensionContext');
   }
 
-  const nonce = randomUuid();
-  await storage.set({ [NONCE_KEY]: nonce });
+  const hits = await Promise.all(dirs.map((dir) => storageHasNonce(dir, selfId, mark)));
+  const i = hits.findIndex((h) => h.match);
+  if (i >= 0) return { profileDir: dirs[i], nonce: mark };
 
-  const hits = await Promise.all(dirs.map((dir) => storageHasNonce(dir, selfId, nonce)));
-  const i = hits.indexOf(true);
-  return i < 0 ? null : { profileDir: dirs[i], nonce };
+  if (Array.isArray(warnings)) {
+    hits.forEach((h, k) => {
+      if (!h.unreadable) return;
+      warnings.push({ code: 'warnProfileUnreadable', params: [dirs[k]] });
+      // 어느 파일을 왜 못 읽었는지까지 올려 보낸다. "찾지 못했습니다"만 남기고
+      // 이유를 버리면 사용자가 할 수 있는 일이 없다.
+      for (const n of h.notes ?? []) warnings.push({ code: 'warnParserNote', params: [n.dir, n.note] });
+    });
+  }
+  return null;
 }

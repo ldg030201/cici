@@ -168,7 +168,15 @@ body {
 #main {
   max-height: 460px;
   overflow-y: auto;
-  padding: 12px 14px 4px;
+  /*
+   * 스크롤바가 폭을 잡아먹는 환경(윈도우·리눅스, 그리고 "항상 표시"로 둔 macOS)에서는
+   * #main 의 콘텐츠 폭이 15px 줄어든다. 그 15px 때문에 아래 .uuid-text 의 36자가
+   * 두 줄로 접히는 것을 실측으로 확인했다. 거터를 항상 예약해 두면 프로필 수에 따라
+   * 폭이 튀지 않고, 아래 여백/글자 크기도 그 좁은 폭을 기준으로 잡을 수 있다.
+   * 오버레이 스크롤바(기본 macOS)에서는 이 속성이 아무 자리도 차지하지 않는다.
+   */
+  scrollbar-gutter: stable;
+  padding: 12px 13px;
 }
 
 /*
@@ -219,9 +227,10 @@ body {
 .sec-label {
   margin: 0 0 6px;
   color: var(--fg-muted);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.07em;
+  /* 한글에는 자간을 많이 주면 오히려 읽기 나쁘다. 영문 라벨용으로 조금만 준다. */
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
@@ -252,7 +261,7 @@ body {
 
 .sk {
   border-radius: var(--radius-sm);
-  background: linear-gradient(90deg, var(--line) 25%, var(--card-2) 50%, var(--line) 75%);
+  background: linear-gradient(90deg, var(--line-strong) 25%, var(--card) 50%, var(--line-strong) 75%);
   background-size: 220% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
 }
@@ -286,7 +295,7 @@ body {
 /* ---------- current profile card ---------- */
 
 .card {
-  padding: 13px 13px 12px;
+  padding: 13px 12px 12px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background: var(--card);
@@ -321,7 +330,16 @@ body {
   letter-spacing: 0.03em;
 }
 
+/*
+ * 프로필 이름과 이메일은 사용자가 정하는 값이라 얼마든지 길 수 있다.
+ * 줄 수를 묶어 두지 않으면 카드 머리말이 길어져 정작 중요한 UUID 가
+ * 스크롤 아래로 밀려난다. 각각 세 줄·두 줄에서 자른다.
+ */
 .pname {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
   font-size: 16px;
   font-weight: 640;
   letter-spacing: -0.01em;
@@ -329,7 +347,11 @@ body {
 }
 
 .psub {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   margin-top: 1px;
+  overflow: hidden;
   color: var(--fg-muted);
   font-size: 11.5px;
   overflow-wrap: anywhere;
@@ -358,7 +380,7 @@ body {
 .uuid {
   display: block;
   width: 100%;
-  padding: 9px 10px;
+  padding: 9px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
   background: var(--card-2);
@@ -375,7 +397,12 @@ body {
 .uuid-text {
   display: block;
   font-family: var(--mono);
-  font-size: 14.5px;
+  /*
+   * 36자 UUID 가 한 줄에 들어가야 한다. 스크롤바가 폭을 먹는 최악의 경우
+   * 상자 안쪽은 313px 이고, 이 크기에서 문자열은 약 298px 다(실측).
+   * 폭이 0.6em 인 다른 모노 폰트로 대체돼도 302px 라 여전히 한 줄이다.
+   */
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.01em;
   overflow-wrap: anywhere;
@@ -462,29 +489,40 @@ body {
   min-width: 0;
 }
 
+/*
+ * 브라우저 이름 · 프로필 이름은 한 덩어리의 글줄로 흐르게 둔다. 예전처럼 flex 로
+ * 두면 긴 이름이 접힐 때 둘째 줄이 이름 시작 위치까지 들여쓰기돼 지저분했다.
+ * 대신 세 줄에서 잘라 아주 긴 이름이 행을 무한정 키우지 못하게 막는다.
+ */
 .row-title {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
   font-size: 12px;
 }
 
 .row-browser {
-  flex: none;
   color: var(--fg-muted);
 }
 
+/* 가운뎃점 양옆의 공백은 텍스트 자체에 들어 있다(스크린 리더에서도 두 값이 붙지 않게). */
 .row-sep {
-  flex: none;
   color: var(--fg-faint);
 }
 
 .row-name {
-  min-width: 0;
   font-weight: 620;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+}
+
+.row-sub {
+  display: block;
+  margin-top: 1px;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .row-uuid {
@@ -632,14 +670,21 @@ body {
   font-size: 12px;
 }
 
+/* 복사해서 붙여넣을 주소. 좁은 폭에서는 두 줄로 접히므로 상자로 묶어 준다. */
 .url-preview {
   margin: 6px 0 2px;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--card-2);
 }
 
 .url-preview code {
+  display: block;
   color: var(--fg-muted);
   font-family: var(--mono);
   font-size: 11px;
+  line-height: 1.4;
   overflow-wrap: anywhere;
   user-select: all;
 }

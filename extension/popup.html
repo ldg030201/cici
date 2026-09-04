@@ -43,6 +43,11 @@
           <div class="sk sk-row"></div>
           <div class="sk sk-row"></div>
         </div>
+        <!-- 읽기 하나가 멈춰도(FIFO, 응답 없는 네트워크 마운트) 사용자가 여기서
+             빠져나올 수 있어야 한다. 누르면 그때까지 모인 결과를 그린다. -->
+        <div class="actions">
+          <button id="btn-cancel" class="btn" type="button" data-i18n="cancelScan"></button>
+        </div>
       </section>
 
       <!-- 2. 파일 URL 접근이 꺼져 있음 -->
@@ -71,7 +76,7 @@
 
       <!-- 3. 결과 -->
       <section id="panel-result" class="panel" hidden>
-        <h2 class="sec-label" data-i18n="currentProfile"></h2>
+        <h2 id="self-label" class="sec-label" data-i18n="currentProfile"></h2>
         <div id="self-slot"></div>
 
         <h2 id="others-label" class="sec-label sec-label-gap" data-i18n="otherProfiles"></h2>
@@ -92,7 +97,11 @@
         <pre id="error-text" class="warn-text"></pre>
         <div class="actions">
           <button id="btn-retry" class="btn btn-primary" type="button" data-i18n="retry"></button>
+          <button id="btn-copy-error" class="btn" type="button" data-i18n="copyErrorDetails"></button>
         </div>
+        <!-- "알려 주세요"라고 말하려면 알릴 곳을 함께 줘야 한다.
+             주소는 manifest.json 의 homepage_url 에서 온다. -->
+        <p id="issue-url-line" class="url-preview" hidden><code id="issue-url"></code></p>
       </section>
     </main>
 

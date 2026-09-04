@@ -16,11 +16,14 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, readdir } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdtemp, readFile, readdir, rm, symlink } from 'node:fs/promises';
+import os from 'node:os';
+import { promisify } from 'node:util';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { COPIED_FILES, generatedContent } from '../scripts/build-extension.mjs';
+import { COPIED_FILES, generatedContent, generatedHeader } from '../scripts/build-extension.mjs';
 import {
   decodeUtf8,
   fetchBytes,
@@ -49,7 +52,18 @@ import {
   readProfileMeta,
 } from '../extension/lib/locate.js';
 import { CLAUDE_EXTENSION_IDS, readBridge } from '../extension/lib/read.js';
+// src/ 쪽 원본. 확장에 손으로 옮겨 적은 표들이 원본과 어긋나지 않았는지 대조한다.
+// (확장 코드가 src 를 import 하는 것이 아니라 테스트만 양쪽을 본다. "extension 에
+// node: 임포트 없음" 규칙은 그대로다.)
+import {
+  BRIDGE_DEVICE_ID_KEY as SRC_DEVICE_ID_KEY,
+  BRIDGE_DISPLAY_NAME_KEY as SRC_DISPLAY_NAME_KEY,
+  CLAUDE_EXTENSION_IDS as SRC_CLAUDE_EXTENSION_IDS,
+} from '../src/claude.js';
+import { BROWSERS as SRC_BROWSERS, candidateUserDataDirs } from '../src/browsers.js';
+import { BRIDGE_DEVICE_ID_KEY, BRIDGE_DISPLAY_NAME_KEY } from '../extension/lib/read.js';
 import { buildLogFile, TYPE_VALUE } from './helpers/leveldb-writer.js';
+import { FakeFs, fakeResponse, listingHtml, stub, walWith, withFetch } from './helpers/fake-file-url.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..');
@@ -76,6 +90,80 @@ test('extension/lib 의 복사본은 src/ 원본과 헤더 주석만 다르다',
       `extension/lib/${name} 이 src/${name} 과 다릅니다. "npm run build:ext" 를 돌리세요.`,
     );
   }
+});
+
+test('빌드 스크립트는 심볼릭 링크를 지나는 절대 경로로 불러도 돈다 (그리고 --check 는 아무것도 쓰지 않는다)', async () => {
+  // ESM 로더는 진입점을 realpath 로 풀어서 import.meta.url 을 만들지만
+  // path.resolve() 는 링크를 풀지 않는다. 그래서 "직접 실행인가" 판정이 어긋나면
+  // 스크립트가 아무 일도 하지 않고 exit 0 으로 끝난다 — "빌드는 성공했는데
+  // 동기화 테스트만 계속 빨간" 상태가 조용히 생긴다. macOS 는 /tmp 자체가
+  // /private/tmp 로의 링크라 특수한 설정도 필요 없다.
+  //
+  // **반드시 `--check` 로만 부른다.** 링크가 가리키는 것은 임시 디렉터리가 아니라
+  // 진짜 저장소이고(REPO_ROOT 는 realpath 로 풀린다), 쓰기 모드로 부르면 이
+  // 테스트가 작업 트리의 extension/lib 을 고쳐 쓴다. 그러면 바로 위 동기화
+  // 검사가 첫 실행에서 실패한 뒤 같은 실행 안에서 스스로 고쳐져 두 번째부터
+  // 초록이 되고(= 검사가 자기를 무력화한다), 복사본에 넣어 둔 디버그 한 줄이
+  // 경고 없이 사라진다. 아래에서 실제로 안 썼는지까지 확인한다.
+  const before = new Map(
+    await Promise.all(COPIED_FILES.map(async (n) => [n, await readFile(path.join(LIB, n))])),
+  );
+
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'cici-link-'));
+  const link = path.join(dir, 'repo');
+  try {
+    await symlink(REPO, link, 'dir');
+    const run = promisify(execFile);
+    const args = [path.join(link, 'scripts', 'build-extension.mjs'), '--check'];
+    let stdout;
+    try {
+      ({ stdout } = await run(process.execPath, args, { cwd: os.tmpdir() }));
+    } catch (err) {
+      // 어긋나 있으면 --check 는 exit 1 로 끝난다. 그건 위 테스트가 이미 말해
+      // 주므로 여기서는 출력만 본다.
+      stdout = err.stdout ?? '';
+    }
+    for (const name of COPIED_FILES) {
+      assert.match(stdout, new RegExp(name.replace('.', '\\.')), `${name} 을 처리했다는 출력이 없습니다`);
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+
+  for (const [name, bytes] of before) {
+    const now = await readFile(path.join(LIB, name));
+    assert.ok(now.equals(bytes), `테스트가 extension/lib/${name} 을 고쳐 썼습니다. npm test 는 읽기 전용이어야 합니다.`);
+  }
+});
+
+test('src/ 와 이름이 겹치는 extension/lib 파일은 COPIED_FILES 가 전부다', async () => {
+  // 동기화 검사가 COPIED_FILES 목록만 본다면, 그 목록에 이름을 넣는 것을 잊은
+  // 복사본은 검사 대상 자체가 아니다 — src/ 원본과 다른 코드로 남아도 아무도
+  // 모르고, "CLI 와 확장이 같은 파서를 쓴다"는 이 구조의 전제가 조용히 깨진다.
+  // 그래서 목록이 아니라 디렉터리를 진실로 삼아 대조한다.
+  const inSrc = new Set((await readdir(path.join(REPO, 'src'))).filter((n) => n.endsWith('.js')));
+  const inLib = (await readdir(LIB)).filter((n) => n.endsWith('.js'));
+  const shared = inLib.filter((n) => inSrc.has(n)).sort();
+  assert.deepEqual(
+    shared,
+    [...COPIED_FILES].sort(),
+    'src/ 와 이름이 같은 extension/lib 파일은 전부 COPIED_FILES 에 있어야 합니다 (scripts/build-extension.mjs).',
+  );
+});
+
+test('extension/lib 에 검사받지 않는 생성물이 남아 있지 않다', async () => {
+  // COPIED_FILES 에서 이름을 빼거나 바꾸면 옛 복사본이 헤더를 단 채 남는다.
+  // 그 파일은 갱신도 검사도 받지 않는데 확장은 계속 그것을 import 할 수 있다.
+  const headered = [];
+  for (const name of (await readdir(LIB)).filter((n) => n.endsWith('.js'))) {
+    const text = await readFile(path.join(LIB, name), 'utf8');
+    if (text.startsWith(generatedHeader(name))) headered.push(name);
+  }
+  assert.deepEqual(
+    headered.sort(),
+    [...COPIED_FILES].sort(),
+    '자동 생성 헤더가 붙은 파일과 COPIED_FILES 가 어긋납니다. "npm run build:ext" 가 낡은 복사본을 지웁니다.',
+  );
 });
 
 test('복사본은 서로를 상대 경로로 임포트한다', async () => {
@@ -136,6 +224,142 @@ test('manifest.json 은 MV3 이고 권한이 최소한이다', async () => {
     undefined,
     '서비스워커는 두지 않는다 — 팝업에서 전부 처리하므로 필요 없고, 권한 인상만 나빠진다',
   );
+});
+
+test('manifest.json 의 CSP 가 팝업의 외부 전송을 막는다', async () => {
+  // 파일 접근 토글이 켜지면 이 확장은 디스크 전체를 읽을 수 있고, 팝업은 이
+  // 머신 모든 프로필의 bridgeDeviceId·이메일·프로필 이름을 한 화면에 모은다.
+  // MV3 기본 CSP 에는 connect-src 도 img-src 도 없어서 fetch/sendBeacon/이미지
+  // 비콘이 전부 나간다(랩 실측: 다섯 채널 모두 와이어까지 도달). 팝업 각주가
+  // 두 언어로 "아무 데도 보내지 않습니다"라고 선언하는 이상, 그 불변식은 코드
+  // 규율이 아니라 매니페스트에 박혀 있어야 한다.
+  const manifest = await readManifest();
+  const csp = manifest.content_security_policy?.extension_pages;
+  assert.equal(typeof csp, 'string', 'extension_pages CSP 가 필요합니다');
+
+  const directives = new Map(
+    csp
+      .split(';')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const [name, ...values] = part.split(/\s+/);
+        return [name, values];
+      }),
+  );
+
+  assert.deepEqual(directives.get('default-src'), ["'self'"], "default-src 는 'self' 여야 합니다");
+  // file: 을 빼면 확장이 죽는다(실측: 첫 file:///Users/ fetch 가 connect-src 로 막힌다).
+  assert.deepEqual(
+    [...(directives.get('connect-src') ?? [])].sort(),
+    ["'self'", 'file:'],
+    "connect-src 는 'self' 와 file: 만 허용해야 합니다",
+  );
+  for (const name of ['object-src', 'form-action', 'frame-src', 'child-src']) {
+    assert.deepEqual(directives.get(name), ["'none'"], `${name} 은 'none' 이어야 합니다`);
+  }
+  assert.deepEqual(directives.get('base-uri'), ["'none'"], "base-uri 는 'none' 이어야 합니다");
+});
+
+test('manifest.json 에는 사용자가 문제를 알릴 곳이 적혀 있다', async () => {
+  // 오류 화면이 "알려 주세요"라고 말하는데 알릴 곳이 없으면 지시를 따를 수 없다.
+  // popup.js 는 이 값을 chrome.runtime.getManifest() 로 읽는다(코드에 주소를
+  // 박지 않는다).
+  const manifest = await readManifest();
+  assert.match(manifest.homepage_url ?? '', /^https:\/\/\S+$/, 'homepage_url 이 필요합니다');
+});
+
+// ---------------------------------------------------------------------------
+// 3-2. 소스 레벨 잠금장치
+//
+// CSP 가 런타임 강제라면 이 두 검사는 소스 레벨 잠금이다. 둘 중 하나만 있으면
+// 다른 하나가 뚫렸을 때 알아챌 방법이 없다.
+// ---------------------------------------------------------------------------
+
+test('extension/ 은 HTML 주입 싱크를 쓰지 않는다', async () => {
+  // 팝업이 그리는 값(프로필 이름, bridgeDisplayName)은 사용자가 정한 임의
+  // 문자열이다. 지금은 전부 textContent 로 들어가지만, 그 규칙을 지키는 것은
+  // 규율뿐이다.
+  const SINKS = /\b(innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\s*\(|new\s+Function)\b/;
+  const files = [...(await extensionScripts()), path.join(EXT, 'popup.html')];
+  for (const file of files) {
+    const source = stripComments(await readFile(file, 'utf8'));
+    const hit = SINKS.exec(source);
+    assert.equal(hit, null, `${path.relative(EXT, file)}: HTML 주입 싱크 ${hit?.[1]}`);
+  }
+});
+
+test('extension/ 의 fetch 는 file:// 만 연다', async () => {
+  // 팝업 각주의 "아무 데도 보내지 않습니다"를 지키는 것은 이 성질 하나다.
+  // 유출 코드는 .catch(() => {}) 한 줄이면 다른 어떤 테스트도 건드리지 않고
+  // 조용히 통과한다(뮤테이션으로 확인됨).
+  const NETWORK = /\b(XMLHttpRequest|WebSocket|EventSource|sendBeacon|navigator\.connection)\b/;
+  const HTTP_LITERAL = /['"`]https?:\/\//g;
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  for (const file of await extensionScripts()) {
+    const rel = path.relative(EXT, file);
+    const source = stripComments(await readFile(file, 'utf8'));
+
+    const network = NETWORK.exec(source);
+    assert.equal(network, null, `${rel}: 네트워크 API ${network?.[1]}`);
+
+    for (const m of source.replaceAll(SVG_NS, 'svg-namespace').matchAll(HTTP_LITERAL)) {
+      assert.fail(`${rel}: http(s) 주소 리터럴이 있습니다 (${source.slice(m.index, m.index + 60)})`);
+    }
+
+    const fetches = [...source.matchAll(/\bfetch\s*\(/g)];
+    if (rel !== path.join('lib', 'fileurl.js')) {
+      assert.equal(fetches.length, 0, `${rel}: fetch 는 lib/fileurl.js 에만 있어야 합니다`);
+      continue;
+    }
+
+    assert.equal(fetches.length, 2, 'lib/fileurl.js 의 fetch 는 fetchBytes / fetchText 두 곳뿐이어야 합니다');
+    // 각 fetch 가 toFileUrl() 이 만든 url 을 받는지 그 함수 안에서 확인한다.
+    // (listDir 도 url 을 만들지만 fetch 하지는 않으므로, 파일 전체에서 세면 안 된다.)
+    for (const fn of source.split(/^(?:export )?(?:async )?function /m)) {
+      if (!/\bfetch\s*\(/.test(fn)) continue;
+      const name = /^(\w+)/.exec(fn)?.[1] ?? '?';
+      assert.ok(
+        ['fetchBytes', 'fetchText'].includes(name),
+        `lib/fileurl.js: ${name}() 이 fetch 를 부릅니다`,
+      );
+      assert.match(fn, /const url = toFileUrl\(/, `lib/fileurl.js: ${name}() 의 fetch 가 toFileUrl 을 거치지 않습니다`);
+      assert.match(fn, /fetch\(url,/, `lib/fileurl.js: ${name}() 이 url 말고 다른 것을 fetch 합니다`);
+    }
+  }
+});
+
+test('file:// fetch 에는 전부 타임아웃이 붙는다', async () => {
+  // Chromium 은 FIFO 를 리스팅에 isdir=0, 크기 0 인 평범한 파일로 내놓는다.
+  // 그런 이름이 000005.log 면 우리는 WAL 로 알고 여는데, FIFO 의 open(2) 은
+  // 블록되므로 그 fetch 는 resolve 도 reject 도 하지 않는다(실측: 25초 뒤에도
+  // pending). 타임아웃이 없으면 팝업이 스켈레톤에서 영원히 멈춘다.
+  const fs = new FakeFs();
+  fs.addFile('/Users/you/db/000005.log', 'x');
+  /** @type {Array<RequestInit|undefined>} */
+  const options = [];
+  const restore = stub(globalThis, 'fetch', async (url, init) => {
+    options.push(init);
+    const u = new URL(String(url));
+    const p = decodeURIComponent(u.pathname);
+    const kids = fs.children(p.replace(/\/+$/, ''));
+    if (kids) return fakeResponse(0, new TextEncoder().encode(listingHtml(p.replace(/\/+$/, ''), kids, fs)));
+    return fakeResponse(200, fs.files.get(p) ?? new Uint8Array());
+  });
+  try {
+    resetDirCache();
+    await listDir('/Users/you/db');
+    await fetchBytes('/Users/you/db/000005.log');
+  } finally {
+    restore();
+    resetDirCache();
+  }
+  assert.equal(options.length, 2, '리스팅과 파일 읽기 둘 다 나갔어야 합니다');
+  for (const init of options) {
+    assert.ok(init && init.signal, 'fetch 에 AbortSignal 이 없습니다');
+    assert.equal(typeof init.signal.aborted, 'boolean');
+  }
 });
 
 test('chrome.storage 를 쓰는 이상 manifest 에 "storage" 가 있어야 한다', async () => {
@@ -343,7 +567,29 @@ test('isNonProfileDirName 은 프로필일 리 없는 디렉터리만 거른다'
   assert.equal(isNonProfileDirName('내 프로필'), false);
 });
 
-test('BROWSER_DIRS 는 src/browsers.js 와 같은 브라우저 계열을 다룬다', () => {
+test('BROWSERS·BROWSER_DIRS 는 src/browsers.js 의 표와 글자까지 같다', () => {
+  // 이 표는 손으로 옮겨 적은 것이고 build:ext 의 복사 대상이 아니다. mac 경로만
+  // 다른 테스트의 픽스처가 리터럴로 쓰고 있어서 우연히 지켜지고, win/linux 는
+  // macOS 에서 개발하는 한 영원히 검증되지 않는다. src 와 직접 대조한다.
+  assert.deepEqual([...BROWSERS], [...SRC_BROWSERS], 'BROWSERS 가 src/browsers.js 와 다릅니다');
+
+  // 확장은 환경변수(LOCALAPPDATA / APPDATA / XDG_CONFIG_HOME)를 볼 수 없으므로
+  // src 쪽에도 env:{} 를 줘서 같은 기본값으로 맞춰 놓고 비교한다.
+  const cases = [
+    ['mac', 'darwin', '/Users/you'],
+    ['win', 'win32', 'C:/Users/you'],
+    ['linux', 'linux', '/home/you'],
+  ];
+  for (const [plat, srcPlatform, home] of cases) {
+    const want = candidateUserDataDirs({ platform: srcPlatform, home, env: {} })
+      .map((c) => [c.browser, c.userDataDir.replace(/\\/g, '/'), c.browserName])
+      .sort();
+    const got = BROWSER_DIRS[plat].map((d) => [d.browser, `${home}/${d.path}`, d.browserName]).sort();
+    assert.deepEqual(got, want, `${plat} 의 user-data-dir 표가 src/browsers.js 와 다릅니다`);
+  }
+});
+
+test('BROWSER_DIRS 의 경로는 홈 기준 상대 경로다', () => {
   const ids = new Set(BROWSERS.map((b) => b.id));
   assert.deepEqual([...new Set(BROWSER_DIRS.mac.map((d) => d.browser))].sort(), [...ids].sort());
   for (const platform of ['mac', 'win', 'linux']) {
@@ -355,6 +601,16 @@ test('BROWSER_DIRS 는 src/browsers.js 와 같은 브라우저 계열을 다룬�
     }
   }
   assert.deepEqual(Object.keys(HOME_ROOTS).sort(), ['linux', 'mac', 'win']);
+});
+
+test('확장의 Claude 확장 id 목록은 src/claude.js 와 같다', () => {
+  // 이 목록은 양쪽에 따로 적혀 있고, 확장 쪽은 지금까지 아무도 값을 검사하지
+  // 않았다 — 픽스처 경로를 CLAUDE_EXTENSION_IDS[0] 으로 만들기 때문에 값이
+  // 무엇이든 테스트가 통과하는 동어반복이었다. id 하나가 틀어지면 웹스토어에
+  // 올라간 확장이 모든 프로필에 "Claude 확장이 없습니다"만 띄운다.
+  assert.deepEqual([...CLAUDE_EXTENSION_IDS], [...SRC_CLAUDE_EXTENSION_IDS]);
+  assert.equal(BRIDGE_DEVICE_ID_KEY, SRC_DEVICE_ID_KEY);
+  assert.equal(BRIDGE_DISPLAY_NAME_KEY, SRC_DISPLAY_NAME_KEY);
 });
 
 test('detectPlatform 은 navigator 로 판정한다', async (t) => {
@@ -535,6 +791,240 @@ test('readBridge 는 후보 확장 id 를 우선순위대로 본다', async () =
   });
 });
 
+test('readBridge 는 Extensions/<id> 만 있어도 "설치는 됨" 으로 본다', async () => {
+  // 크롬은 `Local Extension Settings/<id>/` 를 그 확장이 storage 에 처음 쓰는
+  // 순간 만든다. 방금 설치했거나 계정 동기화로 설치만 되고 서비스워커가 한 번도
+  // 돈 적 없는 프로필에는 `Extensions/<id>` 만 있다. 그 상태에서 "설치하세요"
+  // 라고 말하면 거짓말이고, CLI(src/browsers.js findExtension) 는 정반대로
+  // "설치됨, 페어링 전" 이라고 답한다.
+  const fs = new FakeFs();
+  const profile = '/Users/you/Library/Application Support/Google/Chrome/Default';
+  fs.addFile(`${profile}/Preferences`, '{}');
+  fs.addFile(`${profile}/Extensions/${CLAUDE_ID}/1.0.90_0/manifest.json`, '{}');
+  await withFetch(fs, async () => {
+    const info = await readBridge(profile);
+    assert.equal(info.extensionId, CLAUDE_ID, '설치는 돼 있다');
+    assert.equal(info.deviceId, null, '아직 페어링 전이라 값은 없다');
+    assert.equal(info.unreadable, false);
+  });
+});
+
+test('readBridge 는 프로필 폴더를 못 읽으면 "없음"이 아니라 "모름"이라고 한다', async () => {
+  // listDirOrNull 은 모든 실패를 null 로 뭉갠다. 그 값을 "없음"으로 읽으면 권한
+  // 문제로 못 읽은 프로필이 경고 한 줄 없이 "Claude 확장이 없는 프로필"로
+  // 둔갑한다 — 사용자가 정정할 단서가 하나도 남지 않는다.
+  const fs = new FakeFs();
+  const profile = '/Users/you/Library/Application Support/Google/Chrome/Default';
+  fs.addFile(`${profile}/Local Extension Settings/${CLAUDE_ID}/000005.log`, walWith([['bridgeDeviceId', JSON.stringify(FAKE_DEVICE_ID)]]));
+
+  const blocked = `${profile}/`;
+  const inner = new FakeFs();
+  inner.files = fs.files;
+  inner.dirs = fs.dirs;
+  await withFetch(inner, async () => {
+    const realFetch = globalThis.fetch;
+    const restore = stub(globalThis, 'fetch', async (url, init) => {
+      // 프로필 디렉터리 하나만 EACCES 처럼 만든다. 토글 OFF 와 구별 불가능한
+      // 바로 그 TypeError 다.
+      if (decodeURIComponent(new URL(String(url)).pathname) === blocked) {
+        throw new TypeError('Failed to fetch');
+      }
+      return realFetch(url, init);
+    });
+    try {
+      const info = await readBridge(profile);
+      assert.equal(info.unreadable, true, '못 읽었다는 사실이 남아야 합니다');
+      assert.equal(info.extensionId, null);
+      assert.deepEqual(
+        info.warnings.map((w) => w.code),
+        ['warnProfileUnreadable'],
+        '경고 없이 조용히 "없음"으로 답하면 안 됩니다',
+      );
+    } finally {
+      restore();
+    }
+  });
+});
+
+/**
+ * `fs` 를 그대로 쓰되 `deny` 에 든 경로의 fetch 만 TypeError 로 만든다.
+ * 권한 없는 폴더/파일의 모습이고, 파일 접근 토글이 꺼졌을 때와 구별할 수 없는
+ * 바로 그 에러다.
+ *
+ * @param {FakeFs} fs
+ * @param {string[]} deny 디코드된 경로 (디렉터리는 끝에 /)
+ * @param {() => Promise<void>} fn
+ */
+async function withFetchDenying(fs, deny, fn) {
+  await withFetch(fs, async () => {
+    const realFetch = globalThis.fetch;
+    const restore = stub(globalThis, 'fetch', async (url, init) => {
+      if (deny.includes(decodeURIComponent(new URL(String(url)).pathname))) {
+        throw new TypeError('Failed to fetch');
+      }
+      return realFetch(url, init);
+    });
+    try {
+      await fn();
+    } finally {
+      restore();
+    }
+  });
+}
+
+test('readBridge 는 확장 저장소를 못 읽으면 "페어링 안 됨"이라고 단정하지 않는다', async () => {
+  // 확장 폴더는 목록에 보여서 extensionId 가 채워진 뒤, 그 안쪽을 못 읽는 경우다.
+  // 여기서 deviceId === null 을 "아직 페어링 안 됨"으로 읽으면, 디스크에 UUID 가
+  // 멀쩡히 있는 프로필에게 "페어링하세요"라고 말하게 된다.
+  const profile = '/Users/you/Library/Application Support/Google/Chrome/Default';
+  const storage = `${profile}/Local Extension Settings/${CLAUDE_ID}`;
+
+  // (a) 저장소 디렉터리 리스팅만 실패
+  const a = new FakeFs();
+  a.addFile(`${storage}/000005.log`, walWith([['bridgeDeviceId', JSON.stringify(FAKE_DEVICE_ID)]]));
+  await withFetchDenying(a, [`${storage}/`], async () => {
+    const info = await readBridge(profile);
+    assert.equal(info.deviceId, null);
+    assert.equal(info.extensionId, CLAUDE_ID, '폴더는 보였으니 설치는 알고 있다');
+    assert.equal(info.readFailed, true, '못 읽었다는 사실이 남아야 합니다');
+    assert.deepEqual(info.warnings.map((w) => w.code), ['warnDirUnreadable']);
+  });
+
+  // (b) 목록은 읽히는데 WAL 파일 하나만 실패. readLevelDbFrom 은 이때 예외를
+  //     던지지 않고 경고로 삼키므로, try/catch 만으로는 절대 못 잡는다.
+  const b = new FakeFs();
+  b.addFile(`${storage}/000005.log`, walWith([['bridgeDeviceId', JSON.stringify(FAKE_DEVICE_ID)]]));
+  await withFetchDenying(b, [`${storage}/000005.log`], async () => {
+    const info = await readBridge(profile);
+    assert.equal(info.deviceId, null);
+    assert.equal(info.readFailed, true, '파일 읽기 실패가 조용히 사라지면 안 됩니다');
+  });
+});
+
+test('readBridge 는 저장소가 비어 있을 뿐인 경우와 못 읽은 경우를 구별한다', async () => {
+  // 디렉터리는 읽혔고 LevelDB 파일이 없다. 이건 읽기 실패가 아니라 값이 없는
+  // 상태다 — "아직 페어링 안 됨"이 맞는 답이므로 readFailed 를 세우면 안 된다.
+  const fs = new FakeFs();
+  const profile = '/Users/you/Library/Application Support/Google/Chrome/Default';
+  fs.addDir(`${profile}/Local Extension Settings/${CLAUDE_ID}`);
+  await withFetch(fs, async () => {
+    const info = await readBridge(profile);
+    assert.equal(info.extensionId, CLAUDE_ID);
+    assert.equal(info.deviceId, null);
+    assert.equal(info.readFailed, false, '비어 있는 것과 못 읽은 것은 다릅니다');
+    assert.deepEqual(info.warnings.map((w) => w.code), ['warnNoLevelDbFiles']);
+  });
+});
+
+test('locateSelf 는 우리 저장소를 못 읽으면 이유를 남긴다', async () => {
+  // storageHasNonce 가 readLevelDbFrom 의 경고를 버리면, 자기 탐지가 실패했을 때
+  // 화면에는 "현재 프로필을 찾지 못했습니다" 한 줄만 남고 왜인지는 어디에도 없다.
+  const fs = new FakeFs();
+  const profile = '/Users/you/Library/Application Support/Google/Chrome/Default';
+  const storage = `${profile}/Local Extension Settings/${SELF_EXTENSION_ID}`;
+  fs.addFile(`${storage}/000003.log`, walWith([[NONCE_KEY, JSON.stringify('the-nonce')]]));
+
+  const restoreChrome = stub(globalThis, 'chrome', {
+    runtime: { id: SELF_EXTENSION_ID },
+    storage: { local: { async set() {} } },
+  });
+  try {
+    await withFetchDenying(fs, [`${storage}/000003.log`], async () => {
+      /** @type {Array<{code: string, params: string[]}>} */
+      const warnings = [];
+      assert.equal(await locateSelf([profile], 'the-nonce', warnings), null);
+      const codes = warnings.map((w) => w.code);
+      assert.ok(codes.includes('warnProfileUnreadable'), `못 읽었다는 경고가 없습니다: ${JSON.stringify(warnings)}`);
+      assert.ok(codes.includes('warnParserNote'), `어느 파일이 왜 실패했는지가 없습니다: ${JSON.stringify(warnings)}`);
+      assert.ok(
+        warnings.some((w) => w.code === 'warnParserNote' && w.params.join(' ').includes('000003.log')),
+        '실패한 파일 이름이 경고에 들어 있어야 합니다',
+      );
+    });
+  } finally {
+    restoreChrome();
+  }
+});
+
+test('locateSelf 는 우리 확장이 없는 프로필을 "못 읽었다"고 하지 않는다', async () => {
+  // 위 경고가 남발되면 안 된다. 우리 확장이 그냥 없는 프로필은 정상이다.
+  const fs = new FakeFs();
+  const profile = '/Users/you/Library/Application Support/Google/Chrome/Default';
+  fs.addFile(`${profile}/Preferences`, '{}');
+  const restoreChrome = stub(globalThis, 'chrome', {
+    runtime: { id: SELF_EXTENSION_ID },
+    storage: { local: { async set() {} } },
+  });
+  try {
+    await withFetch(fs, async () => {
+      const warnings = [];
+      assert.equal(await locateSelf([profile], 'the-nonce', warnings), null);
+      assert.deepEqual(warnings, []);
+    });
+  } finally {
+    restoreChrome();
+  }
+});
+
+test('listProfileDirs 는 못 읽은 프로필을 조용히 버리지 않는다', async () => {
+  // 프로필 폴더 하나만 못 읽으면(언마운트된 볼륨, 리스팅 타임아웃) 그 프로필이
+  // 목록에서 통째로 사라진다. 그게 하필 지금 창의 프로필이면 자기 탐지까지
+  // 실패하는데 경고는 한 줄도 안 남는다.
+  const fs = new FakeFs();
+  const udd = '/Users/you/Library/Application Support/Google/Chrome';
+  fs.addFile(`${udd}/Default/Preferences`, '{}');
+  fs.addFile(`${udd}/Profile 1/Preferences`, '{}');
+  fs.addFile(
+    `${udd}/Local State`,
+    JSON.stringify({ profile: { info_cache: { Default: { name: 'Personal' }, 'Profile 1': { name: 'Work' } } } }),
+  );
+  await withFetchDenying(fs, [`${udd}/Profile 1/`], async () => {
+    /** @type {Array<{code: string, params: string[]}>} */
+    const warnings = [];
+    const profiles = await listProfileDirs('mac', warnings);
+    assert.deepEqual(
+      profiles.map((p) => p.profileDirName).sort(),
+      ['Default', 'Profile 1'],
+      'Local State 가 프로필이라고 확인해 준 후보는 남아야 합니다',
+    );
+    assert.deepEqual(warnings.map((w) => w.code), ['warnProfileUnreadable']);
+    assert.ok(warnings[0].params[0].endsWith('Profile 1'));
+  });
+});
+
+test('listProfileDirs 는 못 읽은 잡동사니 디렉터리를 프로필로 둔갑시키지 않는다', async () => {
+  // 경고는 남기되, Local State 가 확인해 주지 못하는 후보를 행으로 만들면
+  // 프로필이 아닌 디렉터리가 유령 프로필로 뜬다.
+  const fs = new FakeFs();
+  const udd = '/Users/you/Library/Application Support/Google/Chrome';
+  fs.addFile(`${udd}/Default/Preferences`, '{}');
+  fs.addDir(`${udd}/SomethingElse`);
+  fs.addFile(`${udd}/Local State`, JSON.stringify({ profile: { info_cache: { Default: { name: 'Personal' } } } }));
+  await withFetchDenying(fs, [`${udd}/SomethingElse/`], async () => {
+    const warnings = [];
+    const profiles = await listProfileDirs('mac', warnings);
+    assert.deepEqual(profiles.map((p) => p.profileDirName), ['Default']);
+    assert.deepEqual(warnings.map((w) => w.code), ['warnProfileUnreadable'], '버리더라도 말은 해야 합니다');
+  });
+});
+
+test('readBridge 의 경고는 문장이 아니라 _locales 키다', async () => {
+  const fs = new FakeFs();
+  const profile = '/Users/you/Library/Application Support/Google/Chrome/Default';
+  fs.addFile(`${profile}/Local Extension Settings/${CLAUDE_ID}/000005.log`, walWith([['bridgeDeviceId', '{not json']]));
+  await withFetch(fs, async () => {
+    const info = await readBridge(profile);
+    for (const w of info.warnings) {
+      assert.equal(typeof w.code, 'string', `경고가 문자열입니다: ${JSON.stringify(w)}`);
+      assert.ok(Array.isArray(w.params));
+    }
+    assert.ok(
+      info.warnings.some((w) => w.code === 'warnBadJson'),
+      `깨진 JSON 경고가 없습니다: ${JSON.stringify(info.warnings)}`,
+    );
+  });
+});
+
 test('makeSource 는 디렉터리를 빼고 파일 이름만 넘긴다', async () => {
   const fs = new FakeFs();
   fs.addFile('/db/000005.log', 'x');
@@ -676,7 +1166,7 @@ test('listDir 은 res.ok 나 res.status 를 믿지 않는다', async () => {
 
 test('listDir 은 없는 디렉터리에서 던진다', async () => {
   await withFetch(new FakeFs(), async () => {
-    await assert.rejects(() => listDir('/nope'), /읽지 못했습니다/);
+    await assert.rejects(() => listDir('/nope'), /cannot read file:\/\/\/nope\//);
   });
 });
 
@@ -686,7 +1176,7 @@ test('listDir 은 리스팅이 아닌 응답에서 던진다', async () => {
     fakeResponse(200, new TextEncoder().encode('<html><body>hello</body></html>')),
   );
   try {
-    await assert.rejects(() => listDir('/a.txt'), /디렉터리 목록이 아닙니다/);
+    await assert.rejects(() => listDir('/a.txt'), /is not a directory listing/);
   } finally {
     restore();
   }
@@ -705,16 +1195,37 @@ test('fetchBytes 는 파일 바이트를 그대로 준다', async () => {
   fs.addFile('/Users/you/한글 파일.txt', 'ㄱㄴㄷ');
   await withFetch(fs, async () => {
     assert.equal(decodeUtf8(await fetchBytes('/Users/you/한글 파일.txt')), 'ㄱㄴㄷ');
-    await assert.rejects(() => fetchBytes('/Users/you/없음.txt'), /읽지 못했습니다/);
+    await assert.rejects(() => fetchBytes('/Users/you/없음.txt'), /cannot read file:/);
   });
 });
 
 test('토글이 꺼졌을 때의 에러는 그 사실을 알려 준다', async () => {
+  // lib 의 에러 문구는 영어로 고정한다. 사람에게 보이는 문장은 popup.js 가
+  // _locales 에서 만들고, 이 문자열은 그 안에 진단 정보로만 끼어들기 때문이다.
+  // 로케일마다 언어가 섞이면 안 된다.
   const restore = stub(globalThis, 'fetch', () => Promise.reject(new TypeError('Failed to fetch')));
   try {
-    await assert.rejects(() => fetchBytes('/Users/you/a.txt'), /파일 URL에 대한 액세스 허용/);
+    await assert.rejects(() => fetchBytes('/Users/you/a.txt'), /Allow access to file URLs/);
   } finally {
     restore();
+  }
+});
+
+test('lib/*.js 는 사람이 읽을 문장을 직접 만들지 않는다 (전부 _locales 로)', async () => {
+  // 여기서 한국어 문장을 만들면 en 로케일 경고 상자에 한글이 그대로 박힌다.
+  // 반대로 leveldb-core 의 영어 경고는 ko 화면에 영어로 나온다. 언어가 섞이지
+  // 않게 하려면 lib 은 { code, params } 만 올려 보내야 한다.
+  const HANGUL = /[가-힣]/;
+  for (const file of ['fileurl.js', 'locate.js', 'read.js']) {
+    const source = stripComments(await readFile(path.join(LIB, file), 'utf8'));
+    for (const m of source.matchAll(/(['"`])((?:\\.|(?!\1)[^\\])*)\1/g)) {
+      assert.equal(
+        HANGUL.test(m[2]),
+        false,
+        `extension/lib/${file}: 한국어 문자열 리터럴이 있습니다 (${m[0].slice(0, 60)}). ` +
+          '문장은 popup.js 가 _locales 에서 만듭니다.',
+      );
+    }
   }
 });
 
@@ -840,7 +1351,13 @@ test('readProfileMeta 는 Local State 가 없으면 열어 보지도 않는다',
   assert.deepEqual(missingFetches(log, fs), []);
 });
 
-test('makeSource 의 has() 는 목록으로 답한다 (MANIFEST 가 없는 테이블을 가리켜도 열지 않는다)', async () => {
+test('makeSource 의 has() 는 목록에 없으면 디렉터리를 한 번 다시 읽는다', async () => {
+  // has() 가 불리는 유일한 경로는 "MANIFEST 는 아는데 목록에는 없는 테이블"이다.
+  // 우리가 목록을 뜬 뒤 크롬이 flush/compaction 을 끝냈을 때 그렇게 된다.
+  // 그 답을 **처음 뜬 목록으로** 하면 언제나 false 라, 코어의 복구 경로가 확장에
+  // 서만 통째로 죽는다(페어링된 프로필이 "아직 페어링되지 않았습니다"로 보인다).
+  // 그래서 미스일 때만 캐시를 우회해 다시 읽는다. 디렉터리 자체는 반드시
+  // 존재하므로 콘솔에 net::ERR_FILE_NOT_FOUND 는 여전히 남지 않는다.
   const fs = new FakeFs();
   const dir = '/Users/you/db';
   fs.addFile(`${dir}/000001.log`, 'x');
@@ -851,13 +1368,19 @@ test('makeSource 의 has() 는 목록으로 답한다 (MANIFEST 가 없는 테�
     async () => {
       const source = makeSource(dir);
       assert.equal(await source.has('000001.log'), true);
+      assert.equal(log.filter((p) => p.endsWith('/db/')).length, 1, '히트는 다시 읽지 않아야 합니다');
+
+      // 목록을 뜬 뒤 컴팩션이 끝나 새 테이블이 생겼다.
+      fs.addFile(`${dir}/000007.ldb`, 'y');
+      assert.equal(await source.has('000007.ldb'), true, '새로 생긴 테이블을 찾아야 합니다');
+      assert.equal(log.filter((p) => p.endsWith('/db/')).length, 2, '미스는 한 번 다시 읽습니다');
+
       assert.equal(await source.has('000009.ldb'), false);
-      assert.deepEqual((await source.list()).names, ['000001.log']);
+      assert.equal(log.filter((p) => p.endsWith('/db/')).length, 2, '재조회는 소스당 한 번뿐입니다');
     },
     log,
   );
-  assert.deepEqual(missingFetches(log, fs), []);
-  assert.equal(log.filter((p) => p.endsWith('/db/')).length, 1, '목록은 한 번만 읽어야 합니다');
+  assert.deepEqual(missingFetches(log, fs), [], '없는 경로를 열어 보지는 않는다');
 });
 
 test('listDirOrNull 은 결과를 캐시하고 resetDirCache 로 비워진다', async () => {
@@ -933,7 +1456,7 @@ async function locales() {
   return out;
 }
 
-/** popup.html / popup.js / manifest.json 이 실제로 쓰는 메시지 키. */
+/** popup.html / popup.js / lib/*.js / manifest.json 이 실제로 쓰는 메시지 키. */
 async function usedMessageKeys() {
   const html = await readFile(path.join(EXT, 'popup.html'), 'utf8');
   const js = await readFile(path.join(EXT, 'popup.js'), 'utf8');
@@ -942,6 +1465,15 @@ async function usedMessageKeys() {
   for (const m of html.matchAll(/data-i18n(?:-title|-aria)?="([^"]+)"/g)) keys.add(m[1]);
   for (const m of js.matchAll(/\bt\(\s*'([^']+)'/g)) keys.add(m[1]);
   for (const m of manifest.matchAll(/__MSG_([A-Za-z0-9_]+)__/g)) keys.add(m[1]);
+  // lib 은 문장을 만들지 않고 `{ code, params }` 만 올려 보낸다. popup.js 도
+  // 경고를 만들 때는 같은 모양을 쓴다. 그 키는 t() 에 변수로 들어가므로
+  // t('...') 정규식에 걸리지 않는다 — 여기서 모아야 한다.
+  const warnSources = [js, ...(await Promise.all(
+    ['fileurl.js', 'locate.js', 'read.js'].map((file) => readFile(path.join(LIB, file), 'utf8')),
+  ))];
+  for (const source of warnSources) {
+    for (const m of source.matchAll(/'(warn[A-Za-z0-9_]+)'/g)) keys.add(m[1]);
+  }
   return keys;
 }
 
@@ -971,6 +1503,39 @@ test('_locales: 쓰는 키는 다 있고, 안 쓰는 키는 없다', async () =>
   assert.deepEqual(unused, [], '아무도 쓰지 않는 키가 남아 있습니다');
 });
 
+test('_locales: 따옴표로 인용한 버튼 이름은 두 로케일에서 같은 버튼을 가리킨다', async () => {
+  // en 의 warnScanTimeout 이 화면에 존재하지 않는 이름("Rescan")을 따옴표로
+  // 지시한 적이 있다. 그 버튼의 실제 접근성 이름은 refresh 키의 값("Scan again")
+  // 이고, 아이콘만 있는 버튼이라 사용자가 글자로 찾을 방법도 없었다.
+  const { ko, en } = await locales();
+  const html = await readFile(path.join(EXT, 'popup.html'), 'utf8');
+
+  // popup.html 의 <button> 이 실제로 쓰는 i18n 키.
+  const buttonKeys = new Set();
+  for (const tag of html.match(/<button\b[\s\S]*?>/g) ?? []) {
+    for (const m of tag.matchAll(/data-i18n(?:-title|-aria)?="([^"]+)"/g)) buttonKeys.add(m[1]);
+  }
+  assert.ok(buttonKeys.has('refresh'), 'popup.html 에서 버튼 키를 찾지 못했습니다');
+
+  // 홑따옴표(ko 의 '다시 시도')와 겹따옴표를 모두 인정한다.
+  const quoted = (text) => [...text.matchAll(/["'\u201c\u201d\u2018\u2019]([^"'\u201c\u201d\u2018\u2019]{2,40})["'\u201c\u201d\u2018\u2019]/g)].map((m) => m[1]);
+
+  for (const [from, to, fromLang, toLang] of [[ko, en, 'ko', 'en'], [en, ko, 'en', 'ko']]) {
+    for (const key of Object.keys(from)) {
+      for (const q of quoted(from[key].message)) {
+        const button = [...buttonKeys].find((b) => from[b]?.message === q);
+        if (!button) continue; // 버튼 이름이 아니라 크롬 설정 이름이나 manifest 필드다
+        const there = quoted(to[key].message);
+        assert.ok(
+          there.includes(to[button].message),
+          `${toLang}/${key}: 버튼 ${button}("${to[button].message}") 를 인용해야 하는데 ` +
+            `${JSON.stringify(there)} 를 인용합니다 (${fromLang} 는 "${q}" 를 인용).`,
+        );
+      }
+    }
+  }
+});
+
 test('_locales: $PLACEHOLDER$ 는 선언된 것만 쓴다', async () => {
   const { ko, en } = await locales();
   for (const [lang, cat] of [['ko', ko], ['en', en]]) {
@@ -986,6 +1551,55 @@ test('_locales: $PLACEHOLDER$ 는 선언된 것만 쓴다', async () => {
 // ---------------------------------------------------------------------------
 // 도우미
 // ---------------------------------------------------------------------------
+
+/**
+ * 주석을 지운 소스. 소스 스캔 검사가 주석 속 예시 코드에 속지 않게 한다.
+ * 문자열 리터럴 안의 `//` 는 주석이 아니다.
+ *
+ * @param {string} source
+ * @returns {string}
+ */
+function stripComments(source) {
+  let out = '';
+  let quote = null;
+  for (let i = 0; i < source.length; i++) {
+    const c = source[i];
+    if (quote !== null) {
+      out += c;
+      if (c === '\\') {
+        out += source[i + 1] ?? '';
+        i += 1;
+      } else if (c === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      quote = c;
+      out += c;
+      continue;
+    }
+    if (c === '/' && source[i + 1] === '/') {
+      while (i < source.length && source[i] !== '\n') i += 1;
+      out += '\n';
+      continue;
+    }
+    if (c === '/' && source[i + 1] === '*') {
+      const end = source.indexOf('*/', i + 2);
+      i = end < 0 ? source.length : end + 1;
+      out += ' ';
+      continue;
+    }
+    if (c === '<' && source.startsWith('<!--', i)) {
+      const end = source.indexOf('-->', i + 4);
+      i = end < 0 ? source.length : end + 2;
+      out += ' ';
+      continue;
+    }
+    out += c;
+  }
+  return out;
+}
 
 /**
  * `extension/` 아래의 모든 .js / .mjs 파일.
@@ -1031,196 +1645,3 @@ async function readManifest() {
   }
 }
 
-/**
- * 전역 속성을 잠깐 갈아 끼운다.
- *
- * @param {object} target
- * @param {string} key
- * @param {unknown} value
- * @returns {() => void} 되돌리는 함수
- */
-function stub(target, key, value) {
-  const had = Object.prototype.hasOwnProperty.call(target, key);
-  const old = Object.getOwnPropertyDescriptor(target, key);
-  Object.defineProperty(target, key, { value, configurable: true, writable: true });
-  return () => {
-    if (had && old) Object.defineProperty(target, key, old);
-    else delete target[key];
-  };
-}
-
-/**
- * `chrome.storage.local` 이 저장하는 그대로: 키는 날문자열, 값은 JSON.
- *
- * @param {Array<[string, string]>} pairs
- * @param {number} [sequence] 나중에 쓴 값이 이겨야 하므로 시퀀스가 중요하다
- * @returns {Uint8Array}
- */
-function walWith(pairs, sequence = 1) {
-  return buildLogFile([
-    {
-      sequence,
-      records: pairs.map(([key, value]) => ({ type: TYPE_VALUE, key, value })),
-    },
-  ]);
-}
-
-/**
- * 아주 작은 가짜 파일 시스템. 디렉터리는 파일 경로에서 자동으로 생긴다.
- */
-class FakeFs {
-  constructor() {
-    /** @type {Map<string, Uint8Array>} */
-    this.files = new Map();
-    /** @type {Set<string>} */
-    this.dirs = new Set(['']);
-  }
-
-  /**
-   * @param {string} p 절대 경로
-   * @param {string|Uint8Array} content
-   */
-  addFile(p, content) {
-    this.files.set(p, typeof content === 'string' ? new TextEncoder().encode(content) : new Uint8Array(content));
-    this.addDir(p.slice(0, p.lastIndexOf('/')));
-  }
-
-  /** @param {string} p */
-  addDir(p) {
-    let d = p;
-    while (d !== '' && !this.dirs.has(d)) {
-      this.dirs.add(d);
-      d = d.slice(0, d.lastIndexOf('/'));
-    }
-  }
-
-  /**
-   * @param {string} dir 끝에 / 가 없는 절대 경로 ("" 는 루트)
-   * @returns {Map<string, boolean>|null} 이름 -> 디렉터리인가
-   */
-  children(dir) {
-    if (!this.dirs.has(dir)) return null;
-    const prefix = `${dir}/`;
-    /** @type {Map<string, boolean>} */
-    const out = new Map();
-    const add = (p, isDir) => {
-      if (!p.startsWith(prefix)) return;
-      const rest = p.slice(prefix.length);
-      const slash = rest.indexOf('/');
-      if (slash < 0) out.set(rest, isDir);
-      else out.set(rest.slice(0, slash), true);
-    };
-    for (const p of this.files.keys()) add(p, false);
-    for (const p of this.dirs) if (p !== dir) add(p, true);
-    // 진짜 리스팅처럼 디렉터리를 먼저, 그다음 이름순으로 낸다.
-    return new Map(
-      [...out].sort((a, b) => (a[1] === b[1] ? (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0) : a[1] ? -1 : 1)),
-    );
-  }
-}
-
-/** Chromium 의 `base::EscapeJSONString` 과 같은 규칙. */
-function escapeJsonString(s) {
-  let out = '';
-  for (const ch of s) {
-    const code = ch.codePointAt(0);
-    if (ch === '"') out += '\\"';
-    else if (ch === '\\') out += '\\\\';
-    else if (ch === '\b') out += '\\b';
-    else if (ch === '\f') out += '\\f';
-    else if (ch === '\n') out += '\\n';
-    else if (ch === '\r') out += '\\r';
-    else if (ch === '\t') out += '\\t';
-    else if (ch === '<') out += '\\u003C';
-    else if (code < 0x20) out += `\\u${code.toString(16).padStart(4, '0')}`;
-    else out += ch;
-  }
-  return out;
-}
-
-/**
- * Chromium 이 만드는 것과 같은 모양의 디렉터리 리스팅 HTML.
- * 헤더의 `function addRow(...)` 선언까지 그대로 넣어, 파서가 매번 그걸 걸러야
- * 하도록 만든다.
- *
- * @param {string} dirPath
- * @param {Map<string, boolean>} children
- * @param {FakeFs} fs
- * @returns {string}
- */
-function listingHtml(dirPath, children, fs) {
-  let html =
-    '<!DOCTYPE html>\n<html dir="ltr" lang="ko">\n<head>\n<meta charset="utf-8">\n<script>\n' +
-    'function addRow(name, url, isdir,\n    size, size_string, date_modified, date_modified_string) {\n' +
-    '  if (name == "." || name == "..")\n    return;\n  /* ... */\n}\n</script>\n</head>\n<body>\n';
-  html += `<script>start("${escapeJsonString(`${dirPath}/`)}");</script>\n`;
-  html += '<script>onHasParentDirectory();</script>\n';
-  for (const [name, isDir] of children) {
-    const bytes = isDir ? 64 : (fs.files.get(`${dirPath}/${name}`)?.length ?? 0);
-    html +=
-      `<script>addRow("${escapeJsonString(name)}","${encodeURIComponent(name)}",${isDir ? 1 : 0},` +
-      `${bytes},"${bytes} B",1788438416,"26. 9. 3.");</script>\n`;
-  }
-  return `${html}</body>\n</html>\n`;
-}
-
-/**
- * `file://` fetch 를 가짜 파일 시스템으로 갈아 끼우고 `fn` 을 돌린다.
- *
- * 진짜 Chromium 을 그대로 흉내 낸다: 디렉터리는 status 0 / ok false 에 리스팅
- * 본문, 파일은 status 200, 없는 경로는 `TypeError("Failed to fetch")` 로 reject.
- *
- * @param {FakeFs} fs
- * @param {() => Promise<void>} fn
- */
-async function withFetch(fs, fn, log) {
-  const restore = stub(globalThis, 'fetch', async (url) => {
-    const u = new URL(String(url));
-    if (u.protocol !== 'file:') throw new TypeError('Failed to fetch');
-    let p = decodeURIComponent(u.pathname);
-    if (/^\/[A-Za-z]:\//.test(p)) p = p.slice(1);
-    const isDirRequest = p.endsWith('/');
-    const dir = isDirRequest ? p.replace(/\/+$/, '') : p;
-    if (log) log.push(p);
-
-    const kids = fs.children(dir);
-    if (kids) {
-      const html = listingHtml(dir, kids, fs);
-      const bytes = new TextEncoder().encode(html);
-      return fakeResponse(0, bytes);
-    }
-    if (isDirRequest) throw new TypeError('Failed to fetch');
-    const bytes = fs.files.get(p);
-    if (!bytes) throw new TypeError('Failed to fetch');
-    return fakeResponse(200, bytes);
-  });
-  // 디렉터리 목록 캐시는 한 번의 검사 안에서만 유효하다. 가짜 파일 시스템이
-  // 바뀌었는데 앞 테스트의 목록이 남아 있으면 안 된다.
-  resetDirCache();
-  try {
-    await fn();
-  } finally {
-    restore();
-    resetDirCache();
-  }
-}
-
-/**
- * `Response` 로는 status 0 을 만들 수 없어서(생성자가 200 미만을 거부한다) 직접
- * 만든다. 우리 코드가 쓰는 표면은 status / text() / arrayBuffer() 뿐이다.
- *
- * @param {number} status
- * @param {Uint8Array} bytes
- */
-function fakeResponse(status, bytes) {
-  return {
-    status,
-    ok: status >= 200 && status < 300,
-    async text() {
-      return decodeUtf8(bytes);
-    },
-    async arrayBuffer() {
-      return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-    },
-  };
-}

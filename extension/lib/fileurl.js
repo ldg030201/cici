@@ -76,7 +76,7 @@ function encodeSegment(segment) {
  */
 export function toFileUrl(absPath) {
   if (typeof absPath !== 'string' || absPath === '') {
-    throw new TypeError(`절대 경로가 필요합니다: ${JSON.stringify(absPath)}`);
+    throw new TypeError(`an absolute path is required: ${JSON.stringify(absPath)}`);
   }
 
   const drive = WINDOWS_DRIVE.exec(absPath);
@@ -92,7 +92,7 @@ export function toFileUrl(absPath) {
   }
 
   if (!absPath.startsWith('/')) {
-    throw new TypeError(`절대 경로가 아닙니다: ${JSON.stringify(absPath)}`);
+    throw new TypeError(`not an absolute path: ${JSON.stringify(absPath)}`);
   }
   return `file://${encodePathTail(absPath, false)}`;
 }
@@ -147,15 +147,58 @@ function errorMessage(err) {
  * fetch 가 reject 됐을 때 쓸 메시지. 토글이 꺼져 있는 경우와 경로가 없는 경우가
  * 완전히 같은 에러라서, 둘 다 짚어 준다.
  *
+ * 이 모듈의 에러 문구는 **영어로 고정**한다. 사람에게 보이는 문장은 popup.js 가
+ * `_locales` 에서 만들고, 여기서 나온 문자열은 그 안에 진단 정보로만 끼어든다.
+ * (`leveldb-core.js` 의 파서 경고도 같은 이유로 영어다.) 로케일마다 언어가
+ * 섞이지 않게 하려면 이 층에서 번역하면 안 된다.
+ *
  * @param {string} url
  * @param {unknown} err
  * @returns {Error}
  */
 function fetchFailure(url, err) {
   return new Error(
-    `${url} 을(를) 읽지 못했습니다 (${errorMessage(err)}). ` +
-      '경로가 없거나, "파일 URL에 대한 액세스 허용" 토글이 꺼져 있습니다.',
+    `cannot read ${url} (${errorMessage(err)}); ` +
+      'the path may not exist, or "Allow access to file URLs" may be off',
   );
+}
+
+/**
+ * 디렉터리 리스팅 하나를 기다리는 상한. 리스팅은 작고 빠르다(실측 1ms 안팎).
+ */
+const LIST_TIMEOUT_MS = 5000;
+
+/**
+ * 파일 하나를 기다리는 상한. 실제 LevelDB 파일은 프로필당 최대 6.5MB 정도이고
+ * 2.1MB 짜리 `.ldb` 가 1.1ms 에 온다. 넉넉히 잡아도 이 값이면 충분하다.
+ */
+const READ_TIMEOUT_MS = 20000;
+
+/**
+ * `fetch` 옵션. `file://` 읽기는 **영원히 끝나지 않을 수 있다.**
+ *
+ * Chromium 의 디렉터리 리스팅은 FIFO(이름 있는 파이프)를 `isdir=0`, 크기 0 인
+ * 평범한 파일로 보고한다. 그런 이름이 `000005.log` 라면 우리는 그것을 WAL 로
+ * 알고 여는데, FIFO 의 `open(2)` 는 쓰는 쪽이 나타날 때까지 블록되므로 그
+ * `fetch` 는 resolve 도 reject 도 하지 않는다(Chrome for Testing 148 실측:
+ * 25초 뒤에도 pending). 응답하지 않는 네트워크 마운트도 같다. 타임아웃이 없으면
+ * 팝업은 스켈레톤 화면에서 영원히 멈춘다.
+ *
+ * `src/leveldb.js` 의 노드 어댑터는 같은 위험을 `dirent.isFile()` 로 막는데
+ * (거기 주석: "readFile() on a FIFO never resolves"), 리스팅에는 그만한 정보가
+ * 없으므로 여기서는 시간으로 끊는다.
+ *
+ * @param {number} ms
+ * @returns {{signal: AbortSignal}|undefined} AbortSignal.timeout 이 없으면 undefined
+ */
+function timeoutOptions(ms) {
+  try {
+    const timeout = globalThis.AbortSignal?.timeout;
+    if (typeof timeout === 'function') return { signal: timeout.call(globalThis.AbortSignal, ms) };
+  } catch {
+    // 아주 오래된 런타임: 타임아웃 없이 간다(그래도 popup 의 전체 예산이 있다).
+  }
+  return undefined;
 }
 
 /**
@@ -171,16 +214,16 @@ export async function fetchBytes(absPath) {
   const url = toFileUrl(absPath);
   let res;
   try {
-    res = await fetch(url);
+    res = await fetch(url, timeoutOptions(READ_TIMEOUT_MS));
   } catch (err) {
     throw fetchFailure(url, err);
   }
   // status 0 은 file:// 의 정상값이다. 400 이상은 http(s) 로 쓰일 때만 의미가 있다.
-  if (res.status >= 400) throw new Error(`${url} 응답이 ${res.status} 입니다`);
+  if (res.status >= 400) throw new Error(`${url} responded with ${res.status}`);
   try {
     return new Uint8Array(await res.arrayBuffer());
   } catch (err) {
-    throw new Error(`${url} 의 본문을 읽지 못했습니다 (${errorMessage(err)})`);
+    throw new Error(`cannot read the body of ${url} (${errorMessage(err)})`);
   }
 }
 
@@ -194,15 +237,15 @@ async function fetchText(absPath) {
   const url = toFileUrl(absPath);
   let res;
   try {
-    res = await fetch(url);
+    res = await fetch(url, timeoutOptions(LIST_TIMEOUT_MS));
   } catch (err) {
     throw fetchFailure(url, err);
   }
-  if (res.status >= 400) throw new Error(`${url} 응답이 ${res.status} 입니다`);
+  if (res.status >= 400) throw new Error(`${url} responded with ${res.status}`);
   try {
     return await res.text();
   } catch (err) {
-    throw new Error(`${url} 의 본문을 읽지 못했습니다 (${errorMessage(err)})`);
+    throw new Error(`cannot read the body of ${url} (${errorMessage(err)})`);
   }
 }
 
@@ -415,7 +458,7 @@ export async function listDir(absPath) {
   // 빈 디렉터리는 항목이 0개인 정상적인 리스팅이다. 리스팅이 아예 아닌 응답
   // (파일을 디렉터리로 착각했다든가)과 구별하려면 표식을 봐야 한다.
   if (rows.length === 0 && !LISTING_MARKER.test(html)) {
-    throw new Error(`${url} 은(는) 디렉터리 목록이 아닙니다`);
+    throw new Error(`${url} is not a directory listing`);
   }
   return rows;
 }
@@ -466,16 +509,42 @@ export function listDirOrNull(absPath) {
 }
 
 /**
+ * @typedef {object} ChildLookup
+ * @property {string|null} path       찾았으면 절대 경로.
+ * @property {boolean} unreadable     부모 디렉터리 자체를 못 읽었으면 true.
+ *   이때 `path` 는 null 이지만 그 뜻은 "없다" 가 아니라 **"모른다"** 다.
+ */
+
+/**
+ * {@link findChildDir} 과 같지만 "없다"와 "못 읽었다"를 구별해서 돌려준다.
+ *
+ * `listDirOrNull` 은 모든 실패를 `null` 로 뭉갠다. 그 값을 그대로 "없음"으로
+ * 읽으면, 읽지 못한 프로필이 조용히 "Claude 확장이 없는 프로필"로 둔갑한다
+ * (경고 한 줄 없이). 호출하는 쪽이 그 둘을 갈라 볼 수 있어야 하는 자리에서는
+ * 이쪽을 쓴다.
+ *
+ * @param {string} parentDir
+ * @param {string} name
+ * @returns {Promise<ChildLookup>}
+ */
+export async function findChildDirEx(parentDir, name) {
+  const entries = await listDirOrNull(parentDir);
+  if (!entries) return { path: null, unreadable: true };
+  const hit = entries.some((e) => e.isDir && e.name === name);
+  return { path: hit ? joinPath(cacheKey(parentDir), name) : null, unreadable: false };
+}
+
+/**
  * 부모 목록을 보고 하위 디렉터리가 **정말 있을 때만** 경로를 돌려준다.
+ *
+ * 실패와 부재를 구별해야 하는 자리에서는 {@link findChildDirEx} 를 쓴다.
  *
  * @param {string} parentDir
  * @param {string} name
  * @returns {Promise<string|null>}
  */
 export async function findChildDir(parentDir, name) {
-  const entries = await listDirOrNull(parentDir);
-  if (!entries) return null;
-  return entries.some((e) => e.isDir && e.name === name) ? joinPath(cacheKey(parentDir), name) : null;
+  return (await findChildDirEx(parentDir, name)).path;
 }
 
 /**
@@ -522,15 +591,25 @@ export async function findChildFile(parentDir, name) {
  * 남는 `net::ERR_FILE_NOT_FOUND`)이 사라진다. MANIFEST 가 목록에 없는 테이블을
  * 가리키는 경우(우리가 읽는 사이에 컴팩션이 끝난 경우)에 실제로 그렇게 된다.
  *
+ * 소스에는 `readErrors()` 가 하나 더 달려 있다. `readLevelDbFrom()` 은 파일 읽기
+ * 실패에 예외를 던지지 않고 경고 문자열로 삼켜 버리기 때문에(설계상 그렇다),
+ * 부르는 쪽에서 **"값이 없다"와 "못 읽었다"를 구별할 방법이 그것밖에 없다.**
+ * 경고 문자열을 검사하는 방법도 있지만 그건 파서의 영어 문구에 의존하는 짓이라
+ * 문구가 바뀌면 조용히 깨진다. 여기서 세어 두면 언어와 무관하게 정확하다.
+ *
  * @param {string} dirPath LevelDB 디렉터리
  * @param {{ entries?: DirEntry[] }} [options] 이미 받아 둔 목록이 있으면 재사용한다
- * @returns {import('./leveldb-core.js').ByteSource}
+ * @returns {import('./leveldb-core.js').ByteSource & { readErrors: () => string[] }}
  */
 export function makeSource(dirPath, options = {}) {
   const dir = String(dirPath).replace(/[\\/]+$/, '');
   const preListed = options.entries;
   /** @type {Promise<Set<string>>|null} */
   let fileNames = null;
+  /** @type {Promise<Set<string>>|null} 컴팩션 복구용 재조회. 소스당 한 번만. */
+  let refreshed = null;
+  /** @type {string[]} 실제로 실패한 파일 읽기. `readErrors()` 가 돌려준다. */
+  const readErrors = [];
 
   const names = () => {
     if (fileNames === null) {
@@ -550,10 +629,47 @@ export function makeSource(dirPath, options = {}) {
     },
 
     async has(name) {
-      return (await names()).has(name);
+      const known = await names();
+      if (known.has(name)) return true;
+      // 목록에 없다. 코어가 여기까지 온 이유는 MANIFEST 가 목록에 없는 테이블을
+      // 가리켰기 때문이고(그 사이에 크롬이 flush/compaction 을 끝냈다), 그게
+      // 바로 has() 가 존재하는 이유다. 처음 뜬 목록으로 답하면 그 복구 경로가
+      // 언제나 "없음"이 되어 죽어 버린다 — 페어링된 프로필이 "아직 페어링되지
+      // 않았습니다"로 보이는 결과가 된다.
+      //
+      // 그래서 캐시를 우회해 **한 번만** 다시 읽는다. 이 디렉터리는 반드시
+      // 존재하므로(호출하는 쪽이 목록으로 확인한 뒤에만 소스를 만든다) 없는
+      // 경로를 여는 것이 아니고, 콘솔에 `net::ERR_FILE_NOT_FOUND` 도 남지 않는다.
+      if (refreshed === null) {
+        refreshed = listDir(dir).then(
+          (entries) => {
+            for (const e of entries) if (!e.isDir) known.add(e.name);
+            return known;
+          },
+          () => known,
+        );
+      }
+      return (await refreshed).has(name);
     },
 
-    read: (name) => fetchBytes(joinPath(dir, name)),
+    async read(name) {
+      try {
+        return await fetchBytes(joinPath(dir, name));
+      } catch (err) {
+        readErrors.push(`${name}: ${err instanceof Error ? err.message : String(err)}`);
+        throw err;
+      }
+    },
+
+    /**
+     * 이 소스에서 실패한 파일 읽기들. 비어 있지 않으면 결과가 불완전하다.
+     *
+     * `has()` 의 탐색 실패는 세지 않는다. 그건 `.ldb` 인지 `.sst` 인지 넘겨짚는
+     * 정상 경로라 실패가 곧 이상은 아니다.
+     *
+     * @returns {string[]}
+     */
+    readErrors: () => readErrors.slice(),
   };
 }
 

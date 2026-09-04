@@ -1,6 +1,8 @@
 # Why cici works the way it does
 
-> Decision record. Last updated: 2026-09-03.
+> Decision record. Last updated: 2026-09-04. ([한국어](why.ko.md) — the Korean version is the
+> one kept in sync first; this is its English translation.)
+>
 > Everything below was either read out of Chromium's source / shipping binary, quoted from
 > official documentation, or reproduced in a throwaway lab. Where a claim is reasoning rather
 > than measurement, it says so.
@@ -114,7 +116,7 @@ Two consequences worth internalising:
   permissions."** That is quiet, but it is Chrome's own design, not a loophole we found.
 * Whatever *else* the manifest asks for is what the user sees. A probe extension with
   `file:///*` + `tabs` + `scripting` produced *"Read your browsing history"*. So keep the manifest
-  down to `file:///*` + `storage` and nothing more.
+  down to `file:///*` + `storage` and nothing more — which is exactly what cici ships.
 
 ### 2.3 The `file://` door, in detail
 
@@ -152,7 +154,7 @@ state and calling it the default. Everything below was re-measured with the togg
 | What can it do? | Deep-link the user to the toggle: `chrome.tabs.create({url:'chrome://extensions/?id=<own id>'})` succeeds **with no `tabs` permission** and genuinely lands on the details page. The toggle row renders even with developer mode off. **[lab]** |
 | Does turning it on need a restart? | Functionally **no** — a fresh page in the same browser process reads files immediately. But Chrome's own UI carries the string *"Changes to this setting will be applied once Chromium restarts."* (found in `en.lproj/locale.pak`, offset 105280, alongside the toggle label *"Allow access to file URLs"* at offset 233581) and there is an `#allow-on-file-urls-warning` element gated on a `fileAccessPendingChange` field. We never triggered that state, but it exists, so the onboarding copy must survive a user who restarts anyway. **[lab + src]** |
 | Any UX trap? | Flipping the toggle **reloads the extension** — the open popup document is destroyed. So "detect the flip and recover in place" is impossible; the user must reopen the popup. It works immediately when they do. **[lab]** |
-| How fast is the read once it's on? | Irrelevant-fast. Real Claude LevelDB directories on this machine ranged ~0.8 MB to ~6.6 MB; fetching the largest cost ~12 ms, and running cici's actual parser over it ~50 ms. A realistic popup is well under 100 ms. **[lab]** |
+| How fast is the read once it's on? | Irrelevant-fast. Real Claude LevelDB directories on this machine ranged ~0.8 MB to ~6.5 MB, and the browser port of cici's parser handled one profile in **5.6–50.6 ms** (fetching a 2.1 MB `.ldb` took 1.1 ms). A whole scan — mint the nonce, walk every home, 10 browser families, 9 profile directories — took **13–22 ms**, 25 fetches, about 141 KB. **[lab]** |
 | Anything odd about `file://` responses? | Yes, and it will bite a naive implementation: a **file** gives `status 200, ok true`; a **directory** gives `status 0, ok false, redirected true, empty headers` — *and a perfectly good body* (Chromium's generated listing HTML). `if (!res.ok) throw` breaks directory listing entirely. The cause is in `content/browser/loader/file_url_loader_factory.cc`: `FileURLLoader` synthesizes `"HTTP/1.1 200 OK"` headers, while `FileURLDirectoryLoader` never sets `head->headers` at all **[src]** — <https://source.chromium.org/chromium/chromium/src/+/main:content/browser/loader/file_url_loader_factory.cc>. Correct rule: **if the promise resolves, it succeeded**; use `status` only to tell "file" from "directory listing". |
 | Worse trap | A directory that exists but cannot be enumerated (permission denied) does **not** reject. It either resolves as a normal-looking empty listing, or the body **never arrives and the fetch hangs forever**. On multi-user macOS this is not hypothetical: other users' home directories are `drwxr-x---` and `~/Library` is `drwx------`. **Every `file://` fetch needs an `AbortController` timeout.** **[lab]** |
 | Parsing the directory listing | Chromium emits one `<script>addRow("name","url",isdir,size,"size_string",epoch,"date_string");</script>` per entry. Gotchas: `isdir` is `0`/`1`, **not** `true`/`false`; the size and date strings are locale-formatted (never parse them); names are JS string literals (unescape with `JSON.parse`); the `<head>` also contains the `addRow` *definition*, so anchor on `addRow("`; `DOMParser` is useless here because it does not execute scripts (and the service worker has no `DOMParser` anyway). Treat "listing produced zero rows" as a **hard error** — otherwise a listing-format change is indistinguishable from "extension not installed". **[lab]** |
@@ -161,16 +163,43 @@ state and calling it the default. Everything below was re-measured with the togg
 
 ## 3. How cici therefore works
 
-### 3.1 The shipping design: a read-only, zero-dependency CLI
+### 3.1 The shipping design: one read-only parser, two front ends
+
+Both front ends ship from this repository. The parser is written once, with **no platform imports at
+all**, and the two front ends supply the bytes: `node:fs` for the CLI, `fetch('file://…')` for the
+extension.
 
 ```
-cici (Node ≥18.17, no dependencies)
- └─ browsers.js   known user-data dirs per browser family & platform → profile dirs
- └─ claude.js     <profile>/Local Extension Settings/<claude ext id>/
- └─ leveldb.js    CURRENT → MANIFEST (VersionEdit replay) → live *.ldb + *.log (WAL)
- └─ snappy.js     raw-snappy decompression for .ldb data blocks
- └─ index.js      one row per profile: browser, profile dir, profile name, deviceId
+src/  (Node ≥18.17, no dependencies)
+ ├─ leveldb-core.js  the parser. CURRENT → MANIFEST (VersionEdit replay) → live *.ldb + *.log (WAL).
+ │                  No node: imports — the extension runs this exact file.
+ ├─ snappy.js        raw-snappy decompression for .ldb data blocks. Also shared.
+ ├─ leveldb.js       node:fs adapter: directorySource() → readLevelDbFrom()
+ ├─ browsers.js      known user-data dirs per browser family & platform → profile dirs
+ ├─ claude.js        <profile>/Local Extension Settings/<claude ext id>/
+ └─ index.js         one row per profile: browser, profile dir, profile name, deviceId
+
+extension/  (MV3, no build step — loaded as plain ES modules)
+ ├─ manifest.json    permissions: ["storage"], host_permissions: ["file:///*"] — that is all
+ ├─ popup.js         UI: this profile's card first, then the other profiles
+ ├─ _locales/{ko,en} every human-readable string; ko is the default locale
+ └─ lib/
+    ├─ leveldb-core.js  ┐ generated copies of src/. Do not edit them.
+    ├─ snappy.js        ┘ `npm run build:ext` writes them; `npm run check:ext` and
+    │                     test/extension.test.js verify they match src/ byte for byte.
+    ├─ fileurl.js       file:// byte source + Chromium directory-listing parser
+    ├─ locate.js        profile enumeration + the nonce round-trip (§3.2)
+    └─ read.js          profile → bridgeDeviceId / bridgeDisplayName
 ```
+
+`scripts/build-extension.mjs` is the only thing allowed to write `extension/lib/*.js`. Copying rather
+than importing is deliberate: an extension cannot import from outside its own package, a bundler
+would be the first build dependency this project refuses to have, and a symlink does not survive
+packing a `.crx`.
+
+**The shipping extension has no background service worker.** The lab confirmed `file://` reads work
+from one, but there is no reason to ship it: a popup-only extension has a smaller attack surface and
+a smaller review surface, and it only runs when the user asks a question.
 
 Properties that matter:
 
@@ -185,8 +214,14 @@ Properties that matter:
   7-byte record header lands inside the string. We reproduced that failure — 5 misses in 10 trials on
   a ~2 MB WAL with the offset deliberately controlled **[lab]**. It is unrecoverable by waiting or
   retrying; only a real parser finds it.
-* **No permission prompt, no toggle, no review.** It reads files the user already owns.
-* 173 tests, `npm test`.
+* **Self-location is measured, not hoped for.** The nonce round-trip (§3.2) succeeded 21 times out
+  of 21, and cross-checking across three profiles that all had the extension installed produced zero
+  false positives **[lab]**. The browser port of the parser read all four real profiles correctly.
+* **The CLI needs no permission prompt, no toggle, no review.** It reads files the user already owns.
+* Covered end to end by `npm test` (`node --test`, no test framework): the parser against
+  fixtures written by a real LevelDB, the CLI, the extension libraries against a faked
+  `file://` filesystem, and the popup against a DOM shim. **334 tests in 22 suites** pass today;
+  `npm test` is the authority, not this line.
 
 ### 3.2 The extension, and the self-location trick
 
@@ -220,19 +255,23 @@ Three rules this design must respect, all learned the hard way:
   above. This is the failure mode where the data is on disk and provably unfindable.
 * **Never infer identity from directory names.** `Default` / `Profile N` is a convention, not a rule:
   a profile directory can be named anything (`--profile-directory=Work`), and enumeration that
-  matches `/^Profile \d+$/` silently finds nothing.
+  matches `/^Profile \d+$/` silently finds nothing. Profile names and emails come from
+  `profile.info_cache` in `<user-data-dir>/Local State`, which reads fine over `file://` **[lab]**.
 * **Absence of `Local Extension Settings/<id>/` does not mean "not installed."** Chrome creates that
   directory lazily, on the first `chrome.storage.local` touch. An installed-but-never-run extension
   has no directory, and an extension that only ever *read* storage has a 0-byte WAL and parses to
   zero keys with zero warnings. The UI must distinguish: *no file access* / *no such profile* /
   *extension present but never wrote* / *wrote but never paired* / *paired*. Two of those five states
-  look identical to a naive implementation **[lab]**.
+  look identical to a naive implementation **[lab]**. The shipping popup says all five differently.
+
+`chrome.identity.getProfileUserInfo` returns `{email:'', id:''}` for a signed-out profile **[lab]**,
+so it cannot be the primary self-detection signal. It has value only as a corroborating one.
 
 ---
 
 ## 4. The alternatives, honestly compared
 
-| | **A. CLI only** (shipping today) | **B. Pure extension, `file://`** | **C. Extension + native host** |
+| | **A. CLI only** | **B. Pure extension, `file://`** | **C. Extension + native host** |
 | --- | --- | --- | --- |
 | **Answers "which profile owns which id?"** | Yes, all profiles at once | Yes | Yes |
 | **Answers "*this* profile's id" in-place** | No (it lists all, you match by profile name) | Yes | Yes |
@@ -395,7 +434,7 @@ desktop-launched browser is a misleading *"Native host has exited."*
    permissions"* may itself read as evasive to a reviewer. This is a policy judgment we do not
    control. Mitigation: keep the manifest to `file:///*` + `storage`, publish the source, and say
    plainly in the listing that the extension reads only Chrome's own `Local Extension Settings`
-   LevelDB and sends nothing anywhere.
+   LevelDB and sends nothing anywhere (see [`store-listing.md`](store-listing.md), Korean).
 2. **Toggle friction.** One manual step, per profile, that no API can request, on a settings page
    most users have never opened — and Chrome's own UI suggests a restart that is not actually needed.
    Mitigation: detect with `isAllowedFileSchemeAccess()`, show a screenshot-grade explanation, and

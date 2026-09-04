@@ -282,17 +282,23 @@ export async function listProfiles(userDataDir) {
 }
 
 /**
- * Locate the first installed extension among `extensionIds` in a profile.
+ * Every installed extension among `extensionIds` in a profile, in the order
+ * the ids were given.
  *
  * An extension counts as installed when "<profile>/Extensions/<id>" or
  * "<profile>/Local Extension Settings/<id>" exists. The version is the highest
  * version directory under Extensions/<id> ("1.0.90_0" → "1.0.90").
  *
+ * Callers get the whole list because "has a storage directory" is not the same
+ * as "is the paired one": a Web Store build that was installed but never paired
+ * also has storage. Only reading the storage tells them apart, so the choice
+ * belongs to whoever can read it (src/index.js buildRow).
+ *
  * @param {string} profileDir
  * @param {string[]} extensionIds  Candidate ids, in priority order.
- * @returns {Promise<ExtensionInfo|null>}
+ * @returns {Promise<ExtensionInfo[]>}
  */
-export async function findExtension(profileDir, extensionIds) {
+export async function findExtensions(profileDir, extensionIds) {
   /** @type {ExtensionInfo[]} */
   const matches = [];
   for (const id of extensionIds) {
@@ -317,9 +323,25 @@ export async function findExtension(profileDir, extensionIds) {
       installed: true,
     });
   }
-  // Several Claude builds can be installed side by side (the Web Store one and
-  // an internal build). The paired one is whichever has storage; the declared
-  // order only breaks ties.
+  return matches;
+}
+
+/**
+ * The single best guess among {@link findExtensions}, without reading anything.
+ *
+ * Several Claude builds can be installed side by side (the Web Store one and an
+ * internal build); a directory alone cannot say which one holds the pairing, so
+ * this only prefers one that has storage at all. Anything that can read the
+ * storage should use {@link findExtensions} and pick the build that actually
+ * holds a bridgeDeviceId — otherwise a never-paired first candidate hides a
+ * paired second one.
+ *
+ * @param {string} profileDir
+ * @param {string[]} extensionIds
+ * @returns {Promise<ExtensionInfo|null>}
+ */
+export async function findExtension(profileDir, extensionIds) {
+  const matches = await findExtensions(profileDir, extensionIds);
   return matches.find((m) => m.storageDir !== null) ?? matches[0] ?? null;
 }
 

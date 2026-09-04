@@ -1,0 +1,49 @@
+# cici CI
+#
+# 런타임 의존성도 개발 의존성도 0개라서 설치 단계가 없다. `npm ci` 는
+# package-lock.json 을 요구하는데 이 저장소에는 잠글 것이 없으므로 두지 않는다.
+# setup-node 의 `cache: npm` 도 같은 이유로 쓰지 않는다(락 파일이 있어야 동작한다).
+#
+# 세 OS 를 모두 도는 이유: 경로 처리(윈도우 드라이브 문자, 대소문자 구분,
+# 경로 구분자)와 파일 시스템 동작이 플랫폼마다 다르고, cici 가 하는 일이
+# 바로 그 경로를 다루는 것이다.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: node ${{ matrix.node }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        # package.json 의 engines 는 >=18.17 이다. 각 메이저의 최신 패치를 쓴다.
+        node: ['18', '20', '22']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: 버전 확인
+        run: node --version
+
+      - name: 테스트
+        run: npm test

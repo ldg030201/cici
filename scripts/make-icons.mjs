@@ -14,7 +14,7 @@
 // 런타임 의존성 0개. 이 스크립트도 node 내장 모듈만 쓴다.
 
 import { deflateSync } from 'node:zlib';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -383,6 +383,13 @@ const WHITE = (a = 1) => hex('#ffffff', a);
 //       점 3개 — 16px 에서 얼굴처럼 읽힌다.
 //       사람 실루엣 — 16px 에서 가장 또렷하지만 주소록 아이콘과 구별되지 않는다.
 // 채택: 'cdot'(기본). 예비: 'pin'.
+//
+// 판정은 눈으로 했다. scripts 밖 스크래치에서 16/20/32px 을 픽셀 보간 없이 7~14배로
+// 확대해 밝은 툴바(#f1f3f4)와 어두운 툴바(#292a2d) 위에 나란히 깔고 비교했다.
+// 그 과정에서 얻은 결론 둘:
+//   1. 큰 크기에서 정한 비율을 그대로 축소하면 16px 에서 무너진다. 치수는 16px
+//      격자에 맞춰 따로 잡아야 한다(glyphCDot 주석 참고).
+//   2. 'pin' 은 16px 실루엣이 가장 강하지만 지도 마커로 읽혀서 뜻이 어긋난다.
 
 /**
  * 'c-dot' — 굵은 'c' 와 그 입 안의 점. 도형 2개, 획이 굵어 16px 에서도 뭉개지지 않는다.
@@ -390,14 +397,18 @@ const WHITE = (a = 1) => hex('#ffffff', a);
  */
 function glyphCDot(c, size) {
   const s = size;
-  // 좌우 시각 중심을 맞춘 값. 획 두께는 16px 에서 2.5px 이 되도록 잡았고,
-  // c 의 입과 점 사이 간격은 16px 기준 1.7px 이상을 확보한다(붙어 보이지 않게).
-  const cx = s * 0.465;
+  // 치수를 16px 격자에 맞춰 잡았다. 16px 에서 획 3px, 호 반지름 4px, 점 지름 4px 이고
+  // 글리프의 왼쪽 끝이 정확히 x=1.0 에 떨어진다. 16px 을 2배 한 32px 에서도 그대로
+  // 정수/반정수 위치라 두 크기 모두 또렷하다. 128px 만 보고 비율을 정한 초안은
+  // 16px 로 줄였을 때 점이 2px 짜리 부스러기가 되어 c 의 위쪽 팔에 달라붙었다.
+  const cx = s * (6.5 / 16);
   const cy = s * 0.5;
-  const r = s * 0.255;
-  const w = s * 0.17;
-  c.fill(sdArc(cx, cy, r, w, 62, 298), WHITE());
-  c.fill(sdCircle(cx + s * 0.305, cy, s * 0.105), WHITE());
+  const r = s * (4 / 16);
+  const w = s * (3 / 16);
+  // 입은 64°. 더 좁히면 팔 끝이 점에 닿고, 더 벌리면 'c' 가 아니라 괄호로 읽힌다.
+  // 이 값에서 팔 끝과 점 사이 간격이 16px 기준 2.1px 확보된다.
+  c.fill(sdArc(cx, cy, r, w, 64, 296), WHITE());
+  c.fill(sdCircle(s * (12.5 / 16), cy, s * (2 / 16)), WHITE());
 }
 
 /** 'pin' — "지금 이 브라우저" 를 가리키는 마커. 실루엣이 뚜렷해 16px 에서 강하다. */
@@ -780,7 +791,19 @@ function main(argv) {
   for (const p of written) process.stdout.write(`${p}\n`);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+// 심볼릭 링크를 지나는 절대 경로로 불러도 돌아야 한다. ESM 로더는 진입점을
+// realpath 로 풀어서 import.meta.url 을 만들지만 resolve() 는 링크를 안 푼다
+// (macOS 의 /tmp 가 바로 그런 링크다). scripts/build-extension.mjs 와 같은 이유.
+function isMainEntry() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(resolve(process.argv[1])) === realpathSync(resolve(fileURLToPath(import.meta.url)));
+  } catch {
+    return false;
+  }
+}
+
+if (isMainEntry()) {
   main(process.argv.slice(2));
 }
 

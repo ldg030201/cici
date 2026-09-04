@@ -1,7 +1,7 @@
 {
   "name": "cici",
   "version": "0.1.0",
-  "description": "Claude In Chrome Id — find the Claude in Chrome extension's bridgeDeviceId for every Chrome profile, without opening DevTools.",
+  "description": "Claude Code 브라우저 선택창의 UUID(bridgeDeviceId)가 어느 크롬 프로필의 것인지 알려 준다. 읽기 전용, 의존성 0.",
   "type": "module",
   "bin": {
     "cici": "./bin/cici.js"
@@ -14,13 +14,14 @@
     "bin",
     "src",
     "README.md",
-    "README.ko.md",
+    "README.en.md",
     "LICENSE"
   ],
   "scripts": {
     "test": "node --test test/*.test.js",
     "start": "node bin/cici.js",
     "build:ext": "node scripts/build-extension.mjs",
+    "check:ext": "node scripts/build-extension.mjs --check",
     "icons": "node scripts/make-icons.mjs"
   },
   "engines": {
@@ -30,10 +31,14 @@
     "claude",
     "claude-code",
     "claude-in-chrome",
+    "bridgedeviceid",
     "chrome",
-    "extension",
+    "chrome-profile",
+    "chrome-extension",
+    "chromium",
     "leveldb",
-    "bridgeDeviceId",
+    "snappy",
+    "devtools",
     "cli"
   ],
   "author": "ldg030201",
