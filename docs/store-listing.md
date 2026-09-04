@@ -97,8 +97,8 @@ cici 는 그 한 가지 질문에만 답합니다. 어느 UUID 가 어느 프로
   전체 소스: https://github.com/ldg030201/cici (MIT)
   같은 일을 하는 명령줄 도구도 같은 저장소에 있습니다: npx cici
 
-■ 지원 브라우저
-  Chrome, Chromium, Brave, Microsoft Edge, Vivaldi, Opera, Arc (Chrome 116 이상)
+■ 필요 환경
+  Chrome 116 이상. 크로미움 기반 브라우저에서도 동작합니다.
 
 ■ 이 확장과 Anthropic 의 관계
   cici 는 Anthropic 이 만들지 않은 비공식 도구입니다. Anthropic 과 제휴 관계가 없고,
@@ -107,6 +107,12 @@ cici 는 그 한 가지 질문에만 답합니다. 어느 UUID 가 어느 프로
   Claude in Chrome 확장이 이미 저장해 둔 값을 사용자에게 읽어 보여 줄 뿐이며,
   Anthropic 의 서비스에 접속하지 않습니다.
 ```
+
+> **브라우저 이름을 나열하지 말 것.** 2026-09-04 첫 제출이 이 줄 하나로 거부됐다
+> (키워드 스팸, 위반 참조 ID `Yellow Argon`). 지적된 원문은
+> `Chrome, Chromium, Brave, Microsoft Edge, Vivaldi, Opera, Arc` 였다.
+> 구글은 다른 브라우저 브랜드명을 늘어놓는 것을 검색 노출을 노린 키워드 채우기로 본다.
+> 실제 호환 범위는 README 에 적고, 스토어 설명에는 브랜드명을 나열하지 않는다.
 
 ---
 
