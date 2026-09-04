@@ -794,6 +794,16 @@ function renderNeedAccess() {
  *
  * @returns {string} 없으면 빈 문자열
  */
+/** 푸터의 깃허브 링크를 manifest 의 homepage_url 로 채운다. 주소가 없으면 숨긴 채 둔다. */
+function fillSourceLink() {
+  const node = byId('gh-link');
+  if (!node) return;
+  const home = homepageUrl();
+  if (home === '') return;
+  node.href = home;
+  node.hidden = false;
+}
+
 function homepageUrl() {
   try {
     const url = globalThis.chrome?.runtime?.getManifest?.()?.homepage_url;
@@ -902,6 +912,7 @@ function wire() {
 function boot() {
   try {
     applyStaticI18n();
+    fillSourceLink();
     wire();
   } catch (err) {
     renderFatal(err);

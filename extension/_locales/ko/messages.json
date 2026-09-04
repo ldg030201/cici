@@ -402,7 +402,11 @@
     "description": "경고 목록을 여는 <details> 제목."
   },
   "privacyNote": {
-    "message": "cici는 이 컴퓨터의 파일을 읽기만 하고, 아무 데도 보내지 않습니다.",
+    "message": "이 컴퓨터의 파일만 읽고, 아무 데도 보내지 않습니다.",
     "description": "팝업 하단 각주."
+  },
+  "sourceCode": {
+    "message": "소스 코드 보기 (GitHub)",
+    "description": "푸터 깃허브 링크의 툴팁·접근성 이름."
   }
 }

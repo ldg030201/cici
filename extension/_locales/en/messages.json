@@ -402,7 +402,11 @@
     "description": "Summary of the <details> holding warnings."
   },
   "privacyNote": {
-    "message": "cici only reads files on this computer. Nothing is ever sent anywhere.",
+    "message": "Reads local files only. Nothing is sent anywhere.",
     "description": "Footnote at the bottom of the popup."
+  },
+  "sourceCode": {
+    "message": "View source on GitHub",
+    "description": "Tooltip and accessible name for the footer GitHub link."
   }
 }

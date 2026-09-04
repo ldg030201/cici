@@ -218,6 +218,45 @@ body {
   margin: 0;
 }
 
+.ft-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 안내문이 길어져도 링크를 밀어내지 않는다. */
+.ft-row p {
+  flex: 1;
+  min-width: 0;
+}
+
+.gh-link {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.gh-link:hover {
+  color: var(--fg);
+  background: var(--bg-sunken);
+}
+
+.gh-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.gh-mark {
+  flex: none;
+}
+
 .sec-label {
   margin: 0 0 6px;
   color: var(--fg-muted);
