@@ -9,7 +9,6 @@
 //   node scripts/make-icons.mjs                 # extension/icons/*.png 생성
 //   node scripts/make-icons.mjs --store <dir>   # 스토어 등록용 이미지도 함께 생성
 //   node scripts/make-icons.mjs --preview <dir> # 육안 확인용 대조 시트 생성
-//   node scripts/make-icons.mjs --variant pin   # 글리프 교체(cdot 기본, pin 예비)
 //
 // 런타임 의존성 0개. 이 스크립트도 node 내장 모듈만 쓴다.
 
@@ -350,109 +349,87 @@ const clamp255 = (v) => (v < 0 ? 0 : v > 255 ? 255 : Math.round(v));
 // ─────────────────────────────────────────────────────────────────────────────
 // 브랜드 팔레트
 //
-// Claude 브랜드(주황 계열)를 베끼지 않도록 인디고→시안 축을 쓴다.
-// 타일 자체가 중간 명도라 밝은 툴바에서는 타일이, 어두운 툴바에서는 흰 글리프가
-// 각각 대비를 만들어 준다.
+// Claude 브랜드(주황 계열)도, 크롬 기본 4색도 아닌 축: 청록 × 로즈.
+// 두 색의 명도를 일부러 어긋나게 잡았다. 아이콘 색 하나로 밝은 툴바와 어두운
+// 툴바 양쪽에서 3.52:1 을 넘기는 건 수학적으로 불가능하다(두 배경의 명도가
+// 0.898 / 0.0263 이라 균형점이 정확히 3.52). 그래서 밝은 툴바에서는 청록이,
+// 어두운 툴바에서는 로즈가 각각 앞장서게 나눠 맡겼다.
+//
+// 실측 대비(WCAG 상대명도):
+//                   밝은 툴바 #f1f3f4   어두운 툴바 #292a2d
+//   dim  #0C8285          4.15                3.11
+//   lit  #EC3F87          3.35                3.85
+// 어느 툴바에서도 모든 요소가 3.1 이상이고, 최대 대비는 4.15 / 3.85 다.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BRAND = {
-  deep: '#2B2FA8', // 인디고
-  mid: '#4C63E6',
-  bright: '#22C7E8', // 시안
-  ink: '#151A38', // 거의 검정에 가까운 남색(스토어 이미지 텍스트/테두리)
+  dim: '#0C8285', // 청록 — 꺼져 있는 프로필 셋
+  lit: '#EC3F87', // 로즈 — 지금 켜져 있는 이 프로필 하나
+  ink: '#0A2124', // 짙은 청록먹(스토어 이미지 텍스트/테두리)
 };
 
-/** 타일 배경 그라디언트 페인트. */
-const tilePaint = (size) =>
-  linear(0, 0, size, size, [
-    [0, hex(BRAND.deep)],
-    [0.55, hex(BRAND.mid)],
-    [1, hex(BRAND.bright)],
-  ]);
-
 // ─────────────────────────────────────────────────────────────────────────────
-// 글리프 후보
-// 전부 0..1 정규화 좌표(타일 한 변 = 1)를 size 로 곱해서 그린다.
-// ─────────────────────────────────────────────────────────────────────────────
-
-const WHITE = (a = 1) => hex('#ffffff', a);
-
-// 글리프 후보를 여럿 그려 16px 로 축소해 본 뒤 고른 결과다.
-// 탈락: 동심 호(지문) — 호 사이 1px 간격이 16px 에서 회색으로 뭉개진다.
-//       다이아몬드/꼬리표 — 구멍이 사라져 정체불명의 흰 덩어리가 된다.
-//       점 3개 — 16px 에서 얼굴처럼 읽힌다.
-//       사람 실루엣 — 16px 에서 가장 또렷하지만 주소록 아이콘과 구별되지 않는다.
-// 채택: 'cdot'(기본). 예비: 'pin'.
+// 마크 — "켜진 하나"
 //
-// 판정은 눈으로 했다. scripts 밖 스크래치에서 16/20/32px 을 픽셀 보간 없이 7~14배로
-// 확대해 밝은 툴바(#f1f3f4)와 어두운 툴바(#292a2d) 위에 나란히 깔고 비교했다.
-// 그 과정에서 얻은 결론 둘:
-//   1. 큰 크기에서 정한 비율을 그대로 축소하면 16px 에서 무너진다. 치수는 16px
-//      격자에 맞춰 따로 잡아야 한다(glyphCDot 주석 참고).
-//   2. 'pin' 은 16px 실루엣이 가장 강하지만 지도 마커로 읽혀서 뜻이 어긋난다.
+// 프로필 넷을 격자에 놓고 지금 이 프로필만 켜 둔다. 꺼진 셋은 같은 크기·같은 색의
+// 둥근 사각, 켜진 하나는 형태(사각→원)·색(청록→로즈)·크기(5→7)가 동시에 달라진다.
+// 세 축이 한꺼번에 바뀌니 16px 로 줄여도 "여럿 중 이것 하나"가 남는다.
+//
+// 배경 타일(둥근 사각형)은 쓰지 않는다. 타일은 어느 툴바에서나 안전하지만 크롬
+// 확장 아이콘 대부분이 그렇게 생겨서 옆 아이콘 사이에서 구별되지 않는다. 대신 두
+// 색 모두 밝은/어두운 툴바에서 3.1:1 이상 나오게 잡았다(BRAND 주석).
+//
+// 탈락한 방향들(전부 16px 로 실제 렌더해서 눈으로 떨어뜨렸다):
+//   동심 호(지문)  — 호 사이 1px 간격이 16px 에서 회색으로 뭉개진다.
+//   구멍 뚫린 태그 — 카운터가 메워져 정체불명의 덩어리가 된다.
+//   점 3개         — 얼굴로 읽힌다. 지도 핀은 지도 앱, 사람 실루엣은 주소록.
+//   카드 3장 스택  — 문단 정렬/목록 버튼으로 읽힌다.
+//   기울인 획 2개  — 128px 에서도 일시정지 버튼이다.
+//   그라디언트 타일+흰 'C' — 작은 크기에서 색이 탁하고 흔한 앱 아이콘 실루엣이다.
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * 'c-dot' — 굵은 'c' 와 그 입 안의 점. 도형 2개, 획이 굵어 16px 에서도 뭉개지지 않는다.
- * c 는 cici 의 머리글자이자 "여러 후보 중 이 하나"를 가리키는 점을 품는다.
+ * 치수는 전부 16px 격자에서 정하고 u = size/16 을 곱한다. 16px 에서 정수에
+ * 떨어지므로 32/48/128 도 자동으로 정수·반정수에 떨어져 어느 크기에서나 또렷하다.
+ * 큰 크기에서 비율을 정하고 축소하면 16px 에서 무너진다 — 반대로 잡아야 한다.
+ *
+ *        0   1       6  7  8      13 14 15
+ *        ┌───┬────────┬──┬─────────┬──────┐
+ *   꺼진 사각 5x5  : 중심 3.5 / 10.5, 반너비 2.5 → [1,6] 과 [8,13]
+ *   켜진 원 지름 7 : 중심 (11.5, 11.5), 반지름 3.5 → [8,15]
+ *
+ * 지켜야 하는 값 셋:
+ *   - 요소 사이 간격이 전부 정확히 2px(6→8). 1px 간격은 16px 에서 회색으로 뭉개진다.
+ *   - 글리프 bbox 가 [1,15] 라 상하좌우 여백이 1px 로 같다. 툴바에서 쏠려 보이지 않는다.
+ *   - 원 지름 7 = 사각 변 5 + 간격 2, 그리고 사각 대각선 5√2 ≈ 7.07 에 가깝다.
+ *     켜진 칸이 자기 칸을 넘어선 게 정렬 실수가 아니라 규칙으로 읽히게 하는 치수다.
  */
-function glyphCDot(c, size) {
-  const s = size;
-  // 치수를 16px 격자에 맞춰 잡았다. 16px 에서 획 3px, 호 반지름 4px, 점 지름 4px 이고
-  // 글리프의 왼쪽 끝이 정확히 x=1.0 에 떨어진다. 16px 을 2배 한 32px 에서도 그대로
-  // 정수/반정수 위치라 두 크기 모두 또렷하다. 128px 만 보고 비율을 정한 초안은
-  // 16px 로 줄였을 때 점이 2px 짜리 부스러기가 되어 c 의 위쪽 팔에 달라붙었다.
-  const cx = s * (6.5 / 16);
-  const cy = s * 0.5;
-  const r = s * (4 / 16);
-  const w = s * (3 / 16);
-  // 입은 64°. 더 좁히면 팔 끝이 점에 닿고, 더 벌리면 'c' 가 아니라 괄호로 읽힌다.
-  // 이 값에서 팔 끝과 점 사이 간격이 16px 기준 2.1px 확보된다.
-  c.fill(sdArc(cx, cy, r, w, 64, 296), WHITE());
-  c.fill(sdCircle(s * (12.5 / 16), cy, s * (2 / 16)), WHITE());
-}
-
-/** 'pin' — "지금 이 브라우저" 를 가리키는 마커. 실루엣이 뚜렷해 16px 에서 강하다. */
-function glyphPin(c, size) {
-  const s = size;
-  const cx = s * 0.5;
-  const headY = s * 0.42;
-  const r = s * 0.235;
-  const tipY = s * 0.83;
-  const cone = (x, y) => {
-    if (y < headY) return headY - y;
-    const t = (y - headY) / (tipY - headY);
-    if (t > 1) return (t - 1) * (tipY - headY);
-    const w = r * (1 - t * t * 0.92);
-    return Math.abs(x - cx) - w;
-  };
-  const pin = sdUnion(sdCircle(cx, headY, r), cone);
-  c.fill(sdSubtract(pin, sdCircle(cx, headY, s * 0.088)), WHITE());
-}
-
-const GLYPHS = { cdot: glyphCDot, pin: glyphPin };
+const G = {
+  half: 2.5, // 꺼진 사각의 반너비
+  radius: 1.25, // 그 모서리 반경(변의 25%)
+  near: 3.5, // 가까운 쪽 칸 중심
+  far: 10.5, // 먼 쪽 칸 중심
+  litAt: 11.5, // 켜진 원의 중심
+  litR: 3.5, // 켜진 원의 반지름
+};
 
 /**
  * 확장 아이콘 한 장.
  * @param {number} size
- * @param {{variant?: keyof GLYPHS, ss?: number}} [opts]
+ * @param {{ss?: number}} [opts]
  */
 export function renderIcon(size, opts = {}) {
-  const variant = opts.variant ?? 'cdot';
-  const ss = opts.ss ?? 4;
-  const c = new Canvas(size, size, ss);
-  const inset = size * 0.02;
-  const radius = size * 0.225;
-  const tile = sdRoundRect(size / 2, size / 2, size / 2 - inset, size / 2 - inset, radius);
-  c.fill(tile, tilePaint(size));
-  // 위쪽 광택 — 어두운 툴바에서 타일 윗변이 배경에 묻히지 않게 한다.
-  c.fill(
-    tile,
-    linear(0, 0, 0, size * 0.55, [
-      [0, WHITE(0.16)],
-      [1, WHITE(0)],
-    ]),
-  );
-  (GLYPHS[variant] ?? glyphCDot)(c, size);
+  const c = new Canvas(size, size, opts.ss ?? 4);
+  const u = size / 16;
+  const cell = (x, y) => sdRoundRect(x * u, y * u, G.half * u, G.half * u, G.radius * u);
+  for (const [x, y] of [
+    [G.near, G.near],
+    [G.far, G.near],
+    [G.near, G.far],
+  ]) {
+    c.fill(cell(x, y), hex(BRAND.dim));
+  }
+  c.fill(sdCircle(G.litAt * u, G.litAt * u, G.litR * u), hex(BRAND.lit));
   return c;
 }
 
@@ -495,37 +472,31 @@ function drawWordmarkCici(c, x, baseY, h, paint) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** 440x280 소형 프로모 타일. */
-function renderPromoTile(variant) {
+function renderPromoTile() {
   const W = 440;
   const H = 280;
   const c = new Canvas(W, H, 4);
-  // 아이콘 타일 자체가 인디고~시안이라, 배경은 훨씬 어두운 남색으로 깔아야 타일이 뜬다.
+  // 마크가 배경 없는 글리프라 프로모 배경은 밝게 깔고 짙은 먹색으로 글자를 쓴다.
   c.fillAll(
     linear(0, 0, W, H, [
-      [0, hex('#0C1030')],
-      [0.55, hex('#131A45')],
-      [1, hex('#1A2A6B')],
+      [0, hex('#F6FAFA')],
+      [0.55, hex('#E7F1F1')],
+      [1, hex('#D3E5E6')],
     ]),
   );
-  // 아이콘 뒤 광원 + 오른쪽 위 은은한 하이라이트
-  c.fill(sdCircle(112, H * 0.46, 130), hex(BRAND.mid, 0.3), { softness: 260 });
-  c.fill(sdCircle(W * 0.82, H * 0.1, 150), WHITE(0.05), { softness: 300 });
+  // 마크 뒤 광원 + 오른쪽 위 은은한 하이라이트
+  c.fill(sdCircle(112, H * 0.46, 130), hex(BRAND.dim, 0.12), { softness: 260 });
+  c.fill(sdCircle(W * 0.82, H * 0.1, 150), hex('#ffffff', 0.5), { softness: 300 });
 
   // 아이콘
   const iconSize = 128;
   const iconX = 44;
   const iconY = (H - iconSize) / 2 - 8;
-  // 바닥 그림자로 배경에서 한 겹 띄운다.
-  c.fill(
-    sdRoundRect(iconX + iconSize / 2, iconY + iconSize / 2 + 10, iconSize / 2 - 6, iconSize / 2 - 6, 30),
-    hex('#000000', 0.45),
-    { softness: 26 },
-  );
-  c.drawCanvas(renderIcon(iconSize, { variant }), iconX, iconY);
+  c.drawCanvas(renderIcon(iconSize), iconX, iconY);
 
   // 워드마크
   const wordX = iconX + iconSize + 36;
-  drawWordmarkCici(c, wordX, H * 0.47, 56, WHITE());
+  drawWordmarkCici(c, wordX, H * 0.47, 56, hex(BRAND.ink));
 
   // "여러 프로필 중 하나가 강조된" 목록 — 글자 없이 의미를 전달한다.
   const pillH = 11;
@@ -533,36 +504,36 @@ function renderPromoTile(variant) {
   const listX = wordX + 24; // 왼쪽 24px 은 선택 표시 점 자리
   const pillY = H * 0.47 + 26;
   const rows = [
-    [126, WHITE(0.26), false],
-    [168, WHITE(1), true],
-    [104, WHITE(0.26), false],
+    [126, hex(BRAND.ink, 0.22), false],
+    [168, hex(BRAND.lit), true],
+    [104, hex(BRAND.ink, 0.22), false],
   ];
   rows.forEach(([w, paint, marked], i) => {
     const y = pillY + i * (pillH + rowGap);
     c.fill(sdRoundRect(listX + w / 2, y + pillH / 2, w / 2, pillH / 2, pillH / 2), paint);
-    if (marked) c.fill(sdCircle(listX - 14, y + pillH / 2, 5.5), WHITE());
+    if (marked) c.fill(sdCircle(listX - 14, y + pillH / 2, 5.5), hex(BRAND.lit));
   });
   return c;
 }
 
 /** 1280x800 스크린샷 틀(실제 화면은 사람이 나중에 끼워 넣는다). */
-function renderScreenshotFrame(variant) {
+function renderScreenshotFrame() {
   const W = 1280;
   const H = 800;
   const c = new Canvas(W, H, 2); // 큰 이미지라 ss=2 로 충분하다(도형이 전부 크다)
   c.fillAll(
     linear(0, 0, W, H, [
-      [0, hex('#EEF1FC')],
-      [1, hex('#DCE4F8')],
+      [0, hex('#F0F7F7')],
+      [1, hex('#D9E9EA')],
     ]),
   );
   // 브랜드 코너 광원
-  c.fill(sdCircle(W * 0.08, H * 0.05, 420), hex(BRAND.mid, 0.16), { softness: 420 });
+  c.fill(sdCircle(W * 0.08, H * 0.05, 420), hex(BRAND.dim, 0.16), { softness: 420 });
 
   // 헤더: 아이콘 + 워드마크 + 텍스트 자리(연회색 막대)
   const headX = 96;
   const headY = 74;
-  c.drawCanvas(renderIcon(56, { variant, ss: 2 }), headX, headY);
+  c.drawCanvas(renderIcon(56, { ss: 2 }), headX, headY);
   drawWordmarkCici(c, headX + 74, headY + 42, 30, hex(BRAND.ink));
 
   // 헤드라인/서브헤드가 들어갈 자리
@@ -586,7 +557,7 @@ function renderScreenshotFrame(variant) {
       sdRoundRect(cardCx, cardCy, cardW / 2, cardH / 2, 18),
       sdRoundRect(cardCx, cardY + barH / 2, cardW / 2, barH / 2, 0),
     ),
-    hex('#F1F3FA'),
+    hex('#EFF5F5'),
   );
   c.fill(sdSegment(cardX, cardY + barH, cardX + cardW, cardY + barH, 1.5), hex(BRAND.ink, 0.1));
   [0, 1, 2].forEach((i) => {
@@ -600,12 +571,12 @@ function renderScreenshotFrame(variant) {
   const phY = cardY + barH + 36;
   const phW = cardW - 80;
   const phH = cardH - barH - 76;
-  c.fill(sdRoundRect(phX + phW / 2, phY + phH / 2, phW / 2, phH / 2, 14), hex(BRAND.mid, 0.05));
-  dashedRoundRect(c, phX + phW / 2, phY + phH / 2, phW / 2, phH / 2, 14, 2, 14, 10, hex(BRAND.mid, 0.45));
-  drawImagePlaceholderGlyph(c, phX + phW / 2, phY + phH / 2 - 18, 92, hex(BRAND.mid, 0.42));
+  c.fill(sdRoundRect(phX + phW / 2, phY + phH / 2, phW / 2, phH / 2, 14), hex(BRAND.dim, 0.05));
+  dashedRoundRect(c, phX + phW / 2, phY + phH / 2, phW / 2, phH / 2, 14, 2, 14, 10, hex(BRAND.dim, 0.45));
+  drawImagePlaceholderGlyph(c, phX + phW / 2, phY + phH / 2 - 18, 92, hex(BRAND.dim, 0.42));
   // 캡션 자리 막대 2줄
-  c.fill(sdRoundRect(phX + phW / 2, phY + phH / 2 + 66, 150, 8, 8), hex(BRAND.mid, 0.28));
-  c.fill(sdRoundRect(phX + phW / 2, phY + phH / 2 + 92, 100, 6, 6), hex(BRAND.mid, 0.2));
+  c.fill(sdRoundRect(phX + phW / 2, phY + phH / 2 + 66, 150, 8, 8), hex(BRAND.dim, 0.28));
+  c.fill(sdRoundRect(phX + phW / 2, phY + phH / 2 + 92, 100, 6, 6), hex(BRAND.dim, 0.2));
 
   // 안전 여백 가이드(모서리 표식)
   const m = 48;
@@ -693,16 +664,16 @@ const sdTriangleish = (cx, y0, halfBase, height) => (x, y) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** 밝은/어두운 툴바 배경 위에 1x 와 확대본을 나란히 놓는다. */
-function renderPreview(variant) {
+function renderPreview() {
   const sizes = [16, 32, 48, 128];
   const W = 640;
   const H = 360;
   const c = new Canvas(W, H, 1);
   c.fillAll(hex('#FFFFFF'));
   c.fill(sdRoundRect(W / 2, H * 0.25, W / 2, H * 0.25, 0), hex('#F1F3F4')); // 밝은 툴바
-  c.fill(sdRoundRect(W / 2, H * 0.75, W / 2, H * 0.25, 0), hex('#202124')); // 어두운 툴바
+  c.fill(sdRoundRect(W / 2, H * 0.75, W / 2, H * 0.25, 0), hex('#292A2D')); // 어두운 툴바
 
-  const icons = sizes.map((s) => ({ size: s, canvas: renderIcon(s, { variant, ss: 4 }) }));
+  const icons = sizes.map((s) => ({ size: s, canvas: renderIcon(s, { ss: 4 }) }));
   for (const row of [0, 1]) {
     const yMid = row === 0 ? H * 0.25 : H * 0.75;
     let x = 24;
@@ -757,11 +728,10 @@ function writePng(path, canvas, opts) {
 }
 
 function parseArgs(argv) {
-  const out = { variant: 'cdot', out: join(REPO, 'extension', 'icons'), store: null, preview: null };
+  const out = { out: join(REPO, 'extension', 'icons'), store: null, preview: null };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
-    if (a === '--variant') out.variant = argv[++i];
-    else if (a === '--out') out.out = resolve(argv[++i]);
+    if (a === '--out') out.out = resolve(argv[++i]);
     else if (a === '--store') out.store = resolve(argv[++i]);
     else if (a === '--preview') out.preview = resolve(argv[++i]);
     else if (a === '--help' || a === '-h') out.help = true;
@@ -773,20 +743,20 @@ function main(argv) {
   const args = parseArgs(argv);
   if (args.help) {
     process.stdout.write(
-      'node scripts/make-icons.mjs [--variant cdot|pin] [--out dir] [--store dir] [--preview dir]\n',
+      'node scripts/make-icons.mjs [--out dir] [--store dir] [--preview dir]\n',
     );
     return;
   }
   const written = [];
   for (const size of [16, 32, 48, 128]) {
-    written.push(writePng(join(args.out, `icon${size}.png`), renderIcon(size, { variant: args.variant })));
+    written.push(writePng(join(args.out, `icon${size}.png`), renderIcon(size)));
   }
   if (args.store) {
-    written.push(writePng(join(args.store, 'promo-440x280.png'), renderPromoTile(args.variant), { rgb: true }));
-    written.push(writePng(join(args.store, 'screenshot-1280x800.png'), renderScreenshotFrame(args.variant), { rgb: true }));
+    written.push(writePng(join(args.store, 'promo-440x280.png'), renderPromoTile(), { rgb: true }));
+    written.push(writePng(join(args.store, 'screenshot-1280x800.png'), renderScreenshotFrame(), { rgb: true }));
   }
   if (args.preview) {
-    written.push(writePng(join(args.preview, `preview-${args.variant}.png`), renderPreview(args.variant)));
+    written.push(writePng(join(args.preview, 'preview.png'), renderPreview()));
   }
   for (const p of written) process.stdout.write(`${p}\n`);
 }

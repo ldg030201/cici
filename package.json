@@ -22,7 +22,9 @@
     "start": "node bin/cici.js",
     "build:ext": "node scripts/build-extension.mjs",
     "check:ext": "node scripts/build-extension.mjs --check",
-    "icons": "node scripts/make-icons.mjs"
+    "icons": "node scripts/make-icons.mjs",
+    "pack:ext": "node scripts/pack-extension.mjs",
+    "publish:ext": "node scripts/publish-extension.mjs"
   },
   "engines": {
     "node": ">=18.17"
