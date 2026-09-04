@@ -1,6 +1,6 @@
 # cici 개인정보 처리방침
 
-**적용 대상:** 크롬 확장 프로그램 "cici — Claude in Chrome 기기 ID" 및 `cici` 명령줄 도구
+**적용 대상:** 크롬 확장 프로그램 "cici - Claude in Chrome ID" 및 `cici` 명령줄 도구
 **시행일:** 2026-09-04
 **소스 코드:** <https://github.com/ldg030201/cici> (MIT)
 

@@ -1,4 +1,4 @@
-# cici — Claude In Chrome Id
+# cici - Claude in Chrome ID
 
 > **Unofficial.** cici is not made by Anthropic and is not affiliated with Anthropic.
 

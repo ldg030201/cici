@@ -523,7 +523,7 @@ export function packageVersion() {
  */
 export function helpText() {
   return [
-    'cici - Claude In Chrome Id',
+    'cici - Claude in Chrome ID',
     '',
     "Finds the Claude in Chrome extension's bridgeDeviceId for every Chromium",
     'browser profile on this machine. That UUID is the id Claude Code shows in',

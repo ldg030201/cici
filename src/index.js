@@ -1,5 +1,5 @@
 /**
- * cici — Claude In Chrome Id.
+ * cici - Claude in Chrome ID.
  *
  * Public API. `scan()` returns one row per Chromium browser profile with the
  * Claude in Chrome extension's `bridgeDeviceId`, read straight from the

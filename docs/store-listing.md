@@ -15,8 +15,8 @@ cici 확장을 크롬 웹스토어에 올릴 때 그대로 붙여 넣을 문구�
 
 | 후보 | 길이 | 메모 |
 | --- | --- | --- |
-| **cici — Claude in Chrome 기기 ID** (현재 ko) | 29자 | 채택. 제품명 + 무엇을 주는지가 한 줄에 들어간다 |
-| cici — Claude in Chrome device ID (현재 en) | 33자 | 채택 |
+| **cici - Claude in Chrome ID** (ko·en 공통) | 26자 | 채택. 제품명 + 무엇을 주는지가 한 줄에 들어간다 |
+| cici — Claude in Chrome 기기 ID | 29자 | "기기" 가 군더더기다. 긴 대시(—)도 하이픈으로 통일했다 |
 | cici | 4자 | 검색으로 발견될 가능성이 없다 |
 | Claude 브리지 ID 뷰어 | 14자 | "Claude" 를 앞에 두면 Anthropic 공식 확장으로 오인될 수 있다. 피한다 |
 
