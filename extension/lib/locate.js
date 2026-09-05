@@ -558,12 +558,15 @@ async function storageHasNonce(profileDir, selfId, nonce) {
     // 표식이 없다. 그런데 `readLevelDbFrom` 은 파일 읽기 실패에 예외를 던지지
     // 않고 경고로 삼키므로, 여기까지 오는 길에는 "정말 없다"와 "못 읽어서
     // 안 보인다" 두 가지가 섞여 있다. 뒤엣것을 `false` 로 뭉개면 자기 프로필
-    // 탐지가 이유 한 줄 없이 실패한다.
-    const failedReads = source.readErrors();
+    // 탐지가 이유 한 줄 없이 실패한다. `files.failed` 가 그 둘을 갈라 준다.
+    const failedReads = db.files.failed;
+    // 읽은 파일이 하나도 없으면 목록은 됐는데 내용이 비었다는 뜻이라 실패가
+    // 아니다 — 다만 표식이 아직 디스크에 없을 수도 있으니 단정하지 않는다.
     const readNothing = db.files.tables.length === 0 && db.files.logs.length === 0;
     if (failedReads.length === 0 && !readNothing) return NONCE_ABSENT;
 
-    return nonceUnknown([...db.warnings, ...failedReads].map((note) => ({ dir: storage.path, note })));
+    const notes = [...db.warnings, ...failedReads.map((f) => `${f.path}: ${f.message}`)];
+    return nonceUnknown(notes.map((note) => ({ dir: storage.path, note })));
   } catch (err) {
     return nonceUnknown([{ dir: storage.path, note: err instanceof Error ? err.message : String(err) }]);
   }

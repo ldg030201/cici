@@ -135,6 +135,7 @@ function expectedRow(root, overrides) {
     extensionVersion: null,
     deviceId: null,
     displayName: null,
+    readFailed: false,
     warnings: [],
     ...overrides,
   };

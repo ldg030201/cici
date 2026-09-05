@@ -473,7 +473,14 @@ test('memory source: a failing list() is a warning naming the source root', asyn
   const db = await readLevelDbFrom(source);
   assert.deepEqual(db.warnings, ['cannot list memory:/db: Failed to fetch']);
   assert.equal(db.entries.size, 0);
-  assert.deepEqual(db.files, { tables: [], logs: [], manifest: null });
+  assert.deepEqual(db.files.tables, []);
+  assert.deepEqual(db.files.logs, []);
+  assert.equal(db.files.manifest, null);
+  // 목록을 못 읽었으면 한 바이트도 못 읽은 것이다. 부르는 쪽이 "키가 없다"와
+  // "못 읽었다"를 가르는 근거가 이 배열이므로, 비어 있으면 안 된다.
+  assert.deepEqual(db.files.failed, [
+    { path: 'memory:/db', message: 'Failed to fetch' },
+  ]);
 });
 
 test('memory source: an unreadable file costs only that file', async () => {
@@ -495,6 +502,22 @@ test('memory source: an unreadable file costs only that file', async () => {
   assert.deepEqual(db.files.tables, ['memory:/db/000008.ldb']);
   assert.equal(JSON.parse(utf8(db.entries.get('b'))), 'two');
   assert.equal(db.entries.has('a'), false);
+  // 'a' 가 없는 것은 **키가 없어서가 아니라 못 읽어서**다. 그 둘을 가르는 것이
+  // files.failed 다 — 이게 비어 있으면 부르는 쪽이 "페어링 안 됨" 이라고
+  // 단정해 버린다.
+  assert.deepEqual(db.files.failed, [
+    { path: 'memory:/db/000005.ldb', message: 'Failed to fetch' },
+  ]);
+});
+
+test('memory source: a fully readable database reports no failures', async () => {
+  const files = makeMemoryDb({
+    tables: [{ number: 5, entries: [{ key: 'a', sequence: 1, type: TYPE_VALUE, value: J('one') }] }],
+  });
+  const db = await readLevelDbFrom(memorySource(files));
+  // 반대 방향도 고정해 둔다. failed 가 항상 차 있으면 아무것도 가르지 못한다.
+  assert.deepEqual(db.files.failed, []);
+  assert.equal(JSON.parse(utf8(db.entries.get('a'))), 'one');
 });
 
 test('readLevelDbFrom works with the bare { list, read } contract', async () => {

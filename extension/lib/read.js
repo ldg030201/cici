@@ -267,9 +267,9 @@ async function readFromSettings(settingsRoot, result) {
 
     // `readLevelDbFrom` 은 파일 읽기 실패에 예외를 던지지 않고 경고로 삼킨다.
     // 그래서 위 catch 만으로는 ".ldb/.log 를 하나도 못 읽었는데 조용히 빈 결과"
-    // 를 잡지 못한다. 소스가 세어 둔 실패를 직접 본다.
-    const failedReads = source.readErrors();
-    if (failedReads.length > 0) result.readFailed = true;
+    // 를 잡지 못한다. 무엇을 못 읽었는지는 결과의 `files.failed` 에 구조화돼
+    // 있다 — 경고 문자열을 검사하면 파서의 영어 문구에 기대게 된다.
+    if (db.files.failed.length > 0) result.readFailed = true;
 
     const found = pickBridge(db.entries, result.warnings);
     if (found.deviceId !== null || found.displayName !== null) {

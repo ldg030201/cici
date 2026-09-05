@@ -940,6 +940,19 @@ async function manifestState(source, { names, resolve, root, warnings, hasFiles 
  * @property {string[]} tables paths of the SSTables that were read
  * @property {string[]} logs paths of the write-ahead logs that were read
  * @property {string|null} manifest path of the MANIFEST that was used, or null
+ * @property {ReadFailure[]} failed data files we meant to read and could not.
+ *   **Empty is the only way a caller can trust that "no such key" means the key
+ *   is absent rather than unread.** Warnings say the same thing, but only in
+ *   English prose, so testing them means depending on our wording; this is the
+ *   same fact as data. A failed CURRENT or MANIFEST is *not* listed here — the
+ *   reader falls back to scanning everything, so nothing is lost.
+ */
+
+/**
+ * @typedef {object} ReadFailure
+ * @property {string} path display name of the file (or the directory, when the
+ *   listing itself failed and so nothing could be read at all)
+ * @property {string} message the rejection's message, verbatim
  */
 
 /**
@@ -1002,7 +1015,7 @@ export async function readLevelDbFrom(source, options = {}) {
   /** @type {string[]} */
   const warnings = [];
   /** @type {LevelDbFiles} */
-  const files = { tables: [], logs: [], manifest: null };
+  const files = { tables: [], logs: [], manifest: null, failed: [] };
   /** @type {Map<string, Uint8Array>} bytes already read while probing for a table */
   const prefetched = new Map();
 
@@ -1031,6 +1044,7 @@ export async function readLevelDbFrom(source, options = {}) {
     }
   } catch (err) {
     warnings.push(`cannot list ${root}: ${err.message}`);
+    files.failed.push({ path: root, message: err.message });
     return { entries: new Map(), warnings, files };
   }
 
@@ -1109,6 +1123,7 @@ export async function readLevelDbFrom(source, options = {}) {
         buf = await source.read(name);
       } catch (err) {
         warnings.push(`cannot read ${filePath}: ${err.message}`);
+        files.failed.push({ path: filePath, message: err.message });
         continue;
       }
     }
@@ -1133,6 +1148,7 @@ export async function readLevelDbFrom(source, options = {}) {
       buf = await source.read(name);
     } catch (err) {
       warnings.push(`cannot read ${filePath}: ${err.message}`);
+      files.failed.push({ path: filePath, message: err.message });
       continue;
     }
     files.logs.push(filePath);

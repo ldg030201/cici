@@ -230,7 +230,9 @@ test('an empty directory yields no entries and does not throw', async (t) => {
   const withManifest = await readLevelDb(dir);
   assert.equal(withManifest.entries.size, 0);
   assert.deepEqual(withManifest.warnings, []);
-  assert.deepEqual(withManifest.files, { tables: [], logs: [], manifest: null });
+  assert.deepEqual(withManifest.files, {
+    tables: [], logs: [], manifest: null, failed: [],
+  });
 });
 
 test('a freshly created store (CURRENT + MANIFEST + empty log) is silent and empty', async (t) => {

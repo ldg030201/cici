@@ -62,6 +62,8 @@ export {
  * @property {string|null} extensionVersion Installed extension version (from the Extensions dir), or null.
  * @property {string|null} deviceId         bridgeDeviceId — the id Claude Code's browser picker shows.
  * @property {string|null} displayName      bridgeDisplayName — the name typed when pairing, if any.
+ * @property {boolean} readFailed           A data file could not be read, so a null `deviceId`
+ *   means "unknown", not "not paired". Callers that render "not paired" must check this first.
  * @property {string[]} warnings            Non-fatal problems met while reading this profile.
  */
 
@@ -253,7 +255,10 @@ async function buildRow(target, profile, extensionIds, includeUninstalled) {
   // the first storage directory would report "not paired" while the bridge id
   // sits in the next candidate (the extension popup already picks this way).
   let extension = null;
-  let bridge = { deviceId: null, displayName: null, warnings: [] };
+  let bridge = { deviceId: null, displayName: null, readFailed: false, warnings: [] };
+  // 후보 확장이 여럿일 수 있다. 그중 **하나라도** 못 읽었으면 "값이 없다" 고
+  // 단정할 수 없다 — 못 읽은 쪽에 있었을 수 있기 때문이다.
+  let readFailed = false;
   for (const m of matches) {
     if (m.storageDir === null) continue;
     let info;
@@ -261,8 +266,10 @@ async function buildRow(target, profile, extensionIds, includeUninstalled) {
       info = await readBridgeInfo(m.storageDir);
     } catch (err) {
       warnings.push(`could not read extension storage: ${errorMessage(err)}`);
+      readFailed = true;
       continue;
     }
+    if (info.readFailed) readFailed = true;
     if (info.deviceId !== null || info.displayName !== null) {
       extension = m;
       bridge = info;
@@ -292,6 +299,7 @@ async function buildRow(target, profile, extensionIds, includeUninstalled) {
     extensionVersion: extension?.version ?? null,
     deviceId: bridge.deviceId ?? null,
     displayName: bridge.displayName ?? null,
+    readFailed: readFailed || Boolean(bridge.readFailed),
     warnings,
   };
 }

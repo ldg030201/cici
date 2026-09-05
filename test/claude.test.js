@@ -57,6 +57,7 @@ describe('readBridgeInfo', () => {
     assert.deepEqual(await readBridgeInfo(dir), {
       deviceId: UUID,
       displayName: '테스트 노트북',
+      readFailed: false,
       warnings: [],
     });
   });

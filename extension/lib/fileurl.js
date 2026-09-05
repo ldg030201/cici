@@ -600,15 +600,13 @@ export async function findChildFile(parentDir, name) {
  * 남는 `net::ERR_FILE_NOT_FOUND`)이 사라진다. MANIFEST 가 목록에 없는 테이블을
  * 가리키는 경우(우리가 읽는 사이에 컴팩션이 끝난 경우)에 실제로 그렇게 된다.
  *
- * 소스에는 `readErrors()` 가 하나 더 달려 있다. `readLevelDbFrom()` 은 파일 읽기
- * 실패에 예외를 던지지 않고 경고 문자열로 삼켜 버리기 때문에(설계상 그렇다),
- * 부르는 쪽에서 **"값이 없다"와 "못 읽었다"를 구별할 방법이 그것밖에 없다.**
- * 경고 문자열을 검사하는 방법도 있지만 그건 파서의 영어 문구에 의존하는 짓이라
- * 문구가 바뀌면 조용히 깨진다. 여기서 세어 두면 언어와 무관하게 정확하다.
+ * "값이 없다"와 "못 읽었다"의 구별은 코어가 결과의 `files.failed` 로 돌려주므로
+ * 여기서 따로 셀 필요가 없다. 예전에는 이 소스에 `readErrors()` 를 덧붙여
+ * 우회했는데, 그건 어댑터 한쪽에만 달린 반창고라 노드 쪽은 영영 못 받았다.
  *
  * @param {string} dirPath LevelDB 디렉터리
  * @param {{ entries?: DirEntry[] }} [options] 이미 받아 둔 목록이 있으면 재사용한다
- * @returns {import('./leveldb-core.js').ByteSource & { readErrors: () => string[] }}
+ * @returns {import('./leveldb-core.js').ByteSource}
  */
 export function makeSource(dirPath, options = {}) {
   const dir = String(dirPath).replace(/[\\/]+$/, '');
@@ -617,9 +615,6 @@ export function makeSource(dirPath, options = {}) {
   let fileNames = null;
   /** @type {Promise<Set<string>>|null} 컴팩션 복구용 재조회. 소스당 한 번만. */
   let refreshed = null;
-  /** @type {string[]} 실제로 실패한 파일 읽기. `readErrors()` 가 돌려준다. */
-  const readErrors = [];
-
   const names = () => {
     if (fileNames === null) {
       fileNames = Promise.resolve(preListed ?? listDir(dir)).then(
@@ -662,23 +657,8 @@ export function makeSource(dirPath, options = {}) {
     },
 
     async read(name) {
-      try {
-        return await fetchBytes(joinPath(dir, name));
-      } catch (err) {
-        readErrors.push(`${name}: ${err instanceof Error ? err.message : String(err)}`);
-        throw err;
-      }
+      return fetchBytes(joinPath(dir, name));
     },
-
-    /**
-     * 이 소스에서 실패한 파일 읽기들. 비어 있지 않으면 결과가 불완전하다.
-     *
-     * `has()` 의 탐색 실패는 세지 않는다. 그건 `.ldb` 인지 `.sst` 인지 넘겨짚는
-     * 정상 경로라 실패가 곧 이상은 아니다.
-     *
-     * @returns {string[]}
-     */
-    readErrors: () => readErrors.slice(),
   };
 }
 

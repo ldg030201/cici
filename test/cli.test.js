@@ -276,6 +276,36 @@ describe('formatTable', () => {
     assert.doesNotMatch(brave, /not paired/);
   });
 
+  test('읽기에 실패한 프로필은 "not paired" 가 아니라 "unreadable" 이다', () => {
+    // 디스크에 UUID 가 멀쩡히 있는데 못 읽었을 뿐인 프로필에게 "페어링 안 됨"
+    // 이라고 말하면, 이 도구가 답하려는 그 질문에서 정확히 거짓말을 하게 된다.
+    const unreadable = row({
+      profileDirName: 'Profile 9',
+      deviceId: null,
+      displayName: null,
+      readFailed: true,
+    });
+    const out = formatTable([unreadable], { color: false });
+    const line = out.split('\n').find((l) => l.includes('Profile 9'));
+    assert.match(line, /unreadable/);
+    assert.doesNotMatch(line, /not paired/);
+  });
+
+  test('extensionId 가 없어도 읽기 실패가 "not installed" 를 이긴다', () => {
+    // 프로필 폴더를 못 읽었으면 확장이 있는지조차 모른다. "설치 안 됨" 도 단정이다.
+    const unknown = row({
+      profileDirName: 'Profile 9',
+      deviceId: null,
+      displayName: null,
+      extensionId: null,
+      extensionVersion: null,
+      readFailed: true,
+    });
+    const line = formatTable([unknown], { color: false }).split('\n').find((l) => l.includes('Profile 9'));
+    assert.match(line, /unreadable/);
+    assert.doesNotMatch(line, /not installed/);
+  });
+
   test('fills missing name/email/paired name/version with "-"', () => {
     const out = formatTable(rows, { color: false });
     const brave = out.split('\n').find((l) => l.startsWith('Brave'));

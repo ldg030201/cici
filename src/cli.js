@@ -319,6 +319,9 @@ const STYLE_CODES = {
 const HEADERS = ['Browser', 'Profile', 'Name', 'Email', 'Paired name', 'bridgeDeviceId', 'Ext'];
 const NOT_PAIRED = 'not paired';
 const NOT_INSTALLED = 'not installed';
+// "못 읽었다" 를 "페어링 안 됨" 이라고 말하면, 디스크에 UUID 가 멀쩡히 있는
+// 프로필에게 거짓말을 하게 된다. 이 도구가 답하려는 바로 그 질문에서.
+const UNREADABLE = 'unreadable';
 const NO_PROFILES = '(no profiles found)';
 const LEGEND =
   'bridgeDeviceId is the id Claude Code shows in its browser picker when more than one browser is connected.';
@@ -437,6 +440,7 @@ function rowCells(row) {
   /** @type {{ text: string, style: string }} */
   let idCell;
   if (row.deviceId) idCell = { text: sanitizeCell(row.deviceId), style: 'id' };
+  else if (row.readFailed) idCell = { text: UNREADABLE, style: 'muted' };
   else if (installed) idCell = { text: NOT_PAIRED, style: 'muted' };
   else idCell = { text: NOT_INSTALLED, style: 'muted' };
 
