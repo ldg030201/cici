@@ -412,11 +412,10 @@ function readBlock(file, handle) {
  * @param {Uint8Array} file the entire *.ldb / *.sst file
  * @param {object} options
  * @param {(entry: { userKey: Uint8Array, sequence: bigint, type: number, value: Uint8Array }) => void} options.onEntry
- * @param {(info: { compression: number, handle: BlockHandle }) => void} [options.onBlock] called for every data block that was decoded
  * @param {string[]} [options.warnings] warnings are pushed here, prefixed with `label`
  * @param {string} [options.label] name used in warnings
  */
-export function readTableBuffer(file, { onEntry, onBlock, warnings = [], label = 'table' }) {
+export function readTableBuffer(file, { onEntry, warnings = [], label = 'table' }) {
   const warn = (msg) => warnings.push(`${label}: ${msg}`);
 
   if (file.length < FOOTER_SIZE) {
@@ -461,7 +460,6 @@ export function readTableBuffer(file, { onEntry, onBlock, warnings = [], label =
     const handle = dataHandles[i];
     try {
       const block = readBlock(file, handle);
-      if (onBlock) onBlock({ compression: block.compression, handle });
       forEachBlockEntry(block.contents, (key, value) => {
         const ik = parseInternalKey(key);
         onEntry({ userKey: ik.userKey, sequence: ik.sequence, type: ik.type, value });
@@ -477,10 +475,11 @@ export function readTableBuffer(file, { onEntry, onBlock, warnings = [], label =
 // ---------------------------------------------------------------------------
 
 /**
+ * A record cut off by the end of the file is not reported here: it is the
+ * normal shape of a log the writer is still appending to, it is already
+ * described by a warning, and it never changes what a caller does.
+ *
  * @typedef {object} LogScanResult
- * @property {number} records number of complete records delivered
- * @property {boolean} truncated the file ends in the middle of a record (the
- *   writer is probably still appending; LevelDB treats this as end-of-file)
  * @property {boolean} corrupt a record was damaged (bad length, unknown type,
  *   checksum mismatch, orphaned fragment)
  */
@@ -509,7 +508,6 @@ export function readLogBuffer(file, { onRecord, warnings = [], label = 'log' }) 
   const view = viewOf(file);
   let pos = 0;
   let count = 0;
-  let wasTruncated = false;
   let corrupt = false;
   /** @type {Uint8Array[] | null} fragments of the record being reassembled */
   let fragments = null;
@@ -535,7 +533,6 @@ export function readLogBuffer(file, { onRecord, warnings = [], label = 'log' }) 
       // partial header at EOF: the writer has not finished this record
       truncated(pos, `only ${file.length - pos} of the ${LOG_HEADER_SIZE} header bytes are present`);
       fragments = null;
-      wasTruncated = true;
       break;
     }
     const length = view.getUint16(pos + 4, true);
@@ -549,7 +546,6 @@ export function readLogBuffer(file, { onRecord, warnings = [], label = 'log' }) 
       if (blockEnd > file.length) {
         truncated(pos, `${length} payload bytes declared, ${Math.max(0, file.length - pos - LOG_HEADER_SIZE)} present`);
         fragments = null;
-        wasTruncated = true;
         break;
       }
       pos = dropBlock(blockEnd, `bad record length ${length} at offset ${pos}: it does not fit in its 32 KiB block; rest of the block ignored`);
@@ -625,9 +621,8 @@ export function readLogBuffer(file, { onRecord, warnings = [], label = 'log' }) 
   }
   if (fragments) {
     warn('fragmented record without a LAST fragment at end of file dropped (the writer may still be appending, so this is normal)');
-    wasTruncated = true;
   }
-  return { records: count, truncated: wasTruncated, corrupt };
+  return { corrupt };
 }
 
 /**
@@ -840,9 +835,16 @@ function tableFileName(n) {
 }
 
 /**
- * Render untrusted file content for a warning: quoted, with control characters
- * escaped, so a CURRENT file full of ANSI escapes cannot repaint the terminal
- * of whoever prints the warning.
+ * Render untrusted file content for a warning: quoted, capped in length, with
+ * control characters escaped, so a CURRENT file full of ANSI escapes cannot
+ * repaint the terminal of whoever prints the warning.
+ *
+ * This is a length cap plus a floor of safety, not the real defence: escaping
+ * for a particular sink belongs to whoever owns that sink, and the CLI already
+ * runs every warning through its own (strictly wider — it also strips the
+ * invisible bidi and formatting code points) sanitiser before printing. The set
+ * escaped here is deliberately a subset of that one, so the two never fight:
+ * what this turns into `\x1b` is already inert text by the time the CLI sees it.
  *
  * @param {string} s
  * @returns {string}
@@ -850,6 +852,59 @@ function tableFileName(n) {
 function quoteText(s) {
   const escaped = String(s).replace(/[\u0000-\u001f\u007f-\u009f]/g, (c) => `\\x${c.codePointAt(0).toString(16).padStart(2, '0')}`);
   return `"${escaped.length > 80 ? `${escaped.slice(0, 77)}...` : escaped}"`;
+}
+
+/**
+ * Follow CURRENT to the MANIFEST it names and replay it.
+ *
+ * Every way this can fail is the same failure — the version on disk cannot be
+ * trusted, so the caller has to read everything in the directory instead — so
+ * each one is a single early return carrying only the half of the message that
+ * differs. The caller appends the shared "what happens now" half once.
+ *
+ * @param {ByteSource} source
+ * @param {object} options
+ * @param {string[]} options.names the directory listing
+ * @param {(name: string) => string} options.resolve display name of a file
+ * @param {string} options.root display name of the directory
+ * @param {string[]} options.warnings warnings from a *successful* replay land here
+ * @param {boolean} options.hasFiles whether the directory holds any table or log
+ * @returns {Promise<{ state: ManifestState|null, path: string|null, reason: string|null }>}
+ *   `state` is null when the MANIFEST cannot be trusted and `reason` then says
+ *   why, except for an empty directory, where there is nothing to warn about.
+ */
+async function manifestState(source, { names, resolve, root, warnings, hasFiles }) {
+  const fail = (reason) => ({ state: null, path: null, reason });
+
+  if (!names.includes('CURRENT')) {
+    // Nothing to scan means nothing was lost: no warning for an empty directory.
+    return fail(hasFiles ? `${resolve('CURRENT')} is missing` : null);
+  }
+
+  let manifestName;
+  try {
+    manifestName = decodeUtf8(await source.read('CURRENT')).trim();
+  } catch (err) {
+    return fail(`cannot read ${resolve('CURRENT')}: ${err.message}`);
+  }
+
+  if (!RE_MANIFEST.test(manifestName) || !names.includes(manifestName)) {
+    return fail(`CURRENT points to ${quoteText(manifestName)} which does not exist in ${root}`);
+  }
+  const manifestPath = resolve(manifestName);
+
+  let buf;
+  try {
+    buf = await source.read(manifestName);
+  } catch (err) {
+    return fail(`cannot read ${manifestPath}: ${err.message}`);
+  }
+
+  const replay = replayManifest(buf, { warnings, label: manifestPath });
+  if (replay.state === null) {
+    return fail(`${manifestPath}: could not be parsed (${replay.reason})`);
+  }
+  return { state: replay.state, path: manifestPath, reason: null };
 }
 
 // ---------------------------------------------------------------------------
@@ -983,12 +1038,10 @@ export async function readLevelDbFrom(source, options = {}) {
   const tableByNumber = new Map();
   /** @type {Map<number, string>} file number -> log file name */
   const logByNumber = new Map();
-  let hasCurrent = false;
   for (const name of names) {
     let m;
     if ((m = RE_TABLE.exec(name))) tableByNumber.set(Number(m[1]), name);
     else if ((m = RE_LOG.exec(name))) logByNumber.set(Number(m[1]), name);
-    else if (name === 'CURRENT') hasCurrent = true;
   }
 
   // --- MANIFEST ------------------------------------------------------------
@@ -996,56 +1049,33 @@ export async function readLevelDbFrom(source, options = {}) {
   let logNumbers = [...logByNumber.keys()].sort((a, b) => a - b);
 
   if (useManifest) {
-    let state = null;
-    if (!hasCurrent) {
-      if (tableNumbers.length > 0 || logNumbers.length > 0) {
-        warnings.push(`${resolve('CURRENT')} is missing; scanning every table and log`);
-      }
-    } else {
-      let manifestName = null;
-      try {
-        manifestName = decodeUtf8(await source.read('CURRENT')).trim();
-      } catch (err) {
-        warnings.push(`cannot read ${resolve('CURRENT')}: ${err.message}; scanning every table and log`);
-      }
-      if (manifestName !== null) {
-        const manifestPath = resolve(manifestName);
-        if (!RE_MANIFEST.test(manifestName) || !names.includes(manifestName)) {
-          warnings.push(`CURRENT points to ${quoteText(manifestName)} which does not exist in ${root}; scanning every table and log`);
-        } else {
-          let buf = null;
-          try {
-            buf = await source.read(manifestName);
-          } catch (err) {
-            warnings.push(`cannot read ${manifestPath}: ${err.message}; scanning every table and log`);
-          }
-          if (buf !== null) {
-            const replay = replayManifest(buf, { warnings, label: manifestPath });
-            state = replay.state;
-            if (state === null) {
-              warnings.push(`${manifestPath}: could not be parsed (${replay.reason}); scanning every table and log`);
-            } else {
-              files.manifest = manifestPath;
-            }
-          }
-        }
-      }
-    }
+    const picked = await manifestState(source, {
+      names,
+      resolve,
+      root,
+      warnings,
+      hasFiles: tableNumbers.length > 0 || logNumbers.length > 0,
+    });
+    if (picked.reason !== null) warnings.push(`${picked.reason}; scanning every table and log`);
+    const state = picked.state;
 
     if (state !== null) {
+      files.manifest = picked.path;
       // A live table can be missing from the listing when the directory moved
       // on between the listing and reading the MANIFEST (Chrome just finished a
       // flush or compaction), so look it up by name before giving up.
       const missing = [];
+      let recovered = false;
       for (const n of state.liveTables) {
         if (tableByNumber.has(n)) continue;
         const name = await findTableFile(source, n, prefetched);
         if (name === null) missing.push(n);
         else {
           tableByNumber.set(n, name);
-          tableNumbers = [...tableByNumber.keys()].sort((a, b) => a - b);
+          recovered = true;
         }
       }
+      if (recovered) tableNumbers = [...tableByNumber.keys()].sort((a, b) => a - b);
 
       if (missing.length > 0) {
         // The version we read is not what is on disk any more. Scanning every

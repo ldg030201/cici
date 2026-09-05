@@ -13,35 +13,18 @@
 // 런타임 의존성 0개. 이 스크립트도 node 내장 모듈만 쓴다.
 
 import { deflateSync } from 'node:zlib';
-import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = resolve(HERE, '..');
+import { crc32 } from './lib/crc32.mjs';
+import { isMainEntry } from './lib/main-entry.mjs';
+import { REPO_ROOT } from './lib/paths.mjs';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PNG 인코더
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** CRC-32 (PNG 사양 Annex D) 테이블. */
-const CRC_TABLE = (() => {
-  const table = new Uint32Array(256);
-  for (let n = 0; n < 256; n += 1) {
-    let c = n;
-    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    table[n] = c >>> 0;
-  }
-  return table;
-})();
-
-function crc32(bytes) {
-  let c = 0xffffffff;
-  for (let i = 0; i < bytes.length; i += 1) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
-  return (c ^ 0xffffffff) >>> 0;
-}
-
-/** 타입 + 데이터를 길이/CRC 로 감싼 PNG 청크 하나로 만든다. */
+/** 타입 + 데이터를 길이/CRC 로 감싼 PNG 청크 하나로 만든다(CRC-32 는 사양 Annex D). */
 function chunk(type, data) {
   const out = Buffer.alloc(data.length + 12);
   out.writeUInt32BE(data.length, 0);
@@ -65,7 +48,7 @@ function chunk(type, data) {
  * @param {{rgb?: boolean}} [opts]
  * @returns {Buffer}
  */
-export function encodePng(width, height, rgba, opts = {}) {
+function encodePng(width, height, rgba, opts = {}) {
   if (rgba.length !== width * height * 4) throw new Error('rgba 길이가 width*height*4 와 다르다');
   const channels = opts.rgb ? 3 : 4;
 
@@ -110,7 +93,7 @@ export function encodePng(width, height, rgba, opts = {}) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** '#rrggbb' 또는 '#rrggbbaa' → [r,g,b,a] (0..1). */
-export function hex(value, alpha = 1) {
+function hex(value, alpha = 1) {
   const s = value.replace('#', '');
   const n = (i) => parseInt(s.slice(i * 2, i * 2 + 2), 16) / 255;
   const a = s.length >= 8 ? n(3) : 1;
@@ -148,25 +131,45 @@ function linear(x0, y0, x1, y1, stops) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SDF 프리미티브 — 좌표는 전부 "최종 픽셀" 단위다.
+//
+// 모든 SDF 는 축 정렬 바운딩 박스 `.bounds = [x0, y0, x1, y1]` 를 달고 다닌다.
+// `Canvas.fill` 이 그 상자만 훑는다(달지 않으면 캔버스 전체를 훑는다).
+//
+// 상자의 계약: **모양이 상자 밖으로 나가면 안 된다.** 정확히는 sdf 가 실제 거리보다
+// 작은 값을 돌려주지 않는 한(정확하거나 과대평가) 기하학적 bbox 로 충분하다 —
+// 상자 밖 표본은 반드시 d > softness/2 라서 어차피 건너뛰던 것들이다. 상자를
+// 좁게 잡으면 결과가 조용히 잘리므로, 애매하면 넓게 잡는다.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TAU = Math.PI * 2;
 
-const sdCircle = (cx, cy, r) => (x, y) => Math.hypot(x - cx, y - cy) - r;
+/** 상자를 모르는(또는 못 믿을) SDF 용. fill 이 캔버스 전체를 훑는다. */
+const UNBOUNDED = [-Infinity, -Infinity, Infinity, Infinity];
+
+/** SDF 함수에 바운딩 박스를 붙인다. */
+const withBounds = (bounds, fn) => Object.assign(fn, { bounds });
+
+const sdCircle = (cx, cy, r) =>
+  withBounds([cx - r, cy - r, cx + r, cy + r], (x, y) => Math.hypot(x - cx, y - cy) - r);
 
 /** 모서리가 둥근 사각형. (cx,cy) 중심, hw/hh 반너비·반높이. */
-const sdRoundRect = (cx, cy, hw, hh, r) => (x, y) => {
-  const qx = Math.abs(x - cx) - (hw - r);
-  const qy = Math.abs(y - cy) - (hh - r);
-  const ax = qx > 0 ? qx : 0;
-  const ay = qy > 0 ? qy : 0;
-  const inner = Math.min(Math.max(qx, qy), 0);
-  return Math.hypot(ax, ay) + inner - r;
-};
+const sdRoundRect = (cx, cy, hw, hh, r) =>
+  withBounds([cx - hw, cy - hh, cx + hw, cy + hh], (x, y) => {
+    const qx = Math.abs(x - cx) - (hw - r);
+    const qy = Math.abs(y - cy) - (hh - r);
+    const ax = qx > 0 ? qx : 0;
+    const ay = qy > 0 ? qy : 0;
+    const inner = Math.min(Math.max(qx, qy), 0);
+    return Math.hypot(ax, ay) + inner - r;
+  });
 
 /**
  * 각도 구간이 제한된 링 = 둥근 끝을 가진 호.
  * 각도는 도(degree), 수학 관례(동쪽 0, 반시계 방향, 화면 y 는 아래로 증가하므로 뒤집는다).
+ *
+ * 상자는 각도를 무시한 링 전체로 잡는다. 각도 구간까지 반영한 딱 맞는 상자를
+ * 만들 수도 있지만, 호가 어느 사분면을 지나는지 따지는 값만큼 잘못 잘릴 위험이
+ * 늘고 아낄 수 있는 것은 링 하나 넓이의 일부뿐이다.
  */
 const sdArc = (cx, cy, r, w, startDeg, endDeg) => {
   const a0 = (startDeg * Math.PI) / 180;
@@ -176,42 +179,75 @@ const sdArc = (cx, cy, r, w, startDeg, endDeg) => {
   const e0y = cy - r * Math.sin(a0);
   const e1x = cx + r * Math.cos(a1);
   const e1y = cy - r * Math.sin(a1);
-  return (x, y) => {
+  const outer = r + w / 2;
+  return withBounds([cx - outer, cy - outer, cx + outer, cy + outer], (x, y) => {
     let a = Math.atan2(-(y - cy), x - cx) - a0;
     a -= Math.floor(a / TAU) * TAU; // [0, TAU)
     if (a <= span) return Math.abs(Math.hypot(x - cx, y - cy) - r) - w / 2;
     return Math.min(Math.hypot(x - e0x, y - e0y), Math.hypot(x - e1x, y - e1y)) - w / 2;
-  };
+  });
 };
 
 /** 둥근 끝 선분(캡슐). w 는 전체 두께. */
-const sdSegment = (x0, y0, x1, y1, w) => (x, y) => {
-  const dx = x1 - x0;
-  const dy = y1 - y0;
-  const len2 = dx * dx + dy * dy;
-  let t = len2 === 0 ? 0 : ((x - x0) * dx + (y - y0) * dy) / len2;
-  t = t < 0 ? 0 : t > 1 ? 1 : t;
-  return Math.hypot(x - (x0 + dx * t), y - (y0 + dy * t)) - w / 2;
-};
+const sdSegment = (x0, y0, x1, y1, w) =>
+  withBounds(
+    [
+      Math.min(x0, x1) - w / 2,
+      Math.min(y0, y1) - w / 2,
+      Math.max(x0, x1) + w / 2,
+      Math.max(y0, y1) + w / 2,
+    ],
+    (x, y) => {
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      const len2 = dx * dx + dy * dy;
+      let t = len2 === 0 ? 0 : ((x - x0) * dx + (y - y0) * dy) / len2;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      return Math.hypot(x - (x0 + dx * t), y - (y0 + dy * t)) - w / 2;
+    },
+  );
 
-/** 여러 SDF 의 합집합. */
-const sdUnion = (...fns) => (x, y) => {
-  let m = Infinity;
-  for (const f of fns) {
-    const d = f(x, y);
-    if (d < m) m = d;
-  }
-  return m;
-};
+/** 여러 SDF 의 합집합. 상자는 상자들의 합집합. */
+const sdUnion = (...fns) =>
+  withBounds(
+    [
+      Math.min(...fns.map((f) => f.bounds[0])),
+      Math.min(...fns.map((f) => f.bounds[1])),
+      Math.max(...fns.map((f) => f.bounds[2])),
+      Math.max(...fns.map((f) => f.bounds[3])),
+    ],
+    (x, y) => {
+      let m = Infinity;
+      for (const f of fns) {
+        const d = f(x, y);
+        if (d < m) m = d;
+      }
+      return m;
+    },
+  );
 
-/** a 에서 b 를 뺀다. */
-const sdSubtract = (a, b) => (x, y) => Math.max(a(x, y), -b(x, y));
+/** a 에서 b 를 뺀다. 결과는 a 안에만 있으므로 상자도 a 의 것. */
+const sdSubtract = (a, b) => withBounds(a.bounds, (x, y) => Math.max(a(x, y), -b(x, y)));
 
-/** a 와 b 의 교집합. */
-const sdIntersect = (a, b) => (x, y) => Math.max(a(x, y), b(x, y));
+/** a 와 b 의 교집합. 상자도 교집합 — 상자가 없는 쪽을 상자로 가두는 용도로도 쓴다. */
+const sdIntersect = (a, b) =>
+  withBounds(
+    [
+      Math.max(a.bounds[0], b.bounds[0]),
+      Math.max(a.bounds[1], b.bounds[1]),
+      Math.min(a.bounds[2], b.bounds[2]),
+      Math.min(a.bounds[3], b.bounds[3]),
+    ],
+    (x, y) => Math.max(a(x, y), b(x, y)),
+  );
 
 /** 바깥으로 d 만큼 부풀린다(음수면 깎는다). */
-const sdGrow = (a, d) => (x, y) => a(x, y) - d;
+const sdGrow = (a, d) => {
+  // 깎을 때는 모양이 작아지니 상자를 그대로 둔다(줄이면 잘릴 위험만 는다).
+  const pad = d > 0 ? d : 0;
+  const [x0, y0, x1, y1] = a.bounds;
+  return withBounds([x0 - pad, y0 - pad, x1 + pad, y1 + pad], (x, y) => a(x, y) - d);
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 캔버스 — 4x 슈퍼샘플 버퍼 위에 그린 뒤 박스 필터로 축소한다.
@@ -234,20 +270,47 @@ class Canvas {
   }
 
   /**
+   * 슈퍼샘플 한 칸에 소스-오버 합성한다.
+   *
+   * @param {number} i 대상 표본의 buf 오프셋(= 표본 인덱스 * 4)
+   * @param {ArrayLike<number>} src 색을 담은 배열
+   * @param {number} so src 안에서 R 성분의 위치
+   * @param {number} sa 소스 알파(스트레이트)
+   */
+  blendSample(i, src, so, sa) {
+    const { buf } = this;
+    const da = buf[i + 3];
+    const outA = sa + da * (1 - sa);
+    if (outA <= 0) return;
+    for (let k = 0; k < 3; k += 1) {
+      buf[i + k] = (src[so + k] * sa + buf[i + k] * da * (1 - sa)) / outA;
+    }
+    buf[i + 3] = outA;
+  }
+
+  /**
    * SDF 모양을 페인트로 채운다. 소스-오버 합성.
    * @param {(x:number,y:number)=>number} sdf 최종 픽셀 좌표에서의 부호 있는 거리
    * @param {[number,number,number,number]|((x:number,y:number)=>number[])} paint
-   * @param {{softness?: number}} [opts] softness: 경계 램프 폭(최종 픽셀 단위)
+   * @param {{softness?: number, bounds?: number[]}} [opts]
+   *   softness: 경계 램프 폭(최종 픽셀 단위).
+   *   bounds: 훑을 범위 [x0,y0,x1,y1]. 없으면 `sdf.bounds`, 그것도 없으면 전체.
    */
   fill(sdf, paint, opts = {}) {
     const paintFn = typeof paint === 'function' ? paint : solid(paint);
-    const { ss, sw, sh, buf } = this;
+    const { ss, sw, sh } = this;
     // 램프 폭 기본값은 슈퍼샘플 한 칸. 여기에 박스 필터가 더해져 부드러워진다.
     const soft = opts.softness ?? 1 / ss;
     const half = soft / 2;
-    for (let sy = 0; sy < sh; sy += 1) {
+    // 모양이 닿지 않는 곳은 훑지 않는다. 상자를 램프 폭만큼 부풀리는 것은 경계
+    // 바깥 half 까지가 칠해지기 때문이다. 여기서 잘려 나가는 표본은 전부 d > half
+    // 라 어차피 첫 줄에서 continue 되던 것들이다 — 결과는 한 비트도 안 변한다.
+    const box = opts.bounds ?? sdf.bounds;
+    const [sy0, sy1] = box ? sampleRange(box[1], box[3], half, ss, sh) : [0, sh - 1];
+    const [sx0, sx1] = box ? sampleRange(box[0], box[2], half, ss, sw) : [0, sw - 1];
+    for (let sy = sy0; sy <= sy1; sy += 1) {
       const y = (sy + 0.5) / ss;
-      for (let sx = 0; sx < sw; sx += 1) {
+      for (let sx = sx0; sx <= sx1; sx += 1) {
         const x = (sx + 0.5) / ss;
         const d = sdf(x, y);
         if (d > half) continue;
@@ -257,14 +320,7 @@ class Canvas {
         const c = paintFn(x, y);
         const sa = c[3] * cov;
         if (sa <= 0) continue;
-        const i = (sy * sw + sx) * 4;
-        const da = buf[i + 3];
-        const outA = sa + da * (1 - sa);
-        if (outA <= 0) continue;
-        for (let k = 0; k < 3; k += 1) {
-          buf[i + k] = (c[k] * sa + buf[i + k] * da * (1 - sa)) / outA;
-        }
-        buf[i + 3] = outA;
+        this.blendSample((sy * sw + sx) * 4, c, 0, sa);
       }
     }
     return this;
@@ -292,13 +348,49 @@ class Canvas {
         const si = (sy * other.sw + sx) * 4;
         const sa = other.buf[si + 3];
         if (sa <= 0) continue;
-        const di = (ty * this.sw + tx) * 4;
-        const da = this.buf[di + 3];
-        const outA = sa + da * (1 - sa);
-        for (let k = 0; k < 3; k += 1) {
-          this.buf[di + k] = (other.buf[si + k] * sa + this.buf[di + k] * da * (1 - sa)) / outA;
+        this.blendSample((ty * this.sw + tx) * 4, other.buf, si, sa);
+      }
+    }
+    return this;
+  }
+
+  /**
+   * 다른 캔버스를 **최종 픽셀로 축소한 뒤** 최근접 이웃으로 `scale` 배 확대해
+   * (x,y) 에 찍는다. 좌표와 배율은 최종 픽셀 단위다.
+   *
+   * `drawCanvas` 와 나뉘어 있는 이유: 이건 "16px 아이콘이 실제로 어떻게 보이는가"
+   * 를 눈으로 보려고 계단을 그대로 살려 확대하는 것이라, 원본의 슈퍼샘플 정보를
+   * 쓰면 안 된다(쓰면 그냥 매끈한 큰 아이콘이 되어 볼 이유가 없다).
+   *
+   * 원본 픽셀 하나는 이 캔버스의 픽셀 scale×scale 을 채우고, 그 픽셀 하나는
+   * 자기 슈퍼샘플 ss×ss 칸에 같은 값으로 들어간다(전부 같은 값이라 축소하면
+   * 그대로 돌아온다). 그래서 이 캔버스의 ss 가 1 이 아니어도 맞다.
+   */
+  drawScaled(other, x, y, scale) {
+    const rgba = other.toRgba();
+    const { ss, sw } = this;
+    const c = new Float64Array(3);
+    for (let sy = 0; sy < other.height; sy += 1) {
+      for (let sx = 0; sx < other.width; sx += 1) {
+        const si = (sy * other.width + sx) * 4;
+        const a = rgba[si + 3] / 255;
+        if (a <= 0) continue;
+        c[0] = rgba[si] / 255;
+        c[1] = rgba[si + 1] / 255;
+        c[2] = rgba[si + 2] / 255;
+        for (let j = 0; j < scale; j += 1) {
+          const py = y + sy * scale + j;
+          if (py < 0 || py >= this.height) continue;
+          for (let i = 0; i < scale; i += 1) {
+            const px = x + sx * scale + i;
+            if (px < 0 || px >= this.width) continue;
+            for (let ty = py * ss; ty < (py + 1) * ss; ty += 1) {
+              for (let tx = px * ss; tx < (px + 1) * ss; tx += 1) {
+                this.blendSample((ty * sw + tx) * 4, c, 0, a);
+              }
+            }
+          }
         }
-        this.buf[di + 3] = outA;
       }
     }
     return this;
@@ -348,6 +440,20 @@ class Canvas {
 }
 
 const clamp255 = (v) => (v < 0 ? 0 : v > 255 ? 255 : Math.round(v));
+
+/**
+ * 최종 픽셀 구간 [lo, hi] 를 pad 만큼 넓혀 덮는 슈퍼샘플 인덱스 범위(양끝 포함).
+ * 표본 중심이 (i + 0.5) / ss 이므로 i 는 (좌표 * ss − 0.5) 다. 부동소수점 경계를
+ * 따지지 않으려고 양쪽에 한 칸씩 더 얹는다. 구간이 캔버스 밖이면 lo > hi 가 되어
+ * 호출부 루프가 한 번도 돌지 않는다.
+ *
+ * @returns {[number, number]}
+ */
+function sampleRange(lo, hi, pad, ss, count) {
+  const i0 = Math.floor((lo - pad) * ss - 0.5) - 1;
+  const i1 = Math.ceil((hi + pad) * ss - 0.5) + 1;
+  return [i0 < 0 ? 0 : i0, i1 > count - 1 ? count - 1 : i1];
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 브랜드 팔레트
@@ -455,7 +561,7 @@ const cGlyph = ([cx, cy], a1, a0, u) =>
  * @param {number} size
  * @param {{ss?: number}} [opts]
  */
-export function renderIcon(size, opts = {}) {
+function renderIcon(size, opts = {}) {
   const c = new Canvas(size, size, opts.ss ?? 4);
   const u = size / 16;
   const front = cGlyph(MARK.front, MARK.frontTop, MARK.frontBot, u);
@@ -684,14 +790,23 @@ function drawImagePlaceholderGlyph(c, cx, cy, size, paint) {
   );
 }
 
-/** 밑변이 y0 인 이등변 삼각형 비슷한 모양. */
-const sdTriangleish = (cx, y0, halfBase, height) => (x, y) => {
-  if (y > y0) return y - y0;
-  const t = (y0 - y) / height;
-  if (t > 1) return t - 1;
-  const w = halfBase * (1 - t);
-  return Math.abs(x - cx) - w;
-};
+/**
+ * 밑변이 y0 인 이등변 삼각형 비슷한 모양.
+ *
+ * "비슷한"에 방점이 있다. 밑변 아래에서는 x 를 무시하고 `y - y0` 을, 꼭짓점 위에서는
+ * 거리가 아니라 비율 `t - 1` 을 돌려준다 — 둘 다 실제 거리보다 **작다**. 그래서
+ * 삼각형 밖 먼 곳까지 옅게 번지고, 지금 나오는 그림이 그 번짐까지 포함한 결과다.
+ * 상자를 씌우면 그 부분이 잘려 그림이 바뀌므로 상자를 주지 않는다. 대신 호출부가
+ * `sdIntersect` 로 가둬 두었고, 훑는 범위는 거기서 좁혀진다.
+ */
+const sdTriangleish = (cx, y0, halfBase, height) =>
+  withBounds(UNBOUNDED, (x, y) => {
+    if (y > y0) return y - y0;
+    const t = (y0 - y) / height;
+    if (t > 1) return t - 1;
+    const w = halfBase * (1 - t);
+    return Math.abs(x - cx) - w;
+  });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 육안 확인용 대조 시트
@@ -713,42 +828,16 @@ function renderPreview() {
     let x = 24;
     // 원본 크기
     for (const { size, canvas } of icons) {
-      blitRgba(c, canvas, x, Math.round(yMid - size / 2), 1);
+      c.drawScaled(canvas, x, Math.round(yMid - size / 2), 1);
       x += size + 20;
     }
     // 16px 과 32px 을 최근접 확대 — 16px 에서 형태가 남는지 보려는 것
     x += 16;
-    blitRgba(c, icons[0].canvas, x, Math.round(yMid - 64), 8);
+    c.drawScaled(icons[0].canvas, x, Math.round(yMid - 64), 8);
     x += 128 + 20;
-    blitRgba(c, icons[1].canvas, x, Math.round(yMid - 64), 4);
+    c.drawScaled(icons[1].canvas, x, Math.round(yMid - 64), 4);
   }
   return c;
-}
-
-/** 완성된 캔버스를 최근접 이웃으로 확대해 다른 캔버스에 찍는다(1x 캔버스 전용). */
-function blitRgba(dst, src, x, y, scale) {
-  const rgba = src.toRgba();
-  for (let sy = 0; sy < src.height; sy += 1) {
-    for (let sx = 0; sx < src.width; sx += 1) {
-      const si = (sy * src.width + sx) * 4;
-      const a = rgba[si + 3] / 255;
-      if (a <= 0) continue;
-      for (let j = 0; j < scale; j += 1) {
-        for (let i = 0; i < scale; i += 1) {
-          const tx = x + sx * scale + i;
-          const ty = y + sy * scale + j;
-          if (tx < 0 || ty < 0 || tx >= dst.width || ty >= dst.height) continue;
-          const di = (ty * dst.sw * 1 + tx) * 4; // dst.ss === 1 전제
-          const da = dst.buf[di + 3];
-          const outA = a + da * (1 - a);
-          for (let k = 0; k < 3; k += 1) {
-            dst.buf[di + k] = ((rgba[si + k] / 255) * a + dst.buf[di + k] * da * (1 - a)) / outA;
-          }
-          dst.buf[di + 3] = outA;
-        }
-      }
-    }
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -762,7 +851,7 @@ function writePng(path, canvas, opts) {
 }
 
 function parseArgs(argv) {
-  const out = { out: join(REPO, 'extension', 'icons'), store: null, preview: null };
+  const out = { out: join(REPO_ROOT, 'extension', 'icons'), store: null, preview: null };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--out') out.out = resolve(argv[++i]);
@@ -795,20 +884,9 @@ function main(argv) {
   for (const p of written) process.stdout.write(`${p}\n`);
 }
 
-// 심볼릭 링크를 지나는 절대 경로로 불러도 돌아야 한다. ESM 로더는 진입점을
-// realpath 로 풀어서 import.meta.url 을 만들지만 resolve() 는 링크를 안 푼다
-// (macOS 의 /tmp 가 바로 그런 링크다). scripts/build-extension.mjs 와 같은 이유.
-function isMainEntry() {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(resolve(process.argv[1])) === realpathSync(resolve(fileURLToPath(import.meta.url)));
-  } catch {
-    return false;
-  }
-}
-
-if (isMainEntry()) {
+// 라이브러리가 아니라 CLI 다. 내보내는 것이 없다 — 저장소 어디에서도 이 모듈을
+// import 하지 않으므로, 쓰이지 않는 export 를 두면 "누가 쓰는지" 를 매번 확인해야
+// 한다. 렌더러를 밖에서 쓰고 싶어지면 그때 골라서 내보내면 된다.
+if (isMainEntry(import.meta.url)) {
   main(process.argv.slice(2));
 }
-
-export { Canvas, renderIcon as icon, renderPromoTile, renderScreenshotFrame, renderPreview, BRAND };

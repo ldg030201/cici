@@ -327,14 +327,14 @@ export async function findExtensions(profileDir, extensionIds) {
 }
 
 /**
- * The single best guess among {@link findExtensions}, without reading anything.
+ * Legacy single-result form of {@link findExtensions}, kept because it is
+ * published API. Nothing in this repository calls it; {@link findExtensions} is
+ * the entry point, and the scan in src/index.js uses that.
  *
- * Several Claude builds can be installed side by side (the Web Store one and an
- * internal build); a directory alone cannot say which one holds the pairing, so
- * this only prefers one that has storage at all. Anything that can read the
- * storage should use {@link findExtensions} and pick the build that actually
- * holds a bridgeDeviceId — otherwise a never-paired first candidate hides a
- * paired second one.
+ * It returns the first candidate that has a storage directory, which is not the
+ * same as the paired one: when several Claude builds are installed side by side
+ * (the Web Store one and an internal build), a never-paired first candidate
+ * hides a paired second one. Only reading the storage tells them apart.
  *
  * @param {string} profileDir
  * @param {string[]} extensionIds
@@ -391,6 +391,51 @@ export function compareVersions(a, b) {
     if (x !== y) return x < y ? -1 : 1;
   }
   return 0;
+}
+
+/**
+ * What a path is, or why we cannot tell. "Does not exist" (ENOENT/ENOTDIR) is
+ * reported as null; every other error (EACCES on a profile copied from another
+ * account, a Windows ACL, ELOOP, a dead network mount) comes back as an object
+ * so the caller can say so instead of silently treating it as "not installed".
+ *
+ * Pair it with {@link kindError}: `kindError(kind)` is the errno object for the
+ * "cannot tell" case and null otherwise, so `kind === 'dir'` stays the plain
+ * "it is a directory" test.
+ *
+ * @param {string} p
+ * @returns {Promise<'dir'|'file'|'other'|null|{ error: NodeJS.ErrnoException }>}
+ */
+export async function statKind(p) {
+  try {
+    const st = await fs.stat(p);
+    return st.isDirectory() ? 'dir' : st.isFile() ? 'file' : 'other';
+  } catch (err) {
+    if (err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return null;
+    return { error: err };
+  }
+}
+
+/**
+ * The error behind a {@link statKind} result, or null when the kind is a plain
+ * answer ("dir", "file", "other" or "does not exist").
+ *
+ * @param {unknown} kind a {@link statKind} result
+ * @returns {NodeJS.ErrnoException|null}
+ */
+export function kindError(kind) {
+  return kind !== null && typeof kind === 'object' ? kind.error : null;
+}
+
+/**
+ * The message of a thrown value. Errors keep their message; anything else
+ * (a string, a rejected non-Error) is stringified.
+ *
+ * @param {unknown} err
+ * @returns {string}
+ */
+export function errorMessage(err) {
+  return err instanceof Error ? err.message : String(err);
 }
 
 // ---------------------------------------------------------------------------
@@ -459,30 +504,6 @@ async function direntIsDirectory(dirent, parentDir) {
   return isDirectory(path.join(parentDir, dirent.name));
 }
 
-/**
- * What a path is, or why we cannot tell. "Does not exist" (ENOENT/ENOTDIR) is
- * reported as null; every other error (EACCES on a profile copied from another
- * account, a Windows ACL, ELOOP, a dead network mount) comes back as an object
- * so the caller can say so instead of silently treating it as "not installed".
- *
- * @param {string} p
- * @returns {Promise<'dir'|'file'|'other'|null|{ error: NodeJS.ErrnoException }>}
- */
-async function statKind(p) {
-  try {
-    const st = await fs.stat(p);
-    return st.isDirectory() ? 'dir' : st.isFile() ? 'file' : 'other';
-  } catch (err) {
-    if (err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return null;
-    return { error: err };
-  }
-}
-
-/** @param {unknown} kind a {@link statKind} result */
-function kindError(kind) {
-  return kind !== null && typeof kind === 'object' ? kind.error : null;
-}
-
 /** @param {string} p */
 async function isDirectory(p) {
   return (await statKind(p)) === 'dir';
@@ -511,20 +532,19 @@ function isPlainObject(v) {
 }
 
 /**
+ * A string with something in it, or null. Whitespace-only counts as nothing: a
+ * profile named "   " must fall back to the directory name rather than render
+ * as a blank cell. The value itself is returned unchanged, not trimmed.
+ *
  * @param {unknown} v
  * @returns {string|null}
  */
 function nonEmptyString(v) {
-  return typeof v === 'string' && v.length > 0 ? v : null;
+  return typeof v === 'string' && v.trim() !== '' ? v : null;
 }
 
 /** @param {string} s */
 function toInt(s) {
   const n = Number.parseInt(s, 10);
   return Number.isFinite(n) ? n : 0;
-}
-
-/** @param {unknown} err */
-function errorMessage(err) {
-  return err instanceof Error ? err.message : String(err);
 }

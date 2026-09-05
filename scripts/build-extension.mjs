@@ -18,13 +18,15 @@
  * 테스트는 `--check` 로만 부른다.
  */
 
-import { realpathSync } from 'node:fs';
 import { mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 
-/** 이 파일 기준의 저장소 루트. */
-export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { isMainEntry } from './lib/main-entry.mjs';
+import { REPO_ROOT } from './lib/paths.mjs';
+
+// 저장소 루트는 scripts/lib/paths.mjs 가 정한다. 여기서 다시 내보내는 것은
+// test/extension.test.js 가 이 모듈에서 가져다 쓰기 때문이다.
+export { REPO_ROOT };
 
 /** 복사 대상. 이름은 `src/` 와 `extension/lib/` 양쪽에서 같아야 한다(상대 import 가 그대로 맞물린다). */
 export const COPIED_FILES = Object.freeze(['leveldb-core.js', 'snappy.js']);
@@ -116,29 +118,7 @@ export async function buildExtensionLib(options = {}) {
   return results;
 }
 
-/**
- * `node scripts/build-extension.mjs` 로 **직접 실행**했는지.
- *
- * `import.meta.url` 은 ESM 로더가 진입점을 realpath 로 풀어서 만든다. 반면
- * `path.resolve()` 는 심볼릭 링크를 풀지 않는다. 그래서 링크를 지나는 절대
- * 경로로 부르면 두 값이 어긋나 이 스크립트가 **아무 일도 하지 않고 exit 0** 으로
- * 끝난다. macOS 는 `/tmp` 자체가 `/private/tmp` 로의 링크라 특수한 설정도 필요
- * 없다. 그래서 비교하기 전에 양쪽을 realpath 로 맞춘다.
- *
- * @returns {boolean}
- */
-function isMainEntry() {
-  if (process.argv[1] === undefined) return false;
-  try {
-    return import.meta.url === pathToFileURL(realpathSync(path.resolve(process.argv[1]))).href;
-  } catch {
-    return false;
-  }
-}
-
-const invokedDirectly = isMainEntry();
-
-if (invokedDirectly) {
+if (isMainEntry(import.meta.url)) {
   const check = process.argv.includes('--check');
   const results = await buildExtensionLib({ check });
   for (const r of results) {

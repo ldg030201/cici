@@ -21,9 +21,10 @@
 
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { arg } from './lib/args.mjs';
+import { defaultZipPath, extensionVersion, REPO_ROOT } from './lib/paths.mjs';
+
 const API = 'https://chromewebstore.googleapis.com';
 
 /** @param {string} name @returns {string} */
@@ -35,12 +36,6 @@ function need(name) {
     );
   }
   return value;
-}
-
-/** @param {string[]} argv @param {string} flag @returns {string|null} */
-function arg(argv, flag) {
-  const i = argv.indexOf(flag);
-  return i !== -1 && argv[i + 1] ? argv[i + 1] : null;
 }
 
 /**
@@ -78,6 +73,7 @@ async function accessToken() {
  * @param {string} publisher
  * @param {string} item
  * @param {Uint8Array} zip
+ * @returns {Promise<void>} 실패는 throw 로만 알린다
  */
 async function upload(token, publisher, item, zip) {
   const url = `${API}/upload/v2/publishers/${publisher}/items/${item}:upload`;
@@ -97,6 +93,10 @@ async function upload(token, publisher, item, zip) {
     throw new Error(`업로드 응답을 읽지 못했습니다: ${body}`);
   }
 
+  // 스네이크 케이스 대안을 남겨 둔다. 구 웹스토어 API(v1.1) 는 `itemError` 안을
+  // `error_code`/`error_detail` 로 돌려줬고, 이 v2 엔드포인트가 그 표기를 절대
+  // 쓰지 않는다고 확인할 방법이 없다. 잘못 맞히면 실패 사유가 `undefined:
+  // undefined` 로 나와 릴리스가 막힌 이유를 알 수 없게 된다 — 값이 싸다.
   const state = json.uploadState ?? json.upload_state;
   if (state && state !== 'SUCCESS') {
     const errors = (json.itemError ?? json.item_error ?? [])
@@ -104,7 +104,6 @@ async function upload(token, publisher, item, zip) {
       .join('\n  ');
     throw new Error(`업로드가 거부됐습니다 (${state})\n  ${errors || body}`);
   }
-  return json;
 }
 
 /**
@@ -112,6 +111,7 @@ async function upload(token, publisher, item, zip) {
  * @param {string} publisher
  * @param {string} item
  * @param {string} target
+ * @returns {Promise<void>} 실패는 throw 로만 알린다
  */
 async function publish(token, publisher, item, target) {
   const url = `${API}/v2/publishers/${publisher}/items/${item}:publish`;
@@ -120,9 +120,7 @@ async function publish(token, publisher, item, target) {
     headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
     body: JSON.stringify(target === 'default' ? {} : { target }),
   });
-  const body = await res.text();
-  if (!res.ok) throw new Error(`게시 실패 (${res.status}): ${body}`);
-  return body ? JSON.parse(body) : {};
+  if (!res.ok) throw new Error(`게시 실패 (${res.status}): ${await res.text()}`);
 }
 
 async function main() {
@@ -130,16 +128,14 @@ async function main() {
   const target = arg(argv, '--target') ?? 'default';
   const skipPublish = argv.includes('--skip-publish');
 
-  const manifest = JSON.parse(
-    await readFile(path.join(ROOT, 'extension', 'manifest.json'), 'utf8'),
-  );
-  const zipPath = arg(argv, '--zip') ?? path.join(ROOT, 'dist', `cici-${manifest.version}.zip`);
+  const version = await extensionVersion();
+  const zipPath = arg(argv, '--zip') ?? (await defaultZipPath(version));
   const zip = await readFile(zipPath);
 
   const publisher = need('CWS_PUBLISHER_ID');
   const item = need('CWS_ITEM_ID');
 
-  console.log(`버전 ${manifest.version} · ${path.relative(ROOT, zipPath)} (${(zip.length / 1024).toFixed(1)} KB)`);
+  console.log(`버전 ${version} · ${path.relative(REPO_ROOT, zipPath)} (${(zip.length / 1024).toFixed(1)} KB)`);
 
   const token = await accessToken();
   console.log('액세스 토큰 발급 완료');

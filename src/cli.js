@@ -30,6 +30,7 @@ import { readFileSync } from 'node:fs';
  * @property {(s: string) => void} stderr
  * @property {boolean} [isTTY]      whether stdout is a terminal (defaults to process.stdout.isTTY)
  * @property {Record<string, string|undefined>} [env]  environment (defaults to process.env)
+ * @property {number} [columns]     width of the terminal in cells; undefined when stdout is not one
  */
 
 // ---------------------------------------------------------------------------
@@ -37,6 +38,24 @@ import { readFileSync } from 'node:fs';
 // ---------------------------------------------------------------------------
 
 const EXTENSION_ID_RE = /^[a-p]{32}$/;
+
+/**
+ * Options that are nothing but a boolean: option name -> the ParsedArgs field
+ * it turns on. A table rather than a case per option so that adding a flag
+ * cannot forget the `flagOnly()` guard that rejects `--flag=value`.
+ *
+ * @type {Map<string, keyof ParsedArgs>}
+ */
+const BOOLEAN_FLAGS = new Map([
+  ['--json', 'json'],
+  ['--all', 'all'],
+  ['--quiet', 'quiet'],
+  ['-q', 'quiet'],
+  ['--help', 'help'],
+  ['-h', 'help'],
+  ['--version', 'version'],
+  ['-v', 'version'],
+]);
 
 /**
  * Parse CLI arguments. Never throws; problems are collected in `errors`.
@@ -106,27 +125,16 @@ export function parseArgs(argv) {
       return false;
     };
 
+    const flagField = BOOLEAN_FLAGS.get(name);
+    if (flagField !== undefined) {
+      if (flagOnly()) result[flagField] = true;
+      continue;
+    }
+
     switch (name) {
-      case '--json':
-        if (flagOnly()) result.json = true;
-        break;
-      case '--all':
-        if (flagOnly()) result.all = true;
-        break;
+      // Not in the table: the only flag that turns something off.
       case '--no-color':
         if (flagOnly()) result.color = false;
-        break;
-      case '--quiet':
-      case '-q':
-        if (flagOnly()) result.quiet = true;
-        break;
-      case '--help':
-      case '-h':
-        if (flagOnly()) result.help = true;
-        break;
-      case '--version':
-      case '-v':
-        if (flagOnly()) result.version = true;
         break;
       case '--user-data-dir': {
         const value = takeValue();
@@ -612,16 +620,17 @@ function noResultHint(report, args) {
     return `  ${where} (${n} profile${n === 1 ? '' : 's'})`;
   };
 
-  if (custom) {
-    lines.push('Searched user-data directories:');
-    for (const s of searched) lines.push(describe(s));
-  } else if (existing.length > 0) {
-    lines.push('Searched user-data directories:');
-    for (const s of existing) lines.push(describe(s));
-  } else {
-    lines.push('No Chromium browser user-data directory exists at the well-known locations:');
-    for (const s of searched) lines.push(describe(s));
-  }
+  // Directories the user named are all worth listing, missing ones included,
+  // because a typo is the likeliest explanation. Well-known locations are only
+  // worth listing when they exist — unless none does, and then the full list is
+  // itself the explanation.
+  const listed = !custom && existing.length > 0 ? existing : searched;
+  lines.push(
+    custom || existing.length > 0
+      ? 'Searched user-data directories:'
+      : 'No Chromium browser user-data directory exists at the well-known locations:',
+  );
+  for (const s of listed) lines.push(describe(s));
 
   lines.push('Hints:');
   lines.push(
@@ -641,8 +650,7 @@ function noResultHint(report, args) {
  * @returns {Promise<number>} exit code: 0 found, 1 nothing found, 2 usage error
  */
 export async function main(argv, io) {
-  const stdout = io && typeof io.stdout === 'function' ? io.stdout : (s) => process.stdout.write(s);
-  const stderr = io && typeof io.stderr === 'function' ? io.stderr : (s) => process.stderr.write(s);
+  const { stdout, stderr } = io;
 
   const args = parseArgs(argv);
   if (args.errors.length > 0) {
@@ -692,7 +700,7 @@ export async function main(argv, io) {
 
   const profileCount = (report.searched ?? []).reduce((n, s) => n + (Number(s.profileCount) || 0), 0);
   if (args.json) stdout(`${formatJson(rows)}\n`);
-  else stdout(formatTable(rows, { color: resolveColor(args, io), profileCount, width: io ? io.columns : undefined }));
+  else stdout(formatTable(rows, { color: resolveColor(args, io), profileCount, width: io.columns }));
 
   if (rows.some((row) => Boolean(row.deviceId))) return 0;
   stderr(noResultHint(report, args));

@@ -15,33 +15,19 @@
 import { deflateRawSync } from 'node:zlib';
 import { readFile, readdir, writeFile, mkdir, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SRC = path.join(ROOT, 'extension');
+import { arg } from './lib/args.mjs';
+import { crc32 } from './lib/crc32.mjs';
+import { defaultZipPath, EXTENSION_DIR, extensionVersion, REPO_ROOT } from './lib/paths.mjs';
 
-/** 웹스토어에 올라가면 안 되는 것들. */
-const SKIP = new Set(['.DS_Store', 'Thumbs.db', '.gitkeep']);
-
-// ---------------------------------------------------------------------------
-// CRC-32 (zlib.crc32 는 Node 20.15+ 라 직접 만든다. engines 는 18.17 이다.)
-
-const CRC_TABLE = (() => {
-  const table = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    table[n] = c >>> 0;
-  }
-  return table;
-})();
-
-/** @param {Uint8Array} bytes @returns {number} */
-function crc32(bytes) {
-  let c = 0xffffffff;
-  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
-  return (c ^ 0xffffffff) >>> 0;
-}
+/**
+ * 웹스토어에 올라가면 안 되는 것들.
+ *
+ * `.DS_Store` 나 `.gitkeep` 은 여기 없어도 된다 — 아래 수집 루프가 점으로
+ * 시작하는 이름을 전부 건너뛴다(에디터 백업이나 `.eslintrc` 까지 덤으로 걸린다).
+ * 점이 없는 이름만 여기 적는다.
+ */
+const SKIP = new Set(['Thumbs.db']);
 
 // ---------------------------------------------------------------------------
 // ZIP
@@ -147,16 +133,12 @@ async function collect(dir, prefix = '') {
 }
 
 async function main() {
-  const manifest = JSON.parse(await readFile(path.join(SRC, 'manifest.json'), 'utf8'));
-  const version = manifest.version;
+  const version = await extensionVersion();
 
-  const outFlag = process.argv.indexOf('--out');
-  const out =
-    outFlag !== -1 && process.argv[outFlag + 1]
-      ? path.resolve(process.argv[outFlag + 1])
-      : path.join(ROOT, 'dist', `cici-${version}.zip`);
+  const outArg = arg(process.argv.slice(2), '--out');
+  const out = outArg ? path.resolve(outArg) : await defaultZipPath(version);
 
-  const entries = await collect(SRC);
+  const entries = await collect(EXTENSION_DIR);
   if (!entries.some((e) => e.name === 'manifest.json')) {
     throw new Error('manifest.json 이 zip 루트에 없습니다');
   }
@@ -166,7 +148,7 @@ async function main() {
   await writeFile(out, zip);
 
   const kb = (zip.length / 1024).toFixed(1);
-  console.log(`${path.relative(ROOT, out)}  (버전 ${version}, 파일 ${entries.length}개, ${kb} KB)`);
+  console.log(`${path.relative(REPO_ROOT, out)}  (버전 ${version}, 파일 ${entries.length}개, ${kb} KB)`);
   for (const e of entries) console.log(`  ${e.name}`);
 }
 

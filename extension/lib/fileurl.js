@@ -202,51 +202,60 @@ function timeoutOptions(ms) {
 }
 
 /**
- * 파일 바이트를 읽는다.
+ * 이 모듈에서 `fetch` 를 부르는 **유일한** 곳.
+ *
+ * 바이트로 읽든 텍스트로 읽든 나머지는 똑같다: 타임아웃을 걸고, reject 를 우리
+ * 문구로 바꾸고, 400 이상을 걸러내고, 본문을 읽고, 그 실패도 문구로 바꾼다.
+ * 다른 점은 상한 시간과 본문을 꺼내는 방법 둘뿐이라 그 둘만 인자로 받는다.
  *
  * `file://` 응답의 `status` 는 믿을 수 없으므로(디렉터리는 0) 상태 코드로
  * 판정하지 않는다. 실제 실패는 fetch 자체가 reject 되는 것으로 드러난다.
  *
- * @param {string} absPath
- * @returns {Promise<Uint8Array>}
+ * `url` 은 언제나 {@link toFileUrl} 이 만든 것이어야 한다. 여기서 직접 만들지
+ * 않는 이유는 부르는 쪽이 같은 URL 을 에러 문구에도 쓰기 때문이다(두 번 만들면
+ * 두 값이 갈라질 수 있다).
+ *
+ * @template T
+ * @param {string} url {@link toFileUrl} 이 만든 `file://` URL
+ * @param {number} timeoutMs
+ * @param {(res: Response) => Promise<T>} readBody
+ * @returns {Promise<T>}
  */
-export async function fetchBytes(absPath) {
-  const url = toFileUrl(absPath);
+async function fetchAs(url, timeoutMs, readBody) {
   let res;
   try {
-    res = await fetch(url, timeoutOptions(READ_TIMEOUT_MS));
+    res = await fetch(url, timeoutOptions(timeoutMs));
   } catch (err) {
     throw fetchFailure(url, err);
   }
   // status 0 은 file:// 의 정상값이다. 400 이상은 http(s) 로 쓰일 때만 의미가 있다.
   if (res.status >= 400) throw new Error(`${url} responded with ${res.status}`);
   try {
-    return new Uint8Array(await res.arrayBuffer());
+    return await readBody(res);
   } catch (err) {
     throw new Error(`cannot read the body of ${url} (${errorMessage(err)})`);
   }
 }
 
 /**
- * 텍스트를 읽는다(디렉터리 리스팅 HTML 용).
+ * 파일 바이트를 읽는다.
  *
  * @param {string} absPath
+ * @returns {Promise<Uint8Array>}
+ */
+export function fetchBytes(absPath) {
+  const url = toFileUrl(absPath);
+  return fetchAs(url, READ_TIMEOUT_MS, async (res) => new Uint8Array(await res.arrayBuffer()));
+}
+
+/**
+ * 텍스트를 읽는다(디렉터리 리스팅 HTML 용).
+ *
+ * @param {string} url {@link toFileUrl} 이 만든 `file://` URL
  * @returns {Promise<string>}
  */
-async function fetchText(absPath) {
-  const url = toFileUrl(absPath);
-  let res;
-  try {
-    res = await fetch(url, timeoutOptions(LIST_TIMEOUT_MS));
-  } catch (err) {
-    throw fetchFailure(url, err);
-  }
-  if (res.status >= 400) throw new Error(`${url} responded with ${res.status}`);
-  try {
-    return await res.text();
-  } catch (err) {
-    throw new Error(`cannot read the body of ${url} (${errorMessage(err)})`);
-  }
+function fetchText(url) {
+  return fetchAs(url, LIST_TIMEOUT_MS, (res) => res.text());
 }
 
 // ---------------------------------------------------------------------------
@@ -254,11 +263,12 @@ async function fetchText(absPath) {
 // ---------------------------------------------------------------------------
 
 /**
+ * 리스팅 한 줄. 리스팅에는 크기와 수정 시각도 들어 있지만 이 확장은 이름과
+ * 디렉터리 여부만 쓰므로 나머지는 담지 않는다.
+ *
  * @typedef {object} DirEntry
  * @property {string} name  파일/디렉터리 이름 (경로 아님)
  * @property {boolean} isDir
- * @property {string} size  "3 B", "1.2 MB" 처럼 사람이 읽는 크기. 알 수 없으면 "".
- * @property {number|null} bytes  바이트 수. 알 수 없으면 null.
  */
 
 /**
@@ -438,9 +448,7 @@ export function parseDirectoryListing(html) {
     if (name === '' || name === '.' || name === '..') continue;
     if (name.includes('/') || name.includes('\0')) continue; // 이름일 수 없다
 
-    const bytes = args[3] && args[3].type === 'number' ? Number(args[3].value) : null;
-    const size = args[4] && args[4].type === 'string' ? String(args[4].value) : bytes === null ? '' : String(bytes);
-    rows.push({ name, isDir, size, bytes });
+    rows.push({ name, isDir });
   }
   return rows;
 }
@@ -452,8 +460,9 @@ export function parseDirectoryListing(html) {
  * @returns {Promise<DirEntry[]>} 상위 디렉터리(`..`)는 빠진 목록
  */
 export async function listDir(absPath) {
+  // 읽을 때와 에러 문구에 쓸 URL 이 같아야 한다. 그러니 한 번만 만든다.
   const url = toFileUrl(withTrailingSlash(absPath));
-  const html = await fetchText(withTrailingSlash(absPath));
+  const html = await fetchText(url);
   const rows = parseDirectoryListing(html);
   // 빈 디렉터리는 항목이 0개인 정상적인 리스팅이다. 리스팅이 아예 아닌 응답
   // (파일을 디렉터리로 착각했다든가)과 구별하려면 표식을 봐야 한다.

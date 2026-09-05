@@ -314,18 +314,27 @@ test('extension/ 의 fetch 는 file:// 만 연다', async () => {
       continue;
     }
 
-    assert.equal(fetches.length, 2, 'lib/fileurl.js 의 fetch 는 fetchBytes / fetchText 두 곳뿐이어야 합니다');
-    // 각 fetch 가 toFileUrl() 이 만든 url 을 받는지 그 함수 안에서 확인한다.
-    // (listDir 도 url 을 만들지만 fetch 하지는 않으므로, 파일 전체에서 세면 안 된다.)
+    assert.equal(fetches.length, 1, 'lib/fileurl.js 의 fetch 는 fetchAs 한 곳뿐이어야 합니다');
     for (const fn of source.split(/^(?:export )?(?:async )?function /m)) {
       if (!/\bfetch\s*\(/.test(fn)) continue;
       const name = /^(\w+)/.exec(fn)?.[1] ?? '?';
-      assert.ok(
-        ['fetchBytes', 'fetchText'].includes(name),
-        `lib/fileurl.js: ${name}() 이 fetch 를 부릅니다`,
-      );
-      assert.match(fn, /const url = toFileUrl\(/, `lib/fileurl.js: ${name}() 의 fetch 가 toFileUrl 을 거치지 않습니다`);
+      assert.equal(name, 'fetchAs', `lib/fileurl.js: ${name}() 이 fetch 를 부릅니다`);
       assert.match(fn, /fetch\(url,/, `lib/fileurl.js: ${name}() 이 url 말고 다른 것을 fetch 합니다`);
+    }
+
+    // fetchAs 는 URL 을 직접 만들지 않고 받는다(부르는 쪽이 에러 문구에도 같은
+    // 값을 쓰기 때문이다). 그러니 "fetch 는 file:// 만 연다"는 성질은 두 곳에서
+    // 지켜진다 — fetchAs 를 부를 때 넘기는 것이 url 변수인지, 그리고 이 파일의
+    // url 변수가 전부 toFileUrl() 이 만든 것인지.
+    const passed = [...source.matchAll(/\bfetchAs\(([^,]+),/g)].map((m) => m[1].trim());
+    assert.ok(passed.length >= 2, `fetchAs 호출을 찾지 못했습니다: ${passed.length}개`);
+    for (const arg of passed) {
+      assert.equal(arg, 'url', `lib/fileurl.js: fetchAs 에 url 말고 ${arg} 를 넘깁니다`);
+    }
+    const urls = [...source.matchAll(/\bconst url = ([^;]+);/g)].map((m) => m[1].trim());
+    assert.ok(urls.length >= 2, `url 선언을 찾지 못했습니다: ${urls.length}개`);
+    for (const decl of urls) {
+      assert.match(decl, /^toFileUrl\(/, `lib/fileurl.js: url 이 toFileUrl 을 거치지 않습니다 (${decl})`);
     }
   }
 });
@@ -450,19 +459,19 @@ test('joinPath 는 구분자를 겹치지 않는다', () => {
 const FIXTURE_ENTRIES = [
   { name: 'CURRENT_like_dir', isDir: true },
   { name: 'sub dir 하위', isDir: true },
-  { name: '<script>tag.txt', isDir: false, size: '3 B' },
-  { name: '000005.log', isDir: false, size: '1 B' },
-  { name: '000007.ldb', isDir: false, size: '1 B' },
-  { name: '한글 파일.txt', isDir: false, size: '1 B' },
-  { name: 'amp&lt;name.txt', isDir: false, size: '2 B' },
-  { name: "apostrophe'name.txt", isDir: false, size: '1 B' },
-  { name: 'back\\slash.txt', isDir: false, size: '4 B' },
-  { name: 'hash#tag.txt', isDir: false, size: '6 B' },
-  { name: 'newline\ttab.txt', isDir: false, size: '4 B' },
-  { name: 'percent%20literal.txt', isDir: false, size: '5 B' },
-  { name: 'question?.txt', isDir: false, size: '7 B' },
-  { name: 'quote"name.txt', isDir: false, size: '3 B' },
-  { name: 'space name.txt', isDir: false, size: '2 B' },
+  { name: '<script>tag.txt', isDir: false },
+  { name: '000005.log', isDir: false },
+  { name: '000007.ldb', isDir: false },
+  { name: '한글 파일.txt', isDir: false },
+  { name: 'amp&lt;name.txt', isDir: false },
+  { name: "apostrophe'name.txt", isDir: false },
+  { name: 'back\\slash.txt', isDir: false },
+  { name: 'hash#tag.txt', isDir: false },
+  { name: 'newline\ttab.txt', isDir: false },
+  { name: 'percent%20literal.txt', isDir: false },
+  { name: 'question?.txt', isDir: false },
+  { name: 'quote"name.txt', isDir: false },
+  { name: 'space name.txt', isDir: false },
 ];
 
 test('진짜 Chromium 리스팅에서 이름을 한 글자도 틀리지 않고 되살린다', async () => {
@@ -478,7 +487,8 @@ test('진짜 Chromium 리스팅에서 이름을 한 글자도 틀리지 않고 �
   for (const want of FIXTURE_ENTRIES) {
     const got = byName.get(want.name);
     assert.equal(got.isDir, want.isDir, `${want.name} 의 isDir`);
-    if (want.size !== undefined) assert.equal(got.size, want.size, `${want.name} 의 size`);
+    // 리스팅에는 크기와 시각도 있지만 DirEntry 는 이름과 isDir 만 담는다.
+    assert.deepEqual(Object.keys(got).sort(), ['isDir', 'name'], `${want.name} 에 안 쓰는 필드가 붙었습니다`);
   }
 });
 
@@ -537,7 +547,7 @@ test('parseDirectoryListing 은 파일 이름 속 가짜 addRow 에 속지 않�
 
 test('parseDirectoryListing 은 이름 뒤에 붙은 / 를 디렉터리로 본다', () => {
   const rows = parseDirectoryListing('<script>addRow("d/","d/",0,0,"",0,"-");</script>');
-  assert.deepEqual(rows, [{ name: 'd', isDir: true, size: '', bytes: 0 }]);
+  assert.deepEqual(rows, [{ name: 'd', isDir: true }]);
 });
 
 test('parseDirectoryListing 은 addRow 가 없으면 빈 배열이다', () => {
@@ -1474,6 +1484,10 @@ async function usedMessageKeys() {
   for (const source of warnSources) {
     for (const m of source.matchAll(/'(warn[A-Za-z0-9_]+)'/g)) keys.add(m[1]);
   }
+  // popup.js 의 bridgeState() 도 같은 이유로 문장 대신 키를 돌려준다. 카드와
+  // 목록 행이 똑같은 네 갈래를 쓰기 때문에 판정을 한 곳에 모았고, 그 키는
+  // `t(state.title)` 처럼 변수로 t() 에 들어가므로 위 정규식에 걸리지 않는다.
+  for (const m of js.matchAll(/\b(?:title|hint):\s*'([^']+)'/g)) keys.add(m[1]);
   return keys;
 }
 

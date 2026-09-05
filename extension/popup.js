@@ -268,7 +268,7 @@ function settingsUrl() {
  * @property {string} profileDirName
  * @property {string} label     화면에 크게 쓸 프로필 이름
  * @property {string|null} sublabel 이메일 등 보조 줄
- * @property {{extensionId: string|null, deviceId: string|null, displayName: string|null, unreadable?: boolean, warnings: Array<{code: string, params: string[]}>}} bridge
+ * @property {import('./lib/read.js').BridgeInfo} bridge
  * @property {boolean} isSelf
  */
 
@@ -462,28 +462,32 @@ function unreadableBridge() {
 /**
  * 에러 하나를 경고 한 줄로.
  *
- * `lib/*.js` 가 던지는 에러에는 `_locales` 키가 붙어 있다. 그 밖의 에러(브라우저가
- * 만든 "Failed to fetch" 같은 것)는 우리가 번역할 수 없으므로 그대로 끼워 넣는다.
+ * `lib/*.js` 가 던지는 에러에는 경고가 통째로(`err.warning = {code, params}`)
+ * 붙어 있다. 그 밖의 에러(브라우저가 만든 "Failed to fetch" 같은 것)는 우리가
+ * 번역할 수 없으므로 그대로 끼워 넣는다.
  *
  * @param {unknown} err
  * @returns {{code: string, params: string[]}}
  */
 function warningFromError(err) {
-  if (err && typeof err === 'object' && typeof err.i18nCode === 'string') {
-    return { code: err.i18nCode, params: Array.isArray(err.i18nParams) ? err.i18nParams : [] };
+  const warning = err && typeof err === 'object' ? err.warning : null;
+  if (warning && typeof warning.code === 'string') {
+    return { code: warning.code, params: Array.isArray(warning.params) ? warning.params : [] };
   }
   return { code: 'warnSelfDetect', params: [messageOf(err)] };
 }
 
 /**
- * `{code, params}` 를 사람이 읽는 한 줄로. 문자열이 그대로 오면 그대로 쓴다.
+ * `{code, params}` 를 사람이 읽는 한 줄로.
  *
- * @param {{code: string, params: string[]}|string} warning
+ * 경고를 만드는 곳은 이 파일과 `lib/read.js`, `lib/locate.js` 셋뿐이고 전부
+ * `{code, params}` 만 올려 보낸다(맨 위 모듈 주석). 그래서 여기서 갈리는 것은
+ * 채워 넣을 값이 있느냐 없느냐뿐이다.
+ *
+ * @param {{code: string, params?: string[]}} warning
  * @returns {string}
  */
 function formatWarning(warning) {
-  if (typeof warning === 'string') return warning;
-  if (!warning || typeof warning.code !== 'string') return String(warning);
   return t(warning.code, Array.isArray(warning.params) ? warning.params.map(String) : []);
 }
 
@@ -591,7 +595,7 @@ function renderSelfCard(row) {
 }
 
 /**
- * bridgeDeviceId 가 없을 때의 안내 블록.
+ * bridgeDeviceId 가 없을 때 그 프로필에 대해 할 수 있는 말.
  *
  * 네 가지가 서로 다른 답이다.
  *   - 프로필 폴더를 못 읽음 → 확장이 있는지 **모른다**. "없다"고 단정하면 거짓말이다.
@@ -602,38 +606,39 @@ function renderSelfCard(row) {
  * 판정 순서가 중요하다. "모른다"를 먼저 본다. 예전에는 `extensionId === null` 을
  * 함께 요구했는데, 확장 폴더가 보이는 순간 extensionId 가 채워지므로 그 조건
  * 아래에서는 "저장소를 못 읽었다"를 화면에 표현할 방법 자체가 없었다.
+ *
+ * 카드(`stateNote`)와 목록 행(`rowNote`)이 같은 네 갈래를 쓰므로 판정은 여기
+ * 한 곳에만 둔다. 문장이 아니라 `_locales` 키를 돌려준다 — 문장 조립은 t() 가
+ * 한다.
+ *
+ * @param {import('./lib/read.js').BridgeInfo} bridge
+ * @returns {{title: string, hint: string, warn: boolean}}
  */
-function stateNote(bridge) {
+function bridgeState(bridge) {
   if (bridge.unreadable && bridge.extensionId === null) {
-    return h(
-      'div',
-      { class: 'state state-warn' },
-      h('div', { class: 'state-title', text: t('profileUnreadable') }),
-      h('div', { class: 'state-hint', text: t('profileUnreadableHint') }),
-    );
+    return { title: 'profileUnreadable', hint: 'profileUnreadableHint', warn: true };
   }
   if (bridge.readFailed || bridge.unreadable) {
-    return h(
-      'div',
-      { class: 'state state-warn' },
-      h('div', { class: 'state-title', text: t('pairingUnknown') }),
-      h('div', { class: 'state-hint', text: t('pairingUnknownHint') }),
-    );
+    return { title: 'pairingUnknown', hint: 'pairingUnknownHint', warn: true };
   }
-  const paired = Boolean(bridge.extensionId);
+  if (bridge.extensionId) return { title: 'notPaired', hint: 'notPairedHint', warn: true };
+  return { title: 'claudeNotInstalled', hint: 'claudeNotInstalledHint', warn: false };
+}
+
+/** 카드에 넣는 안내 블록. {@link bridgeState} 의 세 값을 모두 쓴다. */
+function stateNote(bridge) {
+  const state = bridgeState(bridge);
   return h(
     'div',
-    { class: paired ? 'state state-warn' : 'state' },
-    h('div', { class: 'state-title', text: paired ? t('notPaired') : t('claudeNotInstalled') }),
-    h('div', { class: 'state-hint', text: paired ? t('notPairedHint') : t('claudeNotInstalledHint') }),
+    { class: state.warn ? 'state state-warn' : 'state' },
+    h('div', { class: 'state-title', text: t(state.title) }),
+    h('div', { class: 'state-hint', text: t(state.hint) }),
   );
 }
 
-/** 목록 행에 쓸 짧은 상태 문구. stateNote 와 같은 네 갈래다. */
+/** 목록 행에 쓸 짧은 상태 문구. 제목만 쓴다. */
 function rowNote(bridge) {
-  if (bridge.unreadable && bridge.extensionId === null) return t('profileUnreadable');
-  if (bridge.readFailed || bridge.unreadable) return t('pairingUnknown');
-  return bridge.extensionId ? t('notPaired') : t('claudeNotInstalled');
+  return t(bridgeState(bridge).title);
 }
 
 /** 현재 프로필을 못 찾았을 때 카드 자리에 넣는 안내. */
@@ -725,16 +730,15 @@ function render(data) {
   const self = data.rows.find((r) => r.isSelf) ?? null;
   selfSlot.append(self ? renderSelfCard(self) : renderSelfUnknown());
 
+  // ID 가 있는 프로필을 먼저. **그 뒤는 건드리지 않는다** — `listProfileDirs`
+  // 가 이미 BROWSERS 선언 순서(Chrome 먼저) → user-data-dir → 프로필 폴더 이름
+  // 으로 정렬해서 준다. 여기서 이름순으로 다시 세우면 그 선언 순서가 거짓말이
+  // 되고(가나다/알파벳순으로는 Arc·Brave·Chromium 이 Google Chrome 앞에 온다),
+  // 같은 컴퓨터를 CLI 와 팝업이 서로 다른 순서로 보여 준다.
+  // `Array#sort` 는 안정 정렬이라 두 무리 안의 순서는 그대로 남는다.
   const others = data.rows
     .filter((r) => r !== self)
-    .sort((a, b) => {
-      // ID 가 있는 프로필을 먼저, 그다음 브라우저 이름, 그다음 프로필 이름.
-      const byId_ = Number(Boolean(b.bridge.deviceId)) - Number(Boolean(a.bridge.deviceId));
-      if (byId_ !== 0) return byId_;
-      return (
-        a.browserName.localeCompare(b.browserName) || a.label.localeCompare(b.label)
-      );
-    });
+    .sort((a, b) => Number(Boolean(b.bridge.deviceId)) - Number(Boolean(a.bridge.deviceId)));
 
   // 자기 프로필을 못 찾았으면 이 목록에는 현재 프로필도 들어 있다. 그때
   // "이 컴퓨터의 다른 프로필"이라는 제목은 바로 위 안내("아래 목록에서 직접
@@ -758,7 +762,7 @@ function render(data) {
 }
 
 /**
- * @param {Array<{code: string, params: string[]}|string>} warnings
+ * @param {Array<{code: string, params: string[]}>} warnings
  * @param {{open?: boolean}} [options] 접힌 상자가 유일한 단서일 때는 펼쳐 둔다
  */
 function renderWarnings(warnings, options = {}) {
@@ -788,12 +792,6 @@ function renderNeedAccess() {
   announce(t('needFileAccessTitle'));
 }
 
-/**
- * 이 확장을 알릴 곳. `manifest.json` 의 `homepage_url` 에서 가져온다.
- * 코드에 주소를 박아 두지 않으므로 저장소 위치가 바뀌어도 한 군데만 고치면 된다.
- *
- * @returns {string} 없으면 빈 문자열
- */
 /** 푸터의 깃허브 링크를 manifest 의 homepage_url 로 채운다. 주소가 없으면 숨긴 채 둔다. */
 function fillSourceLink() {
   const node = byId('gh-link');
@@ -804,6 +802,12 @@ function fillSourceLink() {
   node.hidden = false;
 }
 
+/**
+ * 이 확장을 알릴 곳. `manifest.json` 의 `homepage_url` 에서 가져온다.
+ * 코드에 주소를 박아 두지 않으므로 저장소 위치가 바뀌어도 한 군데만 고치면 된다.
+ *
+ * @returns {string} 없으면 빈 문자열
+ */
 function homepageUrl() {
   try {
     const url = globalThis.chrome?.runtime?.getManifest?.()?.homepage_url;

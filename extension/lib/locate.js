@@ -132,7 +132,20 @@ const SYSTEM_HOME_NAMES = new Set([
   'desktop.ini',
 ]);
 
-/** 절대 사용자 프로필이 아닌 user-data-dir 하위 디렉터리. */
+/**
+ * 프로필이 **아닐 것 같은** user-data-dir 하위 디렉터리 이름 — 손으로 모은 목록.
+ *
+ * **정책이 아니라 fetch 를 아끼려는 힌트일 뿐이다.** 프로필 판정은 바로 아래
+ * `probeProfileDir()` 이 디렉터리 안의 파일(`Preferences`,
+ * `Local Extension Settings`)로 정확하게 한다. 이 목록은 그 확인을 **건너뛰어도
+ * 되는 이름**을 미리 알려 줘서 리스팅 요청을 몇 번 줄일 뿐이다.
+ *
+ * 그래서 이 목록이 낡아도 잃는 것은 속도뿐이다. 크롬이 새 캐시 디렉터리를
+ * 만들면 fetch 가 한 번 더 나가고 `probeProfileDir()` 이 `'no'` 를 돌려준다 —
+ * 결과는 똑같다. 반대로 여기에 진짜 프로필 이름을 적으면 그 프로필이 통째로
+ * 사라지므로, **확신이 없는 이름은 넣지 않는 쪽**이 언제나 옳다.
+ * (`Default`, `Profile N` 처럼 사람이 쓰는 이름은 당연히 들어가면 안 된다.)
+ */
 const NON_PROFILE_DIRS = new Set([
   'System Profile',
   'Guest Profile',
@@ -216,8 +229,9 @@ export function isSystemHomeName(name) {
 /**
  * user-data-dir 안에서 프로필일 리 없는 디렉터리인지.
  *
- * 이름으로 프로필을 **판정**하지는 않는다(그건 `isProfileDir()` 이 파일로 한다).
- * 여기서는 확실히 아닌 것만 미리 걸러서 fetch 를 아낀다.
+ * 이름으로 프로필을 **판정**하지는 않는다(그건 `probeProfileDir()` 이 파일로
+ * 한다). 여기서는 확실히 아닌 것만 미리 걸러서 fetch 를 아낀다.
+ * 답이 틀리면 fetch 가 한 번 더 나갈 뿐, 결과는 달라지지 않는다.
  *
  * @param {string} name
  * @returns {boolean}
@@ -440,28 +454,25 @@ export async function readProfileMeta(userDataDir) {
 }
 
 /**
- * 랜덤 UUID. 확장 페이지는 보안 컨텍스트라 `crypto.randomUUID()` 가 항상 있지만,
- * 없을 때를 대비해 직접 만드는 길도 둔다.
+ * 랜덤 UUID. 확장 페이지는 언제나 보안 컨텍스트라 `crypto.randomUUID()` 가 있다.
  *
  * @returns {string}
  */
 function randomUuid() {
-  const c = globalThis.crypto;
-  if (c && typeof c.randomUUID === 'function') return c.randomUUID();
-  const b = new Uint8Array(16);
-  c.getRandomValues(b);
-  b[6] = (b[6] & 0x0f) | 0x40;
-  b[8] = (b[8] & 0x3f) | 0x80;
-  const hex = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  return crypto.randomUUID();
 }
 
 /**
  * 화면에 보여 줄 문장을 만들 수 있는 에러.
  *
  * `message` 는 영어로 고정한다(개발자용). 사람에게 보일 문장은 popup.js 가
- * `i18nCode` / `i18nParams` 로 `_locales` 에서 만든다. 라이브러리가 한국어
- * 문장을 직접 던지면 en 로케일 경고 상자에 한글이 그대로 박힌다.
+ * `warning` 에 담긴 `_locales` 키로 만든다. 라이브러리가 한국어 문장을 직접
+ * 던지면 en 로케일 경고 상자에 한글이 그대로 박힌다.
+ *
+ * 이 확장 안에서 경고의 모양은 `{code, params}` 하나뿐이다. 에러에도 같은 것을
+ * 통째로 얹는다. 여기서만 다른 이름을 쓰면 popup.js 쪽에 이름을 바꿔 주는
+ * 어댑터가 하나 생기고, 그 어댑터를 모르는 새 코드가 자연스럽게
+ * `err.warning = {code, params}` 를 붙이는 순간 코드가 통째로 버려진다.
  *
  * @param {string} message 영어 개발자용 메시지
  * @param {string} code `_locales` 메시지 키
@@ -470,8 +481,7 @@ function randomUuid() {
  */
 function codedError(message, code, ...params) {
   const err = new Error(message);
-  err.i18nCode = code;
-  err.i18nParams = params.map((p) => String(p));
+  err.warning = { code, params: params.map((p) => String(p)) };
   return err;
 }
 
@@ -482,6 +492,27 @@ function codedError(message, code, ...params) {
  * @property {Array<{dir: string, note: string}>} notes 파서가 남긴 진단.
  *   왜 못 읽었는지는 여기에만 있다. 버리면 사용자에게 남는 단서가 0이 된다.
  */
+
+/**
+ * "표식이 없다" — 그리고 그걸 **확인했다**.
+ * @type {NonceHit}
+ */
+const NONCE_ABSENT = Object.freeze({ match: false, unreadable: false, notes: Object.freeze([]) });
+
+/**
+ * "표식이 있다" — 이 프로필이 자기 자신이다.
+ * @type {NonceHit}
+ */
+const NONCE_FOUND = Object.freeze({ match: true, unreadable: false, notes: Object.freeze([]) });
+
+/**
+ * "확인하지 못했다" — {@link NONCE_ABSENT} 와 절대 섞으면 안 되는 세 번째 답이다.
+ * 이걸 "없다"로 뭉개면 자기 프로필 탐지가 이유 한 줄 없이 실패한다.
+ *
+ * @param {Array<{dir: string, note: string}>} [notes] 왜 못 읽었는지
+ * @returns {NonceHit}
+ */
+const nonceUnknown = (notes = []) => ({ match: false, unreadable: true, notes });
 
 /**
  * 한 프로필의 우리 확장 저장소에 `nonce` 가 들어 있는지 본다.
@@ -501,26 +532,26 @@ async function storageHasNonce(profileDir, selfId, nonce) {
   // 우리 확장이 그 프로필에 깔려 있는지부터 목록으로 확인한다. 없는 경로를
   // 그냥 열면 콘솔에 `net::ERR_FILE_NOT_FOUND` 가 남는다.
   const settings = await findChildDirEx(profileDir, 'Local Extension Settings');
-  if (settings.unreadable) return { match: false, unreadable: true, notes: [] };
-  if (settings.path === null) return { match: false, unreadable: false, notes: [] };
+  if (settings.unreadable) return nonceUnknown();
+  if (settings.path === null) return NONCE_ABSENT;
 
   const storage = await findChildDirEx(settings.path, selfId);
-  if (storage.unreadable) return { match: false, unreadable: true, notes: [] };
-  if (storage.path === null) return { match: false, unreadable: false, notes: [] };
+  if (storage.unreadable) return nonceUnknown();
+  if (storage.path === null) return NONCE_ABSENT;
 
   try {
     const entries = await listDirOrNull(storage.path);
-    if (entries === null) return { match: false, unreadable: true, notes: [] };
+    if (entries === null) return nonceUnknown();
     const source = makeSource(storage.path, { entries });
     const db = await readLevelDbFrom(source);
     const raw = db.entries.get(NONCE_KEY);
     if (raw !== undefined) {
       const text = decodeUtf8(raw);
-      if (text === nonce) return { match: true, unreadable: false, notes: [] };
+      if (text === nonce) return NONCE_FOUND;
       try {
-        return { match: JSON.parse(text) === nonce, unreadable: false, notes: [] };
+        return JSON.parse(text) === nonce ? NONCE_FOUND : NONCE_ABSENT;
       } catch {
-        return { match: false, unreadable: false, notes: [] };
+        return NONCE_ABSENT;
       }
     }
 
@@ -530,16 +561,11 @@ async function storageHasNonce(profileDir, selfId, nonce) {
     // 탐지가 이유 한 줄 없이 실패한다.
     const failedReads = source.readErrors();
     const readNothing = db.files.tables.length === 0 && db.files.logs.length === 0;
-    if (failedReads.length === 0 && !readNothing) return { match: false, unreadable: false, notes: [] };
+    if (failedReads.length === 0 && !readNothing) return NONCE_ABSENT;
 
-    const notes = [...db.warnings, ...failedReads].map((note) => ({ dir: storage.path, note }));
-    return { match: false, unreadable: true, notes };
+    return nonceUnknown([...db.warnings, ...failedReads].map((note) => ({ dir: storage.path, note })));
   } catch (err) {
-    return {
-      match: false,
-      unreadable: true,
-      notes: [{ dir: storage.path, note: err instanceof Error ? err.message : String(err) }],
-    };
+    return nonceUnknown([{ dir: storage.path, note: err instanceof Error ? err.message : String(err) }]);
   }
 }
 

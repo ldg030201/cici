@@ -10,15 +10,19 @@
  */
 import os from 'node:os';
 import path from 'node:path';
-import { realpath, stat } from 'node:fs/promises';
+import { realpath } from 'node:fs/promises';
 
 import {
   BROWSERS,
   candidateUserDataDirs,
+  compareProfileDirNames,
   discoverBrowsers,
+  errorMessage,
+  kindError,
   listProfiles,
   findExtension,
   findExtensions,
+  statKind,
 } from './browsers.js';
 import {
   CLAUDE_EXTENSION_IDS,
@@ -26,8 +30,7 @@ import {
   BRIDGE_DISPLAY_NAME_KEY,
   readBridgeInfo,
 } from './claude.js';
-import { readLevelDb, decodeVarint32, parseInternalKey } from './leveldb.js';
-import { uncompress } from './snappy.js';
+import { readLevelDb } from './leveldb.js';
 
 export {
   BROWSERS,
@@ -41,9 +44,6 @@ export {
   BRIDGE_DISPLAY_NAME_KEY,
   readBridgeInfo,
   readLevelDb,
-  decodeVarint32,
-  parseInternalKey,
-  uncompress,
 };
 
 /**
@@ -94,21 +94,6 @@ export {
  */
 
 const CUSTOM_BROWSER = Object.freeze({ id: 'custom', name: 'Custom' });
-
-/**
- * @param {string} p
- * @returns {Promise<'dir'|'file'|'other'|null>}
- */
-async function pathKind(p) {
-  try {
-    const s = await stat(p);
-    if (s.isDirectory()) return 'dir';
-    if (s.isFile()) return 'file';
-    return 'other';
-  } catch {
-    return null;
-  }
-}
 
 /**
  * A key that identifies a directory even when it is spelled differently.
@@ -165,8 +150,8 @@ function normalizeDir(dir, home) {
  * @returns {Promise<{ userDataDir: string, onlyProfile: string|null }>}
  */
 async function resolveUserDataDir(dir) {
-  const hasLocalState = (await pathKind(path.join(dir, 'Local State'))) === 'file';
-  const hasPreferences = (await pathKind(path.join(dir, 'Preferences'))) === 'file';
+  const hasLocalState = (await statKind(path.join(dir, 'Local State'))) === 'file';
+  const hasPreferences = (await statKind(path.join(dir, 'Preferences'))) === 'file';
   if (!hasLocalState && hasPreferences) {
     return { userDataDir: path.dirname(dir), onlyProfile: path.basename(dir) };
   }
@@ -181,6 +166,7 @@ async function resolveUserDataDir(dir) {
  *
  * @param {string[]} dirs absolute, de-duplicated
  * @param {Map<string, { browser: string, browserName: string }>} known well-known dirs by path
+ * @param {string} platform process.platform-style string, for case-folded lookups
  * @returns {Map<string, { browser: string, browserName: string }>}
  */
 function labelExplicitDirs(dirs, known, platform) {
@@ -223,39 +209,17 @@ function lookupKnown(known, dir, platform) {
   return known.get(dir) ?? known.get(foldKey(dir, platform));
 }
 
+/** Display position of every known browser id, for the final sort. */
+const BROWSER_ORDER = new Map(BROWSERS.map((b, i) => [b.id, i]));
+
 /**
+ * Display position of a browser id; unknown ids ("custom") sort last.
+ *
  * @param {string} browser
  * @returns {number}
  */
 function browserRank(browser) {
-  const index = BROWSERS.findIndex((b) => b.id === browser);
-  return index === -1 ? BROWSERS.length : index;
-}
-
-/**
- * "Default" first, then "Profile N" by number, then anything else by name.
- *
- * @param {string} dirName
- * @returns {[number, number, string]}
- */
-function profileRank(dirName) {
-  if (dirName === 'Default') return [0, 0, ''];
-  const match = /^Profile (\d+)$/.exec(dirName);
-  if (match) return [1, Number(match[1]), ''];
-  return [2, 0, dirName];
-}
-
-/**
- * @param {[number, number, string]} a
- * @param {[number, number, string]} b
- * @returns {number}
- */
-function compareRank(a, b) {
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] < b[i]) return -1;
-    if (a[i] > b[i]) return 1;
-  }
-  return 0;
+  return BROWSER_ORDER.get(browser) ?? BROWSERS.length;
 }
 
 /**
@@ -276,7 +240,7 @@ async function buildRow(target, profile, extensionIds, includeUninstalled) {
   try {
     matches = await findExtensions(profile.dir, extensionIds);
   } catch (err) {
-    warnings.push(`could not inspect extensions: ${err && err.message ? err.message : String(err)}`);
+    warnings.push(`could not inspect extensions: ${errorMessage(err)}`);
   }
   const installed = matches.length > 0;
   if (!installed && !includeUninstalled) return null;
@@ -296,7 +260,7 @@ async function buildRow(target, profile, extensionIds, includeUninstalled) {
     try {
       info = await readBridgeInfo(m.storageDir);
     } catch (err) {
-      warnings.push(`could not read extension storage: ${err && err.message ? err.message : String(err)}`);
+      warnings.push(`could not read extension storage: ${errorMessage(err)}`);
       continue;
     }
     if (info.deviceId !== null || info.displayName !== null) {
@@ -325,7 +289,7 @@ async function buildRow(target, profile, extensionIds, includeUninstalled) {
     email: profile.email ?? null,
     gaiaName: profile.gaiaName ?? null,
     extensionId: installed ? extension.id : null,
-    extensionVersion: extension && extension.version ? extension.version : null,
+    extensionVersion: extension?.version ?? null,
     deviceId: bridge.deviceId ?? null,
     displayName: bridge.displayName ?? null,
     warnings,
@@ -359,7 +323,7 @@ export async function scanReport(options = {}) {
    * Well-known user-data directories by absolute path, for labelling.
    * @type {Map<string, { browser: string, browserName: string }>}
    */
-  let known = new Map();
+  const known = new Map();
   /** Directories the caller named explicitly: always scanned, missing ones warn. */
   const explicitDirs = new Set();
 
@@ -375,7 +339,6 @@ export async function scanReport(options = {}) {
       seenDirs.add(key);
       dirs.push(abs);
     }
-    known = new Map();
     for (const candidate of candidateUserDataDirs(discovery)) {
       known.set(candidate.userDataDir, candidate);
       const folded = foldKey(candidate.userDataDir, platform);
@@ -393,14 +356,18 @@ export async function scanReport(options = {}) {
     }
   }
 
-  /** @type {Array<{ row: Row, order: number, rank: [number, number, string] }>} */
+  /** @type {Array<{ row: Row, order: number }>} */
   const collected = [];
   /** Profile directories already collected, so overlapping arguments cannot duplicate a row. */
   const seenProfileDirs = new Set();
 
   for (const [order, entry] of searched.entries()) {
     if (explicitDirs.has(entry.userDataDir)) {
-      entry.exists = (await pathKind(entry.userDataDir)) === 'dir';
+      const kind = await statKind(entry.userDataDir);
+      // A directory we may not stat counts as present, the way browsers.js
+      // treats one: the scan below then reports the real reason (EACCES, ...)
+      // instead of an unreadable directory reading "directory not found".
+      entry.exists = kind === 'dir' || kindError(kind) !== null;
       if (!entry.exists) {
         warnings.push(`${entry.userDataDir}: directory not found`);
         continue;
@@ -423,7 +390,7 @@ export async function scanReport(options = {}) {
           : [{ dir: entry.userDataDir, dirName: resolved.onlyProfile, name: null, email: null, gaiaName: null, warnings: [] }];
       }
     } catch (err) {
-      warnings.push(`${entry.userDataDir}: ${err && err.message ? err.message : String(err)}`);
+      warnings.push(`${entry.userDataDir}: ${errorMessage(err)}`);
       continue;
     }
     entry.profileCount = profiles.length;
@@ -442,10 +409,10 @@ export async function scanReport(options = {}) {
       try {
         row = await buildRow(target, profile, extensionIds, includeUninstalled);
       } catch (err) {
-        warnings.push(`${profile.dir}: ${err && err.message ? err.message : String(err)}`);
+        warnings.push(`${profile.dir}: ${errorMessage(err)}`);
       }
       seenProfileDirs.add(profileKey);
-      if (row) collected.push({ row, order, rank: profileRank(row.profileDirName) });
+      if (row) collected.push({ row, order });
     }
   }
 
@@ -453,7 +420,7 @@ export async function scanReport(options = {}) {
     (a, b) =>
       browserRank(a.row.browser) - browserRank(b.row.browser) ||
       a.order - b.order ||
-      compareRank(a.rank, b.rank),
+      compareProfileDirNames(a.row.profileDirName, b.row.profileDirName),
   );
 
   return { rows: collected.map((c) => c.row), searched, warnings };
