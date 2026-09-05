@@ -1478,8 +1478,13 @@ async function usedMessageKeys() {
   // lib 은 문장을 만들지 않고 `{ code, params }` 만 올려 보낸다. popup.js 도
   // 경고를 만들 때는 같은 모양을 쓴다. 그 키는 t() 에 변수로 들어가므로
   // t('...') 정규식에 걸리지 않는다 — 여기서 모아야 한다.
+  // `claude-core.js` 는 src/ 에서 복사된 생성물이지만, 값 판정 경고 코드
+  // (warnBadJson 계열)를 실제로 만드는 곳이라 여기 들어와야 한다. 빠뜨리면
+  // 그 키들이 "아무도 안 쓰는 키" 로 잡힌다.
   const warnSources = [js, ...(await Promise.all(
-    ['fileurl.js', 'locate.js', 'read.js'].map((file) => readFile(path.join(LIB, file), 'utf8')),
+    ['fileurl.js', 'locate.js', 'read.js', 'claude-core.js'].map((file) =>
+      readFile(path.join(LIB, file), 'utf8'),
+    ),
   ))];
   for (const source of warnSources) {
     for (const m of source.matchAll(/'(warn[A-Za-z0-9_]+)'/g)) keys.add(m[1]);

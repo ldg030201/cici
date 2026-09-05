@@ -29,7 +29,7 @@ import { REPO_ROOT } from './lib/paths.mjs';
 export { REPO_ROOT };
 
 /** 복사 대상. 이름은 `src/` 와 `extension/lib/` 양쪽에서 같아야 한다(상대 import 가 그대로 맞물린다). */
-export const COPIED_FILES = Object.freeze(['leveldb-core.js', 'snappy.js']);
+export const COPIED_FILES = Object.freeze(['leveldb-core.js', 'snappy.js', 'claude-core.js']);
 
 /** 복사본이 놓이는 곳. */
 export const LIB_DIR = path.join(REPO_ROOT, 'extension', 'lib');

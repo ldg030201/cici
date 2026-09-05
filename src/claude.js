@@ -7,41 +7,46 @@
  */
 
 import fs from 'node:fs/promises';
+
+import {
+  BRIDGE_DEVICE_ID_KEY,
+  BRIDGE_DISPLAY_NAME_KEY,
+  CLAUDE_EXTENSION_IDS,
+  LEVELDB_FILE_RE,
+  pickBridge,
+} from './claude-core.js';
 import { readLevelDb } from './leveldb.js';
 
-/**
- * Extension ids that may hold Claude in Chrome's storage, in priority order.
- * @type {ReadonlyArray<string>}
- */
-export const CLAUDE_EXTENSION_IDS = Object.freeze([
-  // Chrome Web Store id of the public "Claude" (Claude in Chrome) extension.
-  'fcoeoabgfenejglbffodgkkbkcdhcgfn',
-  // Additional ids listed in "allowed_origins" of Anthropic's native
-  // messaging host manifest (the Claude Code <-> browser bridge); most likely
-  // internal / development builds of the same extension.
-  'dihbgbndebgnbjfmelmegjepbnkhlgni',
-  'dngcpimnedloihjnnfngkgjoidhnaolf',
-]);
-
-/** chrome.storage.local key holding the UUID Claude Code shows in its browser picker. */
-export const BRIDGE_DEVICE_ID_KEY = 'bridgeDeviceId';
-
-/** chrome.storage.local key holding the name typed when pairing (optional). */
-export const BRIDGE_DISPLAY_NAME_KEY = 'bridgeDisplayName';
+// How a stored value is interpreted lives in `claude-core.js`, which the
+// extension gets a verbatim copy of. Re-exported here because this module is
+// the package's entry point for it.
+export { BRIDGE_DEVICE_ID_KEY, BRIDGE_DISPLAY_NAME_KEY, CLAUDE_EXTENSION_IDS };
 
 /**
- * @typedef {object} BridgeInfo
- * @property {string|null} deviceId     bridgeDeviceId, or null when not paired / unreadable.
- * @property {string|null} displayName  bridgeDisplayName, or null.
- * @property {boolean} readFailed       Some data file could not be read, so a
- *   null `deviceId` means "we do not know", not "not paired". Telling an
- *   already-paired profile that it is unpaired is the one answer this tool must
- *   never give — that is the question it exists to answer.
- * @property {string[]} warnings        Non-fatal problems met while reading.
+ * English sentences for the warning codes `pickBridge` returns.
+ *
+ * The rule that produces a warning is shared with the extension; the sentence
+ * is not, because a sentence only fits one language. The extension renders the
+ * same codes through `_locales`.
+ *
+ * @type {Record<string, (params: string[]) => string>}
  */
+const WARNING_TEXT = {
+  warnBadJsonRaw: ([key, error]) => `${key} is not valid JSON (${error}); using the raw text`,
+  warnBadJson: ([key, error, sample]) => `${key} is not valid JSON (${error}): ${sample}`,
+  warnNotUuid: ([key, sample]) => `${key} does not look like a UUID: ${sample}`,
+  warnNotJsonString: ([key, sample]) => `${key} is not a JSON string: ${sample}`,
+};
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const LEVELDB_FILE_RE = /\.(?:ldb|sst|log)$/i;
+/**
+ * @param {{ code: string, params: string[] }} warning
+ * @returns {string}
+ */
+function warningText({ code, params }) {
+  const render = WARNING_TEXT[code];
+  // An unknown code would otherwise vanish. Say it out loud instead.
+  return render ? render(params) : `${code}: ${params.join(', ')}`;
+}
 
 /**
  * Read bridgeDeviceId / bridgeDisplayName from an extension storage directory
@@ -89,70 +94,16 @@ export async function readBridgeInfo(storageDir) {
     return result;
   }
 
-  const rawId = entries.get(BRIDGE_DEVICE_ID_KEY);
-  if (rawId !== undefined) {
-    const { value, text, error } = decodeJsonValue(rawId);
-    if (error) {
-      if (UUID_RE.test(text.trim())) {
-        result.deviceId = text.trim();
-        result.warnings.push(`${BRIDGE_DEVICE_ID_KEY} is not valid JSON (${error}); using the raw text`);
-      } else {
-        result.warnings.push(`${BRIDGE_DEVICE_ID_KEY} is not valid JSON (${error}): ${preview(text)}`);
-      }
-    } else if (typeof value === 'string') {
-      result.deviceId = value;
-      if (!UUID_RE.test(value)) {
-        result.warnings.push(`${BRIDGE_DEVICE_ID_KEY} does not look like a UUID: ${preview(value)}`);
-      }
-    } else {
-      result.warnings.push(`${BRIDGE_DEVICE_ID_KEY} is not a JSON string: ${preview(text)}`);
-    }
-  }
-
-  const rawName = entries.get(BRIDGE_DISPLAY_NAME_KEY);
-  if (rawName !== undefined) {
-    const { value, text, error } = decodeJsonValue(rawName);
-    if (error) {
-      result.warnings.push(`${BRIDGE_DISPLAY_NAME_KEY} is not valid JSON (${error}): ${preview(text)}`);
-    } else if (typeof value === 'string') {
-      result.displayName = value;
-    } else if (value !== null && value !== undefined) {
-      result.warnings.push(`${BRIDGE_DISPLAY_NAME_KEY} is not a JSON string: ${preview(text)}`);
-    }
-  }
+  const found = pickBridge(entries);
+  result.deviceId = found.deviceId;
+  result.displayName = found.displayName;
+  for (const w of found.warnings) result.warnings.push(warningText(w));
 
   return result;
 }
 
 // ---------------------------------------------------------------------------
 // internals
-
-/**
- * @param {Uint8Array|string} raw
- * @returns {{ value: unknown, text: string, error: string|null }}
- */
-function decodeJsonValue(raw) {
-  const text = typeof raw === 'string' ? raw : Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength).toString('utf8');
-  try {
-    return { value: JSON.parse(text), text, error: null };
-  } catch (err) {
-    return { value: undefined, text, error: errorMessage(err) };
-  }
-}
-
-/**
- * A short, printable excerpt of a stored value for a warning. Whitespace is
- * collapsed and the remaining control characters are escaped: these bytes come
- * from a file cici does not control, and the warning goes to a terminal.
- *
- * @param {string} s
- */
-function preview(s) {
-  const one = String(s)
-    .replace(/\s+/g, ' ')
-    .replace(/[\u0000-\u001f\u007f-\u009f]/g, (c) => `\\x${c.codePointAt(0).toString(16).padStart(2, '0')}`);
-  return one.length > 60 ? `${one.slice(0, 57)}...` : one;
-}
 
 /** @param {unknown} err */
 function errorMessage(err) {

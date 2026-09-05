@@ -12,31 +12,23 @@
  * @module read
  */
 
-import { decodeUtf8, findChildDirEx, listDirOrNull, makeSource } from './fileurl.js';
+import {
+  BRIDGE_DEVICE_ID_KEY,
+  BRIDGE_DISPLAY_NAME_KEY,
+  CLAUDE_EXTENSION_IDS,
+  LEVELDB_FILE_RE,
+  pickBridge,
+} from './claude-core.js';
+
+// 값 해석 규칙은 `claude-core.js` 한 곳에만 있다(빌드가 src/ 에서 복사한다).
+// 여기서 다시 내보내는 것은 팝업과 테스트가 이 모듈을 입구로 쓰기 때문이다.
+export { BRIDGE_DEVICE_ID_KEY, BRIDGE_DISPLAY_NAME_KEY, CLAUDE_EXTENSION_IDS };
+import { findChildDirEx, listDirOrNull, makeSource } from './fileurl.js';
 import { readLevelDbFrom } from './leveldb-core.js';
 
-/**
- * Claude in Chrome 의 저장소가 있을 수 있는 확장 id. 우선순위 순.
- * `src/claude.js` 의 목록과 같아야 한다.
- * @type {ReadonlyArray<string>}
- */
-export const CLAUDE_EXTENSION_IDS = Object.freeze([
-  // 크롬 웹스토어의 공개 "Claude" (Claude in Chrome) 확장.
-  'fcoeoabgfenejglbffodgkkbkcdhcgfn',
-  // Anthropic 네이티브 메시징 호스트 매니페스트의 allowed_origins 에 함께 적힌
-  // id 들. 같은 확장의 내부/개발 빌드로 보인다.
-  'dihbgbndebgnbjfmelmegjepbnkhlgni',
-  'dngcpimnedloihjnnfngkgjoidhnaolf',
-]);
-
 /** Claude Code 가 브라우저 선택창에 띄우는 UUID 가 들어 있는 키. */
-export const BRIDGE_DEVICE_ID_KEY = 'bridgeDeviceId';
 
 /** 페어링할 때 입력한 이름(선택 사항). */
-export const BRIDGE_DISPLAY_NAME_KEY = 'bridgeDisplayName';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const LEVELDB_FILE_RE = /\.(?:ldb|sst|log)$/i;
 
 /**
  * 사람에게 보여 줄 경고 한 줄.
@@ -77,79 +69,6 @@ function warn(code, ...params) {
 /** @param {unknown} err */
 function errorMessage(err) {
   return err instanceof Error ? err.message : String(err);
-}
-
-/**
- * 경고에 넣을 짧고 안전한 발췌. 값은 우리가 만들지 않은 파일에서 온 것이므로
- * 제어문자를 escape 한다.
- *
- * @param {string} s
- * @returns {string}
- */
-function preview(s) {
-  const one = String(s)
-    .replace(/\s+/g, ' ')
-    .replace(/[\u0000-\u001f\u007f-\u009f]/g, (c) => `\\x${c.codePointAt(0).toString(16).padStart(2, '0')}`);
-  return one.length > 60 ? `${one.slice(0, 57)}...` : one;
-}
-
-/**
- * @param {Uint8Array|string} raw
- * @returns {{ value: unknown, text: string, error: string|null }}
- */
-function decodeJsonValue(raw) {
-  const text = typeof raw === 'string' ? raw : decodeUtf8(raw);
-  try {
-    return { value: JSON.parse(text), text, error: null };
-  } catch (err) {
-    return { value: undefined, text, error: errorMessage(err) };
-  }
-}
-
-/**
- * LevelDB 항목에서 bridgeDeviceId / bridgeDisplayName 을 꺼낸다.
- *
- * @param {Map<string, Uint8Array>} entries
- * @param {Warning[]} warnings
- * @returns {{ deviceId: string|null, displayName: string|null }}
- */
-function pickBridge(entries, warnings) {
-  let deviceId = null;
-  let displayName = null;
-
-  const rawId = entries.get(BRIDGE_DEVICE_ID_KEY);
-  if (rawId !== undefined) {
-    const { value, text, error } = decodeJsonValue(rawId);
-    if (error) {
-      if (UUID_RE.test(text.trim())) {
-        deviceId = text.trim();
-        warnings.push(warn('warnBadJsonRaw', BRIDGE_DEVICE_ID_KEY, error));
-      } else {
-        warnings.push(warn('warnBadJson', BRIDGE_DEVICE_ID_KEY, error, preview(text)));
-      }
-    } else if (typeof value === 'string') {
-      deviceId = value;
-      if (!UUID_RE.test(value)) {
-        warnings.push(warn('warnNotUuid', BRIDGE_DEVICE_ID_KEY, preview(value)));
-      }
-    } else {
-      warnings.push(warn('warnNotJsonString', BRIDGE_DEVICE_ID_KEY, preview(text)));
-    }
-  }
-
-  const rawName = entries.get(BRIDGE_DISPLAY_NAME_KEY);
-  if (rawName !== undefined) {
-    const { value, text, error } = decodeJsonValue(rawName);
-    if (error) {
-      warnings.push(warn('warnBadJson', BRIDGE_DISPLAY_NAME_KEY, error, preview(text)));
-    } else if (typeof value === 'string') {
-      displayName = value;
-    } else if (value !== null && value !== undefined) {
-      warnings.push(warn('warnNotJsonString', BRIDGE_DISPLAY_NAME_KEY, preview(text)));
-    }
-  }
-
-  return { deviceId, displayName };
 }
 
 /**
@@ -271,7 +190,8 @@ async function readFromSettings(settingsRoot, result) {
     // 있다 — 경고 문자열을 검사하면 파서의 영어 문구에 기대게 된다.
     if (db.files.failed.length > 0) result.readFailed = true;
 
-    const found = pickBridge(db.entries, result.warnings);
+    const found = pickBridge(db.entries);
+    result.warnings.push(...found.warnings);
     if (found.deviceId !== null || found.displayName !== null) {
       result.extensionId = id;
       result.deviceId = found.deviceId;

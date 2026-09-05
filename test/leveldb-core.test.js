@@ -27,6 +27,7 @@ import {
   decodeVarint32,
   decodeVarint64,
 } from '../src/leveldb-core.js';
+import { COPIED_FILES } from '../scripts/build-extension.mjs';
 import { readLevelDb } from '../src/leveldb.js';
 import {
   buildSstFile,
@@ -69,7 +70,9 @@ function readSource(name) {
 // (a) the core is portable
 // ---------------------------------------------------------------------------
 
-const PORTABLE_MODULES = ['leveldb-core.js', 'snappy.js'];
+// 복사 대상이 곧 이식 대상이다. 손으로 적어 두면 새 코어를 `COPIED_FILES` 에만
+// 넣고 여기 빠뜨리는 순간, 그 파일은 검사 없이 확장으로 실려 나간다.
+const PORTABLE_MODULES = COPIED_FILES;
 
 /** Things that only exist under Node, in any form, comments included. */
 const FORBIDDEN = [
