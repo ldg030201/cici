@@ -123,6 +123,24 @@ function toLatin1(bytes) {
  * @param {Uint8Array} b
  * @returns {boolean}
  */
+function compareBytes(a, b) {
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) {
+    if (a[i] !== b[i]) return a[i] - b[i];
+  }
+  return a.length - b.length;
+}
+
+/**
+ * @param {string} s
+ * @returns {Uint8Array} 한 문자당 한 바이트 (toLatin1 의 역)
+ */
+function fromLatin1(s) {
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i) & 0xff;
+  return out;
+}
+
 function bytesEqual(a, b) {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
@@ -415,8 +433,12 @@ function readBlock(file, handle) {
  * @param {(entry: { userKey: Uint8Array, sequence: bigint, type: number, value: Uint8Array }) => void} options.onEntry
  * @param {string[]} [options.warnings] warnings are pushed here, prefixed with `label`
  * @param {string} [options.label] name used in warnings
+ * @param {Uint8Array[]} [options.wantedKeys] when given, only data blocks whose
+ *   key range can hold one of these user keys are read. The index block names a
+ *   separator per data block, so the range is known without decompressing
+ *   anything — and decompressing is where nearly all the time goes.
  */
-export function readTableBuffer(file, { onEntry, warnings = [], label = 'table' }) {
+export function readTableBuffer(file, { onEntry, warnings = [], label = 'table', wantedKeys = null }) {
   const warn = (msg) => warnings.push(`${label}: ${msg}`);
 
   if (file.length < FOOTER_SIZE) {
@@ -440,9 +462,31 @@ export function readTableBuffer(file, { onEntry, warnings = [], label = 'table' 
 
   /** @type {BlockHandle[]} */
   const dataHandles = [];
+  // 이전 항목의 구분자. 블록 i 가 담을 수 있는 사용자 키는
+  // [userKey(S_{i-1}), userKey(S_i)] 이다. 아래쪽을 열린 구간이 아니라 닫힌
+  // 구간으로 잡는 것이 중요하다 — 같은 사용자 키의 서로 다른 시퀀스가 블록
+  // 경계를 넘어 걸칠 수 있어서, 열린 구간으로 잡으면 값을 조용히 놓친다.
+  /** @type {Uint8Array|null} */
+  let prevSeparator = null;
+  const blockIsWanted = (separatorKey) => {
+    if (wantedKeys === null) return true;
+    let sep;
+    try {
+      sep = parseInternalKey(separatorKey).userKey;
+    } catch {
+      return true; // 구분자를 못 읽으면 거르지 않는다. 놓치는 것보다 읽는 게 낫다.
+    }
+    const lo = prevSeparator;
+    prevSeparator = sep;
+    for (const k of wantedKeys) {
+      if (compareBytes(k, sep) <= 0 && (lo === null || compareBytes(k, lo) >= 0)) return true;
+    }
+    return false;
+  };
   try {
     const index = readBlock(file, indexHandle);
-    forEachBlockEntry(index.contents, (_key, value) => {
+    forEachBlockEntry(index.contents, (key, value) => {
+      if (!blockIsWanted(key)) return;
       // One unreadable handle costs its own data block, not the whole table.
       try {
         dataHandles.push(decodeBlockHandle(value, 0).value);
@@ -1006,11 +1050,21 @@ async function findTableFile(source, n, prefetched) {
  * contents: problems become warnings.
  *
  * @param {ByteSource} source
- * @param {{ useManifest?: boolean }} [options] set useManifest to false to scan every table/log regardless of the MANIFEST
+ * @param {object} [options]
+ * @param {boolean} [options.useManifest] set to false to scan every table/log regardless of the MANIFEST
+ * @param {Iterable<string>} [options.keys] only these user keys are wanted. Data
+ *   blocks whose range cannot hold any of them are never decompressed, which is
+ *   where nearly all of the time goes — a real profile decompresses 8 MB to
+ *   answer a question about one 36-byte value. `entries` then holds only the
+ *   wanted keys. Omit it to get everything, exactly as before.
  * @returns {Promise<LevelDbResult>}
  */
 export async function readLevelDbFrom(source, options = {}) {
   const useManifest = options.useManifest !== false;
+  // 정렬해 둘 필요는 없다. 블록마다 전부와 비교하는데, 이 도구가 찾는 키는
+  // 두어 개뿐이라 그 비용이 정렬보다 싸다.
+  const wantedKeys = options.keys === undefined ? null : [...options.keys].map(fromLatin1);
+  const wantedIds = options.keys === undefined ? null : new Set(options.keys);
   const resolve = typeof source.path === 'function' ? (name) => source.path(name) : (name) => name;
   const root = typeof source.root === 'string' ? source.root : '.';
   /** @type {string[]} */
@@ -1027,6 +1081,9 @@ export async function readLevelDbFrom(source, options = {}) {
   const latest = new Map();
   const consider = (key, sequence, type, value) => {
     const id = toLatin1(key);
+    // 로그(WAL)는 정렬돼 있지 않아 통째로 훑을 수밖에 없다. 다만 담지 않으면
+    // 승자 맵과 마지막 복사가 그만큼 줄고, 무엇보다 큰 값이 버퍼를 붙잡지 않는다.
+    if (wantedIds !== null && !wantedIds.has(id)) return;
     const cur = latest.get(id);
     if (cur === undefined || sequence > cur.sequence) {
       latest.set(id, { key, sequence, type, value });
@@ -1132,6 +1189,7 @@ export async function readLevelDbFrom(source, options = {}) {
     readTableBuffer(buf, {
       warnings,
       label: filePath,
+      wantedKeys,
       onEntry({ userKey, sequence, type, value }) {
         if (type === TYPE_VALUE) consider(userKey, sequence, type, value);
         else if (type === TYPE_DELETION) consider(userKey, sequence, type, null);

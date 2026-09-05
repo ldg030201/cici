@@ -513,6 +513,79 @@ test('memory source: an unreadable file costs only that file', async () => {
   ]);
 });
 
+// ---------------------------------------------------------------------------
+// keys 필터: 원하는 키가 든 데이터 블록만 압축을 푼다
+//
+// 이 필터가 틀리면 값이 **조용히 사라진다** — 경고도 예외도 없이, 있는 답을
+// 못 찾았다고 말하게 된다. 그래서 "필터를 켠 결과 == 끈 결과"를 경계마다 고정한다.
+// ---------------------------------------------------------------------------
+
+/** 여러 블록에 걸치도록 작은 블록으로 만든 테이블 하나짜리 DB. */
+function multiBlockDb(entries) {
+  return makeMemoryDb({
+    tables: [{ number: 7, entries, options: { blockSize: 1, restartInterval: 1 } }],
+  });
+}
+
+const KEYS = ['aaa', 'bbb', 'ccc', 'ddd', 'eee'];
+
+test('keys 필터를 켜도 값은 끈 것과 같다 (블록 경계 전수)', async () => {
+  const entries = KEYS.map((key, i) => ({
+    key, sequence: i + 1, type: TYPE_VALUE, value: J(key.toUpperCase()),
+  }));
+  const files = multiBlockDb(entries);
+
+  const full = await readLevelDbFrom(memorySource(files));
+  assert.equal(full.entries.size, KEYS.length, '먼저 필터 없이 전부 읽히는지 확인');
+
+  // 첫 블록, 마지막 블록, 가운데, 그리고 조합까지 — 어느 자리든 같아야 한다.
+  for (const want of [['aaa'], ['ccc'], ['eee'], ['aaa', 'eee'], KEYS, ['zzz']]) {
+    const got = await readLevelDbFrom(memorySource(files), { keys: want });
+    const expected = want.filter((k) => full.entries.has(k));
+    assert.deepEqual([...got.entries.keys()].sort(), expected.sort(), `keys=${want}`);
+    for (const k of expected) {
+      assert.equal(utf8(got.entries.get(k)), utf8(full.entries.get(k)), `${k} 값이 다르다`);
+    }
+  }
+});
+
+test('같은 키의 다른 시퀀스가 블록 경계에 걸쳐도 최신값을 놓치지 않는다', async () => {
+  // 구분자 아래쪽을 열린 구간으로 잡으면 정확히 이 경우에 값을 놓친다.
+  // 같은 사용자 키의 여러 버전은 (키 오름차순, 시퀀스 내림차순)으로 이어져
+  // 있어서 블록을 가로지를 수 있다.
+  const entries = [];
+  for (let i = 1; i <= 8; i++) entries.push({ key: 'bbb', sequence: i, type: TYPE_VALUE, value: J(`v${i}`) });
+  entries.push({ key: 'aaa', sequence: 9, type: TYPE_VALUE, value: J('first') });
+  entries.push({ key: 'ccc', sequence: 10, type: TYPE_VALUE, value: J('last') });
+  const files = multiBlockDb(entries);
+
+  const full = await readLevelDbFrom(memorySource(files));
+  const filtered = await readLevelDbFrom(memorySource(files), { keys: ['bbb'] });
+  assert.equal(JSON.parse(utf8(full.entries.get('bbb'))), 'v8', '가장 높은 시퀀스가 이긴다');
+  assert.equal(utf8(filtered.entries.get('bbb')), utf8(full.entries.get('bbb')));
+});
+
+test('keys 필터는 삭제도 그대로 존중한다', async () => {
+  const files = multiBlockDb([
+    { key: 'aaa', sequence: 1, type: TYPE_VALUE, value: J('one') },
+    { key: 'bbb', sequence: 2, type: TYPE_VALUE, value: J('two') },
+    { key: 'bbb', sequence: 3, type: TYPE_DELETION },
+  ]);
+  const filtered = await readLevelDbFrom(memorySource(files), { keys: ['aaa', 'bbb'] });
+  assert.equal(filtered.entries.has('bbb'), false, '지워진 키는 나오면 안 된다');
+  assert.equal(JSON.parse(utf8(filtered.entries.get('aaa'))), 'one');
+});
+
+test('keys 필터는 로그(WAL)의 최신값도 그대로 가져온다', async () => {
+  // 로그는 정렬돼 있지 않아 블록 건너뛰기가 통하지 않는다. 그래도 결과는 같아야 한다.
+  const files = makeMemoryDb({
+    tables: [{ number: 7, entries: [{ key: 'bridgeDeviceId', sequence: 1, type: TYPE_VALUE, value: J('old') }] }],
+    logs: [{ number: 9, batches: [{ sequence: 5, records: [{ type: TYPE_VALUE, key: 'bridgeDeviceId', value: J('new') }] }] }],
+  });
+  const filtered = await readLevelDbFrom(memorySource(files), { keys: ['bridgeDeviceId'] });
+  assert.equal(JSON.parse(utf8(filtered.entries.get('bridgeDeviceId'))), 'new');
+});
+
 test('memory source: a fully readable database reports no failures', async () => {
   const files = makeMemoryDb({
     tables: [{ number: 5, entries: [{ key: 'a', sequence: 1, type: TYPE_VALUE, value: J('one') }] }],

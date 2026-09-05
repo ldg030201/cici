@@ -81,7 +81,11 @@ export async function readBridgeInfo(storageDir) {
 
   let entries;
   try {
-    const db = await readLevelDb(storageDir);
+    // 우리가 원하는 값은 둘뿐이다. 나머지 키를 위해 수 MB 를 압축 해제할
+    // 이유가 없다 — 실측으로 프로필당 48ms 가 8ms 로 줄었다.
+    const db = await readLevelDb(storageDir, {
+      keys: [BRIDGE_DEVICE_ID_KEY, BRIDGE_DISPLAY_NAME_KEY],
+    });
     entries = db.entries;
     // 파서는 읽기 실패를 던지지 않고 삼킨다. 무엇을 못 읽었는지는 files.failed
     // 에만 구조화돼 있고, 경고 문자열을 검사하는 건 파서의 영어 문구에 기대는

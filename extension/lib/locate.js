@@ -543,7 +543,8 @@ async function storageHasNonce(profileDir, selfId, nonce) {
     const entries = await listDirOrNull(storage.path);
     if (entries === null) return nonceUnknown();
     const source = makeSource(storage.path, { entries });
-    const db = await readLevelDbFrom(source);
+    // 찾는 것은 표식 하나다.
+    const db = await readLevelDbFrom(source, { keys: [NONCE_KEY] });
     const raw = db.entries.get(NONCE_KEY);
     if (raw !== undefined) {
       const text = decodeUtf8(raw);

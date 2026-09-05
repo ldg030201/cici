@@ -176,7 +176,10 @@ async function readFromSettings(settingsRoot, result) {
     const source = makeSource(dir, { entries });
     let db;
     try {
-      db = await readLevelDbFrom(source);
+      // 원하는 키는 둘뿐이다. 나머지를 위해 블록을 푸는 것은 그대로 낭비다.
+      db = await readLevelDbFrom(source, {
+        keys: [BRIDGE_DEVICE_ID_KEY, BRIDGE_DISPLAY_NAME_KEY],
+      });
     } catch (err) {
       result.readFailed = true;
       result.warnings.push(warn('warnLevelDbUnreadable', dir, errorMessage(err)));
