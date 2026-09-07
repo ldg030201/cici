@@ -39,7 +39,7 @@ it is safe to use while the browser is running.
 | --- | --- | --- |
 | Answers | **this profile's** ID, plus the other profiles | every profile on this machine |
 | Needs | Chrome 116+, one file-URL toggle | Node 18.17+ |
-| Install | install the extension, flip the toggle | `npx cici` |
+| Install | install the extension, flip the toggle | `node bin/cici.js` |
 | Per profile | yes (install and toggle are both per-profile) | no (all at once) |
 
 Both run the same parser, so both report the same value.
@@ -136,7 +136,7 @@ scripts, and no background service worker. It runs only while the popup is open.
 ## B. The CLI
 
 ```sh
-npx cici
+node bin/cici.js
 ```
 
 or from a clone:

@@ -289,7 +289,7 @@ so it cannot be the primary self-detection signal. It has value only as a corrob
 **A. CLI only**
 
 ```
-npx cici              # or: npm i -g cici && cici
+node bin/cici.js
 ```
 
 One command. Requires Node ≥18.17. Nothing is written, nothing is launched.
@@ -311,7 +311,7 @@ No admin rights, no runtime, no download, no restart. Exactly one step (4) is a 
 
 **C. Extension + native host** — for the record, why this was rejected:
 
-*macOS*: install extension → open Terminal → install Node if absent → `npx cici install-host` (writes
+*macOS*: install extension → open Terminal → install Node if absent → `node bin/cici.js install-host` (writes
 the host script, `chmod 0755`, and a `NativeMessagingHosts/*.json` per browser) → click the icon. No
 restart needed (verified). Shipping a packaged binary instead of requiring Node replaces steps 2–3
 with a download, but macOS quarantine then shows *"cannot be opened because the developer cannot be
@@ -328,8 +328,8 @@ not contain nvm's or Homebrew's `node`. The host then never starts and the exten
 *"Native host has exited."* — a message that reads like a crash, not a missing interpreter.
 Reproduced by launching the lab browser under `env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin`; an
 absolute-path shebang fixed it **[lab]**. Any native-host installer must hard-code an absolute
-interpreter path. Combined with the circularity — *anyone who can run `npx cici install-host` can
-just run `npx cici`* — this design pays a large cost to serve an audience that does not need it.
+interpreter path. Combined with the circularity — *anyone who can run `node bin/cici.js install-host` can
+just run `node bin/cici.js`* — this design pays a large cost to serve an audience that does not need it.
 
 ---
 

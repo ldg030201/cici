@@ -278,7 +278,7 @@ Claude 확장의 LevelDB 를 읽는 것이 문제 1이고(`file://` + 사용자�
 **A. CLI 만**
 
 ```
-npx cici              # 또는: npm i -g cici && cici
+node bin/cici.js
 ```
 
 명령 하나. Node ≥18.17 필요. 아무것도 쓰지 않고 아무것도 실행하지 않는다.
@@ -298,7 +298,7 @@ npx cici              # 또는: npm i -g cici && cici
 
 **C. 확장 + 네이티브 호스트** — 기록을 위해, 왜 기각했는가:
 
-*macOS*: 확장 설치 → 터미널 열기 → Node 없으면 설치 → `npx cici install-host`(호스트 스크립트를 쓰고
+*macOS*: 확장 설치 → 터미널 열기 → Node 없으면 설치 → `node bin/cici.js install-host`(호스트 스크립트를 쓰고
 `chmod 0755`, 브라우저마다 `NativeMessagingHosts/*.json`) → 아이콘 클릭. 재시작은 필요 없다(확인함).
 Node 대신 패키징된 바이너리를 배포하면 2–3단계가 다운로드로 바뀌지만, 그러면 macOS 격리 속성 때문에
 *"개발자를 확인할 수 없기 때문에 열 수 없습니다"* 가 뜬다 — Apple 공증을 돈 주고 받지 않는 한.
@@ -314,7 +314,7 @@ npm 으로 설치된 스크립트에는 격리 속성이 붙지 않으므로, �
 *"Native host has exited."* 를 보고한다 — 인터프리터가 없다는 뜻인데 크래시처럼 읽히는 메시지다.
 `env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin` 로 랩 브라우저를 띄워 재현했고, 절대 경로 셔뱅으로 고쳐졌다 **[lab]**.
 어떤 네이티브 호스트 설치기도 인터프리터 절대 경로를 하드코딩해야 한다.
-여기에 순환성 — *`npx cici install-host` 를 돌릴 수 있는 사람은 그냥 `npx cici` 를 돌리면 된다* — 까지 더하면,
+여기에 순환성 — *`node bin/cici.js install-host` 를 돌릴 수 있는 사람은 그냥 `node bin/cici.js` 를 돌리면 된다* — 까지 더하면,
 이 설계는 필요로 하지 않는 사용자층을 위해 큰 비용을 치르는 셈이다.
 
 ---
