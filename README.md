@@ -1,126 +1,121 @@
-# cici - Claude in Chrome ID
+<div align="center">
 
-> **비공식 도구다.** cici 는 Anthropic 이 만들지 않았고 Anthropic 과 아무 관계가 없다.
+<img src="docs/images/icon.png" width="88" alt="">
 
-Claude Code 가 브라우저 선택창에 띄우는 UUID(`bridgeDeviceId`)가 **어느 크롬 프로필의 것인지** 알려 준다.
+# cici
 
-브라우저를 두 개 이상 연결해 두면 Claude Code 는 이런 목록을 보여 준다.
+**Claude Code 브라우저 선택창의 UUID 가 어느 크롬 프로필인지 알려 주는 도구**
+
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-설치하기-D97757?style=flat-square&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea)
+[![npx cici](https://img.shields.io/badge/CLI-npx%20cici-3F8F72?style=flat-square&logo=nodedotjs&logoColor=white)](#b-cli)
+[![license MIT](https://img.shields.io/badge/license-MIT-555?style=flat-square)](LICENSE)
+[![dependencies 0](https://img.shields.io/badge/dependencies-0-555?style=flat-square)](package.json)
+
+<img src="docs/images/hero.png" width="820" alt="선택창에는 UUID 만 뜨지만 cici 는 어느 프로필인지 알려준다">
+
+<sub>비공식 도구다. Anthropic 이 만들지 않았고 Anthropic 과 아무 관계가 없다.<br>
+Claude, Claude Code, Claude in Chrome 은 Anthropic 의 상표다.</sub>
+
+</div>
+
+---
+
+## 무엇을 푸는가
+
+크롬에서 계정을 여러 개 쓰면 — 회사, 개인, 사이드 프로젝트 — Claude Code 는 어느 브라우저를 쓸지 물어보면서
+**UUID(`bridgeDeviceId`) 말고는 아무 단서도 주지 않는다.**
 
 ```
-Which browser?
-  1. 11111111-2222-4333-8444-555555555555
-  2. 66666666-7777-4888-8999-aaaaaaaaaaaa
-  3. bbbbbbbb-cccc-4ddd-8eee-ffffffffffff
+어느 브라우저를 쓸까요?
+  1. 8c71d0e4-2f96-4a83-b7d5-16ea93c4f082
+  2. 4f2a9c81-7b3e-4d15-9a62-c08e5d1f7b40
+  3. b93e5a27-c418-4f6d-8e10-7d24af95c3b1
 ```
 
-UUID 말고는 아무 단서가 없다. 어느 것이 회사 프로필이고 어느 것이 개인 프로필인지 알아내려면,
-프로필마다 Claude in Chrome 확장의 서비스워커 DevTools 를 열고
-`chrome.storage.local.get('bridgeDeviceId', console.log)` 을 손으로 쳐야 한다.
+잘못 고르면 **다른 계정으로 로그인된 브라우저가 열린다.** 회사 계정으로 작업하려는데 개인 브라우저가
+뜨거나, 그 반대가 된다.
+
+지금까지 알아내는 방법은 프로필마다 Claude in Chrome 확장의 서비스워커 DevTools 를 열고
+`chrome.storage.local.get('bridgeDeviceId', console.log)` 을 손으로 치는 것뿐이었다.
 
 cici 는 그 한 가지 질문에만 답한다. **어느 UUID 가 어느 프로필인가.**
 
-읽기만 한다. 쓰지 않고, LevelDB `LOCK` 도 잡지 않으며, 네트워크 요청은 한 건도 하지 않는다.
-브라우저가 켜져 있어도 안전하다.
+### 미리 지정해 둘 수도 있다
+
+한 번 알아낸 뒤에는 Claude Code 에게 매번 고르라고 하지 않아도 된다.
+
+```
+회사 브라우저(4f2a9c81-7b3e-4d15-9a62-c08e5d1f7b40)로 열어줘
+```
+
+또는 `/chrome` → **Select browser…** 로 골라 두면 Claude Code 가 그 선택을 기억한다.
+UUID 를 알아야 이 두 가지가 가능해진다.
 
 ---
 
-## 두 가지 사용법
+## 설치
 
-|  | **확장(MV3)** | **CLI** |
-| --- | --- | --- |
-| 답하는 질문 | **지금 이 프로필**의 ID + 다른 프로필 목록 | 이 머신의 모든 프로필 |
-| 필요한 것 | 크롬 116+ / 파일 URL 접근 토글 1회 | Node 18.17+ |
-| 설치 | 확장 설치 → 토글 | `npx cici` |
-| 프로필마다 반복 | 필요 (설치·토글 모두 프로필 단위) | 불필요 (한 번에 전부) |
+<table>
+<tr>
+<td width="50%" valign="top">
 
-둘 다 같은 파서를 쓴다. 어느 쪽을 쓰든 나오는 값은 같다.
+### A. 확장 (권장)
 
----
+[**Chrome 웹 스토어에서 설치 →**](https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea)
 
-## A. 확장으로 쓰기
+설치 후 **한 단계가 더 필요하다.**
 
-### 설치
+1. `chrome://extensions` 열기
+2. cici 의 **세부정보**
+3. **파일 URL에 대한 액세스 허용** 켜기
+4. 툴바 아이콘 클릭
 
-> 크롬 웹스토어 등록은 아직 진행 전이다. 등록용 자료는 [`docs/store-listing.md`](docs/store-listing.md) 에 정리해 두었다.
-> 지금은 저장소를 받아 **압축해제된 확장 프로그램**으로 불러오면 된다.
+토글을 켜면 크롬이 확장을 다시 불러와 팝업이 닫힌다.
+브라우저를 재시작할 필요는 없고, **팝업만 다시 열면** 바로 동작한다.
+
+</td>
+<td width="50%" valign="top">
+
+### B. CLI
+
+```sh
+npx cici
+```
+
+터미널에서 모든 프로필을 한 번에 본다.
+설치도, 토글도 필요 없다.
 
 ```sh
 git clone https://github.com/ldg030201/cici.git
+cd cici && npm link
+cici
 ```
 
-1. `chrome://extensions` 를 연다.
-2. 오른쪽 위 **개발자 모드**를 켠다.
-3. **압축해제된 확장 프로그램을 로드**를 누르고 받은 저장소의 `extension/` 폴더를 고른다.
-4. 그 확장의 **세부정보**로 들어가 **"파일 URL에 대한 액세스 허용"** 을 켠다.
-5. 확장 아이콘을 눌러 팝업을 연다.
+런타임 의존성 0개.
 
-웹스토어에서 설치했을 때도 4·5 단계는 똑같이 필요하다. (웹스토어 설치 시 이 토글의 기본값은 **꺼짐**이고,
-확장이 스스로 켤 수 없다.)
+</td>
+</tr>
+</table>
 
-### 4단계를 빼먹으면
+<div align="center">
+<img src="docs/images/popup.png" width="380" alt="cici 팝업">
+</div>
 
-파일 URL 접근이 꺼져 있으면 팝업이 결과 대신 안내 화면을 띄운다. 버튼 하나로 세부정보 페이지까지 데려다준다.
+---
 
-```
-┌──────────────────────────────────────────────┐
-│ cici                                         │
-│ Claude in Chrome 브리지 ID                    │
-├──────────────────────────────────────────────┤
-│  파일 URL 접근 권한이 필요합니다               │
-│  bridgeDeviceId는 크롬 프로필 폴더 안에        │
-│  저장돼 있습니다. 그 파일을 읽으려면           │
-│  '파일 URL에 대한 액세스 허용'을 켜야 합니다.   │
-│                                              │
-│  켜는 방법                                    │
-│   1. 아래 버튼으로 세부정보 페이지를 엽니다.    │
-│   2. '파일 URL에 대한 액세스 허용'을 켭니다.    │
-│   3. 이 팝업을 다시 엽니다.                    │
-│                                              │
-│  [ 확장 세부정보 열기 ]  [ 주소 복사 ]         │
-└──────────────────────────────────────────────┘
-```
+## 자세히
 
-**토글을 켜면 크롬이 확장을 리로드한다.** 그 순간 열려 있던 팝업은 닫힌다. 정상이다.
-브라우저를 다시 시작할 필요는 없고, 팝업만 다시 열면 바로 동작한다.
+### 토글을 안 켜면
 
-### 팝업 화면
+파일 URL 접근이 꺼져 있으면 팝업이 결과 대신 안내 화면을 띄운다. 버튼 하나로 세부정보 페이지까지
+데려다주므로 주소를 외울 필요는 없다.
 
-```
-┌──────────────────────────────────────────────┐
-│ cici                                    ⟳    │
-│ Claude in Chrome 브리지 ID                    │
-├──────────────────────────────────────────────┤
-│ 현재 프로필                                   │
-│ ┌──────────────────────────────────────────┐ │
-│ │ Google Chrome                     [현재] │ │
-│ │ Personal                                 │ │
-│ │ you@example.com                          │ │
-│ │                                          │ │
-│ │ bridgeDeviceId                  [ 복사 ] │ │
-│ │ ┌──────────────────────────────────────┐ │ │
-│ │ │ 11111111-2222-4333-8444-555555555555 │ │ │
-│ │ └──────────────────────────────────────┘ │ │
-│ │ 페어링 이름   MacBook                     │ │
-│ └──────────────────────────────────────────┘ │
-│                                              │
-│ 이 컴퓨터의 다른 프로필                        │
-│ ┌──────────────────────────────────────────┐ │
-│ │ Google Chrome · Work            [ 복사 ] │ │
-│ │ work@example.com                         │ │
-│ │ 66666666-7777-4888-8999-aaaaaaaaaaaa     │ │
-│ ├──────────────────────────────────────────┤ │
-│ │ Brave · Default                          │ │
-│ │ 아직 페어링되지 않았습니다                  │ │
-│ ├──────────────────────────────────────────┤ │
-│ │ Google Chrome · Test                     │ │
-│ │ 이 프로필에는 Claude 확장이 없습니다        │ │
-│ └──────────────────────────────────────────┘ │
-├──────────────────────────────────────────────┤
-│ cici는 이 컴퓨터의 파일을 읽기만 하고,          │
-│ 아무 데도 보내지 않습니다.                     │
-└──────────────────────────────────────────────┘
-```
+**토글을 켜면 크롬이 확장을 리로드한다.** 그 순간 열려 있던 팝업은 닫힌다 — 고장이 아니다.
+브라우저를 다시 시작할 필요 없이 팝업만 다시 열면 된다.
 
+### 팝업에서 할 수 있는 것
+
+맨 위에 **지금 이 프로필**의 ID 가 크게 뜨고, 아래에 같은 컴퓨터의 다른 프로필이 이어진다.
 UUID 상자를 클릭하거나 **복사** 버튼을 누르면 클립보드로 들어간다.
 
 ### 확장이 구분하는 상태
@@ -151,22 +146,9 @@ UUID 상자를 클릭하거나 **복사** 버튼을 누르면 클립보드로 �
 
 ---
 
-## B. CLI 로 쓰기
+## CLI
 
-```sh
-npx cici
-```
-
-또는 저장소를 받아서
-
-```sh
-git clone https://github.com/ldg030201/cici.git
-cd cici
-npm link      # 전역에 cici 명령을 만든다
-cici
-```
-
-`npm link` 없이 `node bin/cici.js` 또는 `npm start` 로 바로 돌려도 된다. 런타임 의존성은 0개다.
+`npm link` 없이 `node bin/cici.js` 또는 `npm start` 로 바로 돌려도 된다.
 
 ### 출력
 
@@ -184,6 +166,9 @@ bridgeDeviceId is the id Claude Code shows in its browser picker when more than 
 
 * `not paired` — 확장은 있지만 아직 Claude Code 와 연결한 적 없음
 * `not installed` — 그 프로필에 Claude in Chrome 이 없음 (`--all` 을 줘야 나온다)
+* `unreadable` — 파일을 읽지 못해 **모름**. "페어링 안 됨"과 절대 섞지 않는다 —
+  디스크에 UUID 가 멀쩡히 있는데 없다고 말하면 이 도구의 존재 이유가 무너진다.
+  `--json` 에도 `readFailed` 로 실린다
 * 표가 터미널보다 넓으면 이름·이메일·페어링 이름 칸부터 줄인다. **프로필 칸과 UUID 칸은 절대 줄이지 않는다** —
   줄바꿈된 UUID 는 더블클릭으로 복사할 수 없기 때문이다.
 
@@ -419,6 +404,7 @@ extension/               MV3, 빌드 단계 없음
 | [`docs/why.ko.md`](docs/why.ko.md) | 왜 이 구조인가 — 시도한 경로, 막힌 이유, 근거와 검증 방법 |
 | [`docs/why.md`](docs/why.md) | 위 문서의 영어판 |
 | [`docs/store-listing.md`](docs/store-listing.md) | 크롬 웹스토어 등록용 자료 |
+| [`docs/release.md`](docs/release.md) | 새 버전 배포 절차(태그 하나로 스토어까지) |
 | [`docs/privacy-policy.md`](docs/privacy-policy.md) | 개인정보 처리방침 |
 | [`README.en.md`](README.en.md) | 이 문서의 영어판 |
 

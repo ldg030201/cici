@@ -2,6 +2,10 @@
 
 cici 확장을 크롬 웹스토어에 올릴 때 그대로 붙여 넣을 문구와, 등록 전에 확인해야 할 것들.
 
+> **게시 완료** — 2026-09-07, 버전 0.1.0.
+> <https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea>
+> 이후 업데이트는 `docs/release.md` 의 태그 배포 절차를 따른다.
+
 > 규격·수수료·심사 기간 같은 수치는 웹스토어 정책이 바뀌면 함께 바뀐다.
 > 여기 적힌 값은 작성 시점의 참고값이므로, 제출 직전에 개발자 대시보드와
 > [Chrome Web Store 문서](https://developer.chrome.com/docs/webstore/)에서 다시 확인할 것.
@@ -245,9 +249,9 @@ https://github.com/ldg030201/cici/blob/main/docs/privacy-policy.md
 | 자산 | 규격 | 필수 | 준비 상태 |
 | --- | --- | --- | --- |
 | 확장 아이콘 | 128×128 PNG | 필수 | `extension/icons/icon128.png` 있음 |
-| 스크린샷 | 1280×800 또는 640×400 PNG/JPEG, 최소 1장, 최대 5장 | 필수 | **미준비** |
-| 작은 프로모 타일 | 440×280 PNG/JPEG | 선택(권장) | 미준비 |
-| 마키 프로모 타일 | 1400×560 PNG/JPEG | 선택 | 미준비 |
+| 스크린샷 | 1280×800 또는 640×400 PNG/JPEG, 최소 1장, 최대 5장 | 필수 | 제출 완료 |
+| 작은 프로모 타일 | 440×280 PNG/JPEG | 선택(권장) | 제출 완료. `node scripts/make-icons.mjs --store <dir>` 로 재생성 |
+| 마키 프로모 타일 | 1400×560 PNG/JPEG | 선택 | 넣지 않음(구글 큐레이션용) |
 
 ### 스크린샷 구성안 (1280×800, 5장)
 

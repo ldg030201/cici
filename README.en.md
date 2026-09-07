@@ -1,5 +1,11 @@
 # cici - Claude in Chrome ID
 
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Install-D97757?style=flat-square&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea)
+[![license MIT](https://img.shields.io/badge/license-MIT-555?style=flat-square)](LICENSE)
+[![dependencies 0](https://img.shields.io/badge/dependencies-0-555?style=flat-square)](package.json)
+
+> 한국어 문서는 [`README.md`](README.md) 를 보세요.
+
 > **Unofficial.** cici is not made by Anthropic and is not affiliated with Anthropic.
 
 > [한국어 README](README.md) is the primary document; this is its English translation.
