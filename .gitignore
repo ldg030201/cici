@@ -9,3 +9,8 @@ test/fixtures/real/
 
 # 빌드 산출물
 dist/
+
+# 배포 자격 증명. 절대 커밋 금지 — 이 줄을 지우면 리프레시 토큰이 공개 저장소로 나간다.
+.env
+.env.*
+!.env.example

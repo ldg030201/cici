@@ -56,7 +56,25 @@ npm run pack:ext          # dist/cici-<버전>.zip 이 생긴다
 3. **Authorize APIs** → 확장을 소유한 구글 계정으로 로그인
 4. **Exchange authorization code for tokens** → 나온 **Refresh token** 을 적어 둔다
 
-### 4. GitHub 시크릿 등록
+### 4-a. 로컬에서 쓸 `.env`
+
+로컬에서 `npm run publish:ext` 를 돌릴 때 쓴다. GitHub Actions 는 이 파일을
+쓰지 않는다 — 저장소 시크릿을 쓴다.
+
+```sh
+cp .env.example .env
+```
+
+값을 채운 뒤 권한을 조인다.
+
+```sh
+chmod 600 .env
+```
+
+`.env` 는 `.gitignore` 에 있다. **그 줄을 지우면 리프레시 토큰이 공개 저장소로
+나간다.** 이미 설정된 환경 변수는 덮어쓰지 않으므로, CI 의 시크릿이 항상 이긴다.
+
+### 4-b. GitHub 시크릿 등록
 
 저장소 → Settings → Secrets and variables → Actions → **New repository secret** 로 5개.
 

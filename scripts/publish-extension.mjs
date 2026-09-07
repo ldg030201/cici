@@ -10,6 +10,9 @@
  *   CWS_PUBLISHER_ID    개발자 대시보드 주소에 들어 있는 게시자 ID
  *   CWS_ITEM_ID         확장의 웹스토어 ID(32자)
  *
+ * 로컬에서는 저장소 루트의 `.env` 에 적어 두면 된다(`.env.example` 참고).
+ * 그 파일은 `.gitignore` 에 있다 — 커밋되면 리프레시 토큰이 공개된다.
+ *
  * 사용:
  *   node scripts/publish-extension.mjs                    # 업로드 + 게시
  *   node scripts/publish-extension.mjs --skip-publish     # 업로드만(초안으로 둠)
@@ -23,7 +26,12 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { arg } from './lib/args.mjs';
+import { loadEnv } from './lib/env.mjs';
 import { defaultZipPath, extensionVersion, REPO_ROOT } from './lib/paths.mjs';
+
+// 로컬에서 돌릴 때는 저장소 루트의 .env 를 쓴다. CI 는 시크릿이 이미
+// 환경에 있고, 그 값이 .env 보다 우선한다.
+loadEnv();
 
 const API = 'https://chromewebstore.googleapis.com';
 
