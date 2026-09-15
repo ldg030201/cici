@@ -1,6 +1,6 @@
 {
   "name": "cici",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Claude Code 브라우저 선택창의 UUID(bridgeDeviceId)가 어느 크롬 프로필의 것인지 알려 준다. 읽기 전용, 의존성 0.",
   "type": "module",
   "bin": {
@@ -23,8 +23,7 @@
     "build:ext": "node scripts/build-extension.mjs",
     "check:ext": "node scripts/build-extension.mjs --check",
     "icons": "node scripts/make-icons.mjs",
-    "pack:ext": "node scripts/pack-extension.mjs",
-    "publish:ext": "node scripts/publish-extension.mjs"
+    "pack:ext": "node scripts/pack-extension.mjs"
   },
   "engines": {
     "node": ">=18.17"

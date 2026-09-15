@@ -1052,6 +1052,15 @@ test('integration: real Claude in Chrome storage has a UUID-shaped bridgeDeviceI
     return;
   }
   const db = await readLevelDb(REAL_CHROME_STORAGE);
+  // The directory can exist and still be unreadable: macOS gates the Chrome
+  // profile behind Full Disk Access, so a fresh OS install (or an OS upgrade
+  // that resets the grant) makes `stat` succeed while `readdir` returns EPERM.
+  // That is an environment fact, not a failure of the code under test — and
+  // `files.failed` is exactly the signal that tells the two apart.
+  if (db.files.failed.length > 0) {
+    t.skip(`cannot read ${REAL_CHROME_STORAGE}: ${db.files.failed[0].message}`);
+    return;
+  }
   assert.ok(db.files.tables.length + db.files.logs.length > 0, 'the storage directory should hold LevelDB files');
   const raw = text(db.entries, 'bridgeDeviceId');
   if (raw === undefined) {

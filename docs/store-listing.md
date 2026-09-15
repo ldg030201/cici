@@ -4,7 +4,7 @@ cici 확장을 크롬 웹스토어에 올릴 때 그대로 붙여 넣을 문구�
 
 > **게시 완료** — 2026-09-07, 버전 0.1.0.
 > <https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea>
-> 이후 업데이트는 `docs/release.md` 의 태그 배포 절차를 따른다.
+> 이후 업데이트 절차는 `docs/release.md` 를 보라.
 
 > 규격·수수료·심사 기간 같은 수치는 웹스토어 정책이 바뀌면 함께 바뀐다.
 > 여기 적힌 값은 작성 시점의 참고값이므로, 제출 직전에 개발자 대시보드와

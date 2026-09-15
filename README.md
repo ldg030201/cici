@@ -55,6 +55,9 @@ cici 는 그 한 가지 질문에만 답한다. **어느 UUID 가 어느 프로�
 
 ### 1. [Chrome 웹 스토어에서 설치](https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea)
 
+저장소를 받아 직접 빌드할 필요 없다. 스토어에서 설치하면 크롬이 업데이트도
+알아서 해 준다.
+
 ### 2. 파일 URL 접근 켜기
 
 이 한 단계가 **반드시** 필요하다. 안 켜면 팝업이 결과 대신 안내 화면을 띄운다.
@@ -100,7 +103,7 @@ cici 는 그 한 가지 질문에만 답한다. **어느 UUID 가 어느 프로�
 | [왜 이 구조인가](docs/why.ko.md) | 시도한 경로와 막힌 이유 — 근거와 검증 방법 ([영어판](docs/why.md)) |
 | [CLI](docs/cli.md) | 터미널에서 모든 프로필을 한 번에 보는 부가 도구 |
 | [개발](docs/development.md) | 저장소를 받아서 고치기 |
-| [배포](docs/release.md) | 새 버전을 스토어에 올리는 절차 |
+| [배포](docs/release.md) | 새 버전을 스토어에 올리는 절차(메인테이너용) |
 | [개인정보 처리방침](docs/privacy-policy.md) | 전문 |
 | [English](README.en.md) | 영어판 |
 
