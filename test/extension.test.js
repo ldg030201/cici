@@ -387,7 +387,10 @@ test('chrome.storage 를 쓰는 이상 manifest 에 "storage" 가 있어야 한�
 test('manifest.json 은 확장 파일들과 아귀가 맞는다', async () => {
   const manifest = await readManifest();
   assert.equal(manifest.action?.default_popup, 'popup.html');
-  assert.equal(manifest.default_locale, 'ko');
+  // default_locale 은 _locales 에 없는 언어의 폴백이다. ko 로 두면 프랑스어·일본어
+  // 크롬 사용자가 전부 한국어 화면을 보게 된다. 폴백은 영어여야 한다 — 한국어
+  // 사용자는 여전히 _locales/ko 를 받으므로 잃는 것이 없다.
+  assert.equal(manifest.default_locale, 'en');
 });
 
 // ---------------------------------------------------------------------------
@@ -1457,10 +1460,14 @@ test('findChildFile 은 파일만 고르고 findChildDir 은 디렉터리만 고
 // 11. _locales 카탈로그
 // ---------------------------------------------------------------------------
 
-/** ko / en 두 카탈로그를 읽는다. */
+/**
+ * `_locales` 아래의 모든 카탈로그를 읽는다. 디렉터리를 훑으므로 로케일을
+ * 추가하면 아래 검사들에 자동으로 들어온다 — 목록을 여기 적게 하면
+ * 새 로케일이 검사를 그냥 지나친다.
+ */
 async function locales() {
   const out = {};
-  for (const lang of ['ko', 'en']) {
+  for (const lang of (await readdir(path.join(EXT, '_locales'))).sort()) {
     out[lang] = JSON.parse(await readFile(path.join(EXT, '_locales', lang, 'messages.json'), 'utf8'));
   }
   return out;
@@ -1496,19 +1503,36 @@ async function usedMessageKeys() {
   return keys;
 }
 
-test('_locales: ko 와 en 의 키가 정확히 같다', async () => {
-  const { ko, en } = await locales();
-  assert.deepEqual(Object.keys(ko).sort(), Object.keys(en).sort());
-  for (const key of Object.keys(ko)) {
-    for (const [lang, cat] of [['ko', ko], ['en', en]]) {
+test('_locales: 모든 로케일의 키가 ko 와 정확히 같다', async () => {
+  // ko 가 기준인 이유: 이 카탈로그가 원문이고 나머지가 번역이다.
+  const cats = await locales();
+  const { ko } = cats;
+  assert.ok(ko, '_locales/ko 가 없습니다');
+  for (const [lang, cat] of Object.entries(cats)) {
+    assert.deepEqual(
+      Object.keys(cat).sort(),
+      Object.keys(ko).sort(),
+      `${lang}: 키 집합이 ko 와 다릅니다`,
+    );
+    for (const key of Object.keys(ko)) {
       assert.equal(typeof cat[key].message, 'string', `${lang}/${key}: message 가 없습니다`);
       assert.notEqual(cat[key].message.trim(), '', `${lang}/${key}: message 가 비었습니다`);
+      assert.deepEqual(
+        Object.keys(cat[key].placeholders ?? {}).sort(),
+        Object.keys(ko[key].placeholders ?? {}).sort(),
+        `${lang}/${key}: placeholders 가 ko 와 다릅니다`,
+      );
     }
-    assert.deepEqual(
-      Object.keys(ko[key].placeholders ?? {}).sort(),
-      Object.keys(en[key].placeholders ?? {}).sort(),
-      `${key}: placeholders 가 다릅니다`,
-    );
+  }
+});
+
+test('_locales: htmlLang 은 자기 디렉터리 이름의 BCP 47 표기다', async () => {
+  // htmlLang 은 <html lang> 에 그대로 들어간다. 디렉터리 이름(zh_CN)과
+  // BCP 47 태그(zh-CN)는 구분자만 다르므로, 로케일을 복사해 만들다가
+  // htmlLang 갱신을 잊으면 여기서 걸린다.
+  const cats = await locales();
+  for (const [lang, cat] of Object.entries(cats)) {
+    assert.equal(cat.htmlLang.message, lang.replace('_', '-'), `${lang}/htmlLang`);
   }
 });
 
@@ -1522,11 +1546,11 @@ test('_locales: 쓰는 키는 다 있고, 안 쓰는 키는 없다', async () =>
   assert.deepEqual(unused, [], '아무도 쓰지 않는 키가 남아 있습니다');
 });
 
-test('_locales: 따옴표로 인용한 버튼 이름은 두 로케일에서 같은 버튼을 가리킨다', async () => {
+test('_locales: 따옴표로 인용한 버튼 이름은 모든 로케일에서 같은 버튼을 가리킨다', async () => {
   // en 의 warnScanTimeout 이 화면에 존재하지 않는 이름("Rescan")을 따옴표로
   // 지시한 적이 있다. 그 버튼의 실제 접근성 이름은 refresh 키의 값("Scan again")
   // 이고, 아이콘만 있는 버튼이라 사용자가 글자로 찾을 방법도 없었다.
-  const { ko, en } = await locales();
+  const cats = await locales();
   const html = await readFile(path.join(EXT, 'popup.html'), 'utf8');
 
   // popup.html 의 <button> 이 실제로 쓰는 i18n 키.
@@ -1539,25 +1563,33 @@ test('_locales: 따옴표로 인용한 버튼 이름은 두 로케일에서 같�
   // 홑따옴표(ko 의 '다시 시도')와 겹따옴표를 모두 인정한다.
   const quoted = (text) => [...text.matchAll(/["'\u201c\u201d\u2018\u2019]([^"'\u201c\u201d\u2018\u2019]{2,40})["'\u201c\u201d\u2018\u2019]/g)].map((m) => m[1]);
 
-  for (const [from, to, fromLang, toLang] of [[ko, en, 'ko', 'en'], [en, ko, 'en', 'ko']]) {
-    for (const key of Object.keys(from)) {
-      for (const q of quoted(from[key].message)) {
-        const button = [...buttonKeys].find((b) => from[b]?.message === q);
-        if (!button) continue; // 버튼 이름이 아니라 크롬 설정 이름이나 manifest 필드다
-        const there = quoted(to[key].message);
-        assert.ok(
-          there.includes(to[button].message),
-          `${toLang}/${key}: 버튼 ${button}("${to[button].message}") 를 인용해야 하는데 ` +
-            `${JSON.stringify(there)} 를 인용합니다 (${fromLang} 는 "${q}" 를 인용).`,
-        );
+  // 모든 순서쌍을 본다. 한쪽 방향만 보면 "ko 는 인용하는데 zh 는 인용하지
+  // 않는" 누락을 zh→ko 방향에서만 잡을 수 있기 때문이다.
+  const langs = Object.keys(cats);
+  for (const fromLang of langs) {
+    for (const toLang of langs) {
+      if (fromLang === toLang) continue;
+      const from = cats[fromLang];
+      const to = cats[toLang];
+      for (const key of Object.keys(from)) {
+        for (const q of quoted(from[key].message)) {
+          const button = [...buttonKeys].find((b) => from[b]?.message === q);
+          if (!button) continue; // 버튼 이름이 아니라 크롬 설정 이름이나 manifest 필드다
+          const there = quoted(to[key].message);
+          assert.ok(
+            there.includes(to[button].message),
+            `${toLang}/${key}: 버튼 ${button}("${to[button].message}") 를 인용해야 하는데 ` +
+              `${JSON.stringify(there)} 를 인용합니다 (${fromLang} 는 "${q}" 를 인용).`,
+          );
+        }
       }
     }
   }
 });
 
 test('_locales: $PLACEHOLDER$ 는 선언된 것만 쓴다', async () => {
-  const { ko, en } = await locales();
-  for (const [lang, cat] of [['ko', ko], ['en', en]]) {
+  const cats = await locales();
+  for (const [lang, cat] of Object.entries(cats)) {
     for (const [key, entry] of Object.entries(cat)) {
       const declared = new Set(Object.keys(entry.placeholders ?? {}).map((n) => n.toLowerCase()));
       for (const m of entry.message.matchAll(/\$([A-Za-z0-9_]+)\$/g)) {

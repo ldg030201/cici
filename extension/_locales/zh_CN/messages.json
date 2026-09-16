@@ -1,0 +1,416 @@
+{
+  "extName": {
+    "message": "cici - Claude in Chrome ID",
+    "description": "扩展程序名称，显示在应用商店和扩展程序管理页面。"
+  },
+  "extDesc": {
+    "message": "显示 Claude Code 浏览器选择列表中的 UUID 对应哪个 Chrome 个人资料，并直接展示当前个人资料的 bridgeDeviceId。非官方工具，与 Anthropic 无关。",
+    "description": "应用商店描述，不超过 132 个字符（当前 96 字）。商店列表会截断结尾，因此功能说明在前、无关声明在后。声明以“非官方”开头——即使中途被截断，剩下的文字也不会暗示与 Anthropic 有关联。"
+  },
+  "htmlLang": {
+    "message": "zh-CN",
+    "description": "此目录所用语言的 BCP 47 标签，会原样写入 <html lang>。chrome.i18n.getUILanguage() 不是答案——它返回的是浏览器界面语言：当界面语言不在 _locales 中时，Chrome 会回退到 default_locale，导致其与页面实际语言不一致。新增语言时必须同步修改此值。"
+  },
+  "appTitle": {
+    "message": "Claude in Chrome ID",
+    "description": "弹窗顶部的产品名称。"
+  },
+  "unofficialNote": {
+    "message": "与 Anthropic 无关的非官方工具。",
+    "description": "标题正下方的无关声明。标题中含有“Claude in Chrome”，容易被误认为官方产品，因此在产生误解的位置直接澄清。"
+  },
+  "refresh": {
+    "message": "重新扫描",
+    "description": "顶部的刷新按钮。"
+  },
+  "loadingProfiles": {
+    "message": "正在查找个人资料…",
+    "description": "加载界面的标题。"
+  },
+  "loadingHint": {
+    "message": "正在扫描这台电脑上的浏览器个人资料。",
+    "description": "加载界面的辅助说明。"
+  },
+  "cancelScan": {
+    "message": "停止",
+    "description": "加载界面的停止按钮，是某个读取卡住时的退路。"
+  },
+  "needFileAccessTitle": {
+    "message": "需要文件网址访问权限",
+    "description": "文件访问开关关闭时显示的标题。"
+  },
+  "needFileAccessWhy": {
+    "message": "bridgeDeviceId 保存在 Chrome 个人资料文件夹中。要读取该文件，需要开启“允许访问文件网址”。",
+    "description": "说明为什么需要此权限。"
+  },
+  "howToTitle": {
+    "message": "开启方法",
+    "description": "步骤说明的标题。"
+  },
+  "howToStep1": {
+    "message": "点击下方按钮，打开本扩展程序的详情页面。",
+    "description": "第 1 步。"
+  },
+  "howToStep2": {
+    "message": "开启“允许访问文件网址”。",
+    "description": "第 2 步。"
+  },
+  "howToStep3": {
+    "message": "重新打开此弹窗。",
+    "description": "第 3 步。"
+  },
+  "needFileAccessNote": {
+    "message": "开启该开关后，Chrome 会重新加载扩展程序，当前打开的这个弹窗会随即关闭。无需重启浏览器，重新打开弹窗即可正常使用。",
+    "description": "说明该开关会重新加载扩展程序。"
+  },
+  "openExtensionsPage": {
+    "message": "打开扩展程序详情",
+    "description": "跳转到 chrome://extensions 的按钮。"
+  },
+  "copyUrl": {
+    "message": "复制地址",
+    "description": "复制 chrome://extensions 地址的按钮。"
+  },
+  "urlCopyHint": {
+    "message": "点击按钮后此弹窗会关闭。也可以复制地址，粘贴到新标签页打开。",
+    "description": "复制地址按钮旁的说明。"
+  },
+  "currentProfile": {
+    "message": "当前个人资料",
+    "description": "当前个人资料卡片上方的区块标题。"
+  },
+  "otherProfiles": {
+    "message": "这台电脑上的其他个人资料",
+    "description": "其余个人资料列表的区块标题。"
+  },
+  "foundProfiles": {
+    "message": "在这台电脑上找到的个人资料",
+    "description": "未能识别当前个人资料时列表的区块标题。该列表中也包含当前个人资料。"
+  },
+  "badgeCurrent": {
+    "message": "当前",
+    "description": "当前个人资料卡片上的徽章。"
+  },
+  "deviceIdLabel": {
+    "message": "bridgeDeviceId",
+    "description": "UUID 上方的标签。请勿翻译。"
+  },
+  "pairingNameLabel": {
+    "message": "配对名称",
+    "description": "bridgeDisplayName 的标签。"
+  },
+  "clickToCopy": {
+    "message": "点击即可复制",
+    "description": "UUID 按钮的提示文字。"
+  },
+  "copy": {
+    "message": "复制",
+    "description": "复制按钮。"
+  },
+  "copied": {
+    "message": "已复制",
+    "description": "复制成功的反馈。"
+  },
+  "copyFailed": {
+    "message": "复制失败，请手动选中文本后复制。",
+    "description": "复制失败的反馈。"
+  },
+  "copyDeviceIdAria": {
+    "message": "复制 bridgeDeviceId",
+    "description": "当前个人资料 UUID 按钮的屏幕阅读器名称。"
+  },
+  "copyOfAria": {
+    "message": "复制个人资料 $PROFILE$ 的 bridgeDeviceId",
+    "description": "列表行复制按钮的屏幕阅读器名称。",
+    "placeholders": {
+      "profile": {
+        "content": "$1",
+        "example": "Work"
+      }
+    }
+  },
+  "unnamedProfile": {
+    "message": "未命名的个人资料",
+    "description": "无法读取个人资料名称时显示。"
+  },
+  "notPaired": {
+    "message": "尚未配对",
+    "description": "已安装 Claude 扩展程序但没有 bridgeDeviceId 时显示。"
+  },
+  "notPairedHint": {
+    "message": "在 Claude 扩展程序中将此浏览器与 Claude Code 连接一次，即可生成 ID。",
+    "description": "未配对状态的说明。"
+  },
+  "claudeNotInstalled": {
+    "message": "此个人资料中没有 Claude 扩展程序",
+    "description": "Local Extension Settings 中没有对应扩展程序文件夹时显示。"
+  },
+  "claudeNotInstalledHint": {
+    "message": "在此个人资料中安装 Claude in Chrome 后，ID 就会显示在这里。",
+    "description": "未安装状态的说明。"
+  },
+  "profileUnreadable": {
+    "message": "无法读取此个人资料文件夹",
+    "description": "无法读取个人资料列表、因而无法判断是否安装了扩展程序时显示。"
+  },
+  "profileUnreadableHint": {
+    "message": "由于无法读取文件夹，无法确定是否安装了 Claude 扩展程序。请查看下方的记录。",
+    "description": "读取失败状态的说明。"
+  },
+  "pairingUnknown": {
+    "message": "无法确定配对状态",
+    "description": "能看到 Claude 扩展程序文件夹但无法读取其中的存储时显示。不能与“尚未配对”混为一谈。"
+  },
+  "pairingUnknownHint": {
+    "message": "无法读取 Claude 扩展程序的存储，有可能已经配对。请试试“重新扫描”。",
+    "description": "配对状态未知时的说明。"
+  },
+  "selfNotFoundTitle": {
+    "message": "未能找到当前个人资料",
+    "description": "nonce 往返失败时的标题。"
+  },
+  "selfNotFoundHint": {
+    "message": "请在下方列表中自行查找。当某个个人资料文件夹无法读取时可能出现这种情况。",
+    "description": "未检测到当前个人资料时的说明。"
+  },
+  "noProfilesTitle": {
+    "message": "没有找到任何浏览器个人资料",
+    "description": "个人资料枚举结果为空时的标题。"
+  },
+  "noProfilesHint": {
+    "message": "请确认浏览器安装在默认位置。找不到以自定义 --user-data-dir 启动的浏览器。",
+    "description": "没有个人资料时的说明。此界面只会在确认文件网址访问已开启之后出现，因此不能让用户去检查那个开关（用户切换开关只会重新加载扩展程序，解决不了任何问题）。"
+  },
+  "scanCutShortTitle": {
+    "message": "扫描未能完成",
+    "description": "超出时间预算或被用户中途停止、一个个人资料都没有统计到时显示。这与“一个都没找到”是不同的状态。"
+  },
+  "scanCutShortHint": {
+    "message": "扫描在清点个人资料的过程中停止了，因此没有结果。请试试“重新扫描”。",
+    "description": "扫描中断时的说明。"
+  },
+  "noOtherProfiles": {
+    "message": "没有其他个人资料。",
+    "description": "只有当前这一个个人资料时显示。"
+  },
+  "statusScanned": {
+    "message": "扫描完成。当前个人资料是 $PROFILE$，另外还有 $COUNT$ 个个人资料。",
+    "description": "扫描结束时读给屏幕阅读器的摘要。",
+    "placeholders": {
+      "profile": {
+        "content": "$1",
+        "example": "Work"
+      },
+      "count": {
+        "content": "$2",
+        "example": "2"
+      }
+    }
+  },
+  "statusScannedNoSelf": {
+    "message": "扫描完成。未能找到当前个人资料，共找到 $COUNT$ 个个人资料。",
+    "description": "自我检测失败时的摘要。",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "errorTitle": {
+    "message": "出了点问题",
+    "description": "致命错误界面的标题。"
+  },
+  "errorHint": {
+    "message": "请点击“重试”。如果仍然失败，请复制下方内容并反馈到项目页面。",
+    "description": "错误界面的说明。"
+  },
+  "retry": {
+    "message": "重试",
+    "description": "错误界面的重试按钮。"
+  },
+  "copyErrorDetails": {
+    "message": "复制内容",
+    "description": "错误界面上复制诊断信息的按钮。"
+  },
+  "warnSelfDetect": {
+    "message": "查找当前个人资料时出了问题：$DETAIL$",
+    "description": "自我检测失败时留在警告列表中的记录。",
+    "placeholders": {
+      "detail": {
+        "content": "$1",
+        "example": "Failed to fetch"
+      }
+    }
+  },
+  "warnScanTimeout": {
+    "message": "没能在时间内读取完毕，可能有个人资料被遗漏。请试试“重新扫描”。",
+    "description": "超出总时间预算或被用户中途停止时显示。"
+  },
+  "warnStorageUnavailable": {
+    "message": "无法使用 chrome.storage.local，因此无法显示当前个人资料。manifest.json 的 \"permissions\" 中必须包含 \"storage\"。",
+    "description": "缺少 storage 权限时显示。"
+  },
+  "warnNoExtensionContext": {
+    "message": "无法读取 chrome.runtime.id，当前不是扩展程序上下文。",
+    "description": "在扩展程序之外打开弹窗文档时显示。"
+  },
+  "warnProfileUnreadable": {
+    "message": "无法读取文件夹 $PATH$，无法确定此个人资料中是否安装了扩展程序。",
+    "description": "无法读取个人资料目录列表时显示。",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      }
+    }
+  },
+  "warnDirUnreadable": {
+    "message": "无法读取文件夹 $PATH$。",
+    "description": "无法读取子目录列表时显示。",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      }
+    }
+  },
+  "warnNoLevelDbFiles": {
+    "message": "$PATH$ 中没有 LevelDB 文件（*.ldb、*.sst、*.log）。",
+    "description": "存储目录存在但里面是空的时显示。",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      }
+    }
+  },
+  "warnLevelDbUnreadable": {
+    "message": "无法读取 $PATH$ 中的 LevelDB（$DETAIL$）。",
+    "description": "解析器整体失败时显示。",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "cannot read file:///..."
+      }
+    }
+  },
+  "warnParserNote": {
+    "message": "$PATH$：$DETAIL$",
+    "description": "LevelDB 解析器留下的记录。正文是解析器生成的英文诊断字符串，不翻译。",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "CURRENT is missing; scanning every table and log"
+      }
+    }
+  },
+  "warnProfileRead": {
+    "message": "读取 $PATH$ 时出了问题：$DETAIL$",
+    "description": "读取某个个人资料的过程中抛出异常时显示。",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Failed to fetch"
+      }
+    }
+  },
+  "warnLocalState": {
+    "message": "无法读取 $PATH$ 中的 Local State：$DETAIL$",
+    "description": "无法读取保存个人资料名称和邮箱的文件时显示。",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Failed to fetch"
+      }
+    }
+  },
+  "warnBadJson": {
+    "message": "$KEY$ 不是有效的 JSON（$DETAIL$）：$VALUE$",
+    "description": "磁盘上的值无法解析为 JSON 时显示。",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Unexpected token"
+      },
+      "value": {
+        "content": "$3",
+        "example": "not-json"
+      }
+    }
+  },
+  "warnBadJsonRaw": {
+    "message": "$KEY$ 不是有效的 JSON（$DETAIL$），将直接使用原始值。",
+    "description": "JSON 已损坏但值看起来像 UUID、于是原样使用时显示。",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Unexpected token"
+      }
+    }
+  },
+  "warnNotUuid": {
+    "message": "$KEY$ 看起来不像 UUID：$VALUE$",
+    "description": "读到了值但不是 UUID 形态时显示。",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "value": {
+        "content": "$2",
+        "example": "nope"
+      }
+    }
+  },
+  "warnNotJsonString": {
+    "message": "$KEY$ 不是 JSON 字符串：$VALUE$",
+    "description": "值是其他 JSON 类型时显示。",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "value": {
+        "content": "$2",
+        "example": "123"
+      }
+    }
+  },
+  "warningsTitle": {
+    "message": "扫描过程中的记录",
+    "description": "展开警告列表的 <details> 标题。"
+  },
+  "privacyNote": {
+    "message": "只读取这台电脑上的文件，不会向任何地方发送数据。",
+    "description": "弹窗底部的脚注。"
+  },
+  "sourceCode": {
+    "message": "在 GitHub 查看源代码",
+    "description": "页脚 GitHub 链接的提示文字和无障碍名称。"
+  }
+}

@@ -9,7 +9,7 @@
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20웹%20스토어-설치하기-D97757?style=flat-square&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea)
 [![license MIT](https://img.shields.io/badge/license-MIT-555?style=flat-square)](LICENSE)
 [![dependencies 0](https://img.shields.io/badge/dependencies-0-555?style=flat-square)](package.json)
-[![tests 341](https://img.shields.io/badge/tests-341-3F8F72?style=flat-square)](test)
+[![tests 342](https://img.shields.io/badge/tests-342-3F8F72?style=flat-square)](test)
 
 <img src="docs/images/hero.png" width="820" alt="선택창에는 UUID 만 뜨지만 cici 는 어느 프로필인지 알려준다">
 
@@ -57,6 +57,9 @@ cici 는 그 한 가지 질문에만 답한다. **어느 UUID 가 어느 프로�
 
 저장소를 받아 직접 빌드할 필요 없다. 스토어에서 설치하면 크롬이 업데이트도
 알아서 해 준다.
+
+팝업은 **한국어·영어·중국어(간체)** 로 나온다. 크롬 UI 언어를 따르고,
+그 밖의 언어에서는 영어가 뜬다.
 
 ### 2. 파일 URL 접근 켜기
 
