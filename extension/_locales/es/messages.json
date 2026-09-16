@@ -202,7 +202,7 @@
     "description": "Cuando el único perfil es el actual."
   },
   "statusScanned": {
-    "message": "Análisis terminado. Perfil actual: $PROFILE$. Perfiles adicionales: $COUNT$.",
+    "message": "Análisis terminado. Perfil actual: $PROFILE$. Otros perfiles: $COUNT$.",
     "description": "Resumen leído por el lector de pantalla al terminar el análisis.",
     "placeholders": {
       "profile": {

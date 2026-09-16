@@ -75,7 +75,7 @@ résultats.
 
 1. Ouvrez `chrome://extensions`
 2. cici → **Détails**
-3. Activez **« Autoriser l’accès aux URL de fichier »**
+3. Activez **« Autoriser l'accès aux URL de fichier »**
 4. Cliquez sur l’icône de la barre d’outils
 
 > Activer ce réglage fait recharger l’extension par Chrome, ce qui ferme le pop-up. Ce n’est

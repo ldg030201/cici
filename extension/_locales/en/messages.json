@@ -202,7 +202,7 @@
     "description": "Shown when the current profile is the only one."
   },
   "statusScanned": {
-    "message": "Scan finished. The current profile is $PROFILE$, and there are $COUNT$ other profiles.",
+    "message": "Scan finished. Current profile: $PROFILE$. Other profiles: $COUNT$.",
     "description": "Summary read out when the scan finishes.",
     "placeholders": {
       "profile": {
@@ -216,7 +216,7 @@
     }
   },
   "statusScannedNoSelf": {
-    "message": "Scan finished. The current profile could not be identified; $COUNT$ profiles were found.",
+    "message": "Scan finished. The current profile could not be identified. Profiles found: $COUNT$.",
     "description": "Summary when self-detection failed.",
     "placeholders": {
       "count": {

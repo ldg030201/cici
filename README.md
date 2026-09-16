@@ -58,8 +58,8 @@ Pinning it via `/chrome` → **Select browser…** works too. Both need you to k
 
 ### 1. [Install from the Chrome Web Store](https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea)
 
-No need to clone the repository and build anything. Installed from the store, Chrome keeps it
-up to date for you.
+No need to clone the repository and build anything. Install it from the store and Chrome
+keeps it up to date for you.
 
 The popup comes in **eight languages** — English, Korean, Simplified Chinese, Portuguese,
 Japanese, Spanish, German, and French. By default it follows Chrome's UI language (anything

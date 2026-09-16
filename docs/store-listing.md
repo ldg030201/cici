@@ -37,10 +37,10 @@ cici 확장을 크롬 웹스토어에 올릴 때 그대로 붙여 넣을 문구�
 
 매니페스트의 `__MSG_extDesc__` → `messages.json` 의 `extDesc` 가 그대로 쓰인다.
 
-**한국어 (113자)**
+**한국어 (115자)**
 
 ```
-Claude Code 브라우저 선택 목록의 UUID가 어느 크롬 프로필인지 알려줍니다. 현재 프로필의 bridgeDeviceId를 바로 보여줍니다. 비공식 도구이며 Anthropic 과 관계가 없습니다.
+Claude Code 브라우저 선택 목록의 UUID 가 어느 크롬 프로필인지 알려줍니다. 현재 프로필의 bridgeDeviceId 를 바로 보여줍니다. 비공식 도구이며 Anthropic 과 관계가 없습니다.
 ```
 
 **English (127자)**
@@ -143,8 +143,9 @@ cici 는 그 한 가지 질문에만 답합니다. 어느 UUID 가 어느 프로
   브라우저를 재시작할 필요는 없고, 팝업만 다시 열면 바로 동작합니다.
 
 ■ 개인정보
-  · 네트워크 요청을 한 건도 하지 않습니다. 수집·전송·저장하는 데이터가 없습니다.
-  · 이 컴퓨터의 파일을 읽기만 합니다. 아무것도 쓰지 않습니다.
+  · 네트워크 요청을 한 건도 하지 않습니다. 수집·전송하는 데이터가 없습니다.
+  · 이 컴퓨터의 파일을 읽기만 합니다. 다른 확장의 저장소에는 아무것도 쓰지 않으며,
+    확장 자신의 저장소에 남기는 값은 현재 프로필 확인용 난수와 표시 언어 설정 둘뿐입니다.
   · 읽는 대상은 크롬 자신의 프로필 폴더에 있는 확장 저장소(Local Extension Settings)와
     프로필 이름 목록(Local State)뿐입니다. 방문 기록, 쿠키, 비밀번호, 페이지 내용은
     읽지 않고 읽을 수도 없습니다.
@@ -155,7 +156,7 @@ cici 는 그 한 가지 질문에만 답합니다. 어느 UUID 가 어느 프로
   같은 일을 하는 명령줄 도구도 같은 저장소에 있습니다.
 
 ■ 필요 환경
-  Chrome 116 이상. 크로미움 기반 브라우저에서도 동작합니다.
+  Chrome 116 이상. 다른 크로미움 기반 브라우저에서도 동작합니다.
 
 ■ 이 확장과 Anthropic 의 관계
   cici 는 Anthropic 이 만들지 않은 비공식 도구입니다. Anthropic 과 제휴 관계가 없고,
@@ -196,8 +197,10 @@ cici answers that one question only: which UUID belongs to which profile.
   and it works.
 
 ■ Privacy
-  · It makes no network requests at all. It collects, transmits, and stores no data.
-  · It only reads files on this computer. It writes nothing.
+  · It makes no network requests at all. It collects and transmits no data.
+  · It only reads files on this computer. It writes nothing into any other extension's
+    storage; the only values it keeps in its own storage are a random nonce used to find
+    the current profile and your display-language choice.
   · The only things it reads are the extension storage (Local Extension Settings)
     inside Chrome's own profile folder and the list of profile names (Local State).
     It does not — and cannot — read your browsing history, cookies, passwords,
@@ -209,7 +212,7 @@ cici answers that one question only: which UUID belongs to which profile.
   A command-line tool that does the same job lives in the same repository.
 
 ■ Requirements
-  Chrome 116 or later. Also works on Chromium-based browsers.
+  Chrome 116 or later. Also works in other Chromium-based browsers.
 
 ■ This extension and Anthropic
   cici is an unofficial tool that was not made by Anthropic. It is not affiliated
@@ -229,7 +232,7 @@ cici answers that one question only: which UUID belongs to which profile.
   1. 11111111-2222-4333-8444-555555555555
   2. 66666666-7777-4888-8999-aaaaaaaaaaaa
 
-你无从知道哪个是工作用的个人资料、哪个是私人用的个人资料。
+你无从知道哪个是工作用的个人资料，哪个是私人用的个人资料。
 到目前为止，只能在每个个人资料里打开扩展程序的 Service Worker 开发者工具，
 手动输入 chrome.storage.local.get('bridgeDeviceId')。
 
@@ -239,18 +242,19 @@ cici 只回答这一个问题：哪个 UUID 属于哪个个人资料。
   · 当前个人资料的 bridgeDeviceId — 打开弹窗即在最上方大字显示，点击一次即可复制。
   · 配对时输入的名称（如果有）
   · 同一台电脑上其他浏览器个人资料的列表，以及各自的 ID
-  · 尚未配对的个人资料、没有安装 Claude 扩展的个人资料，也会照样区分开来显示
+  · 尚未配对的个人资料、没有安装 Claude 扩展程序的个人资料，也会照样区分开来显示
 
 ■ 安装后还需要一个步骤
-  本扩展会读取 Chrome 个人资料文件夹里的文件。为此，你需要亲自开启
+  本扩展程序会读取 Chrome 个人资料文件夹里的文件。为此，你需要自行开启
   chrome://extensions → cici 详情 → “允许访问文件网址”。
-  这是扩展无法自行开启的设置，所以弹窗会把你引导到那个页面。
-  开启该开关后 Chrome 会重新加载扩展，因此已打开的弹窗会关闭。
+  这是扩展程序无法自行开启的设置，所以弹窗会把你引导到那个页面。
+  开启该开关后 Chrome 会重新加载扩展程序，因此已打开的弹窗会关闭。
   无需重启浏览器，只要重新打开弹窗就能立即使用。
 
 ■ 隐私
-  · 不发出任何网络请求。不收集、不传输、不存储任何数据。
-  · 只读取这台电脑上的文件，不写入任何内容。
+  · 不发出任何网络请求。不收集、不传输任何数据。
+  · 只读取这台电脑上的文件。不向任何其他扩展程序的存储写入内容；它自己的存储中
+    只保存两个值：用于识别当前个人资料的随机数和你选择的显示语言。
   · 读取的对象仅限 Chrome 自己的个人资料文件夹中的扩展存储
     （Local Extension Settings）和个人资料名称列表（Local State）。
     浏览记录、Cookie、密码、页面内容一概不读取，也无法读取。
@@ -261,13 +265,13 @@ cici 只回答这一个问题：哪个 UUID 属于哪个个人资料。
   做同样事情的命令行工具也在同一个仓库里。
 
 ■ 运行环境
-  Chrome 116 及以上。在基于 Chromium 的浏览器上也能运行。
+  Chrome 116 及以上。在其他基于 Chromium 的浏览器上也能运行。
 
-■ 本扩展与 Anthropic 的关系
+■ 本扩展程序与 Anthropic 的关系
   cici 是非官方工具，并非由 Anthropic 开发。它与 Anthropic 没有任何隶属关系，
   也未获得 Anthropic 的认可或赞助。它是由个人制作并公开的开源软件。
-  Claude、Claude Code 和 Claude in Chrome 是 Anthropic 的商标。本扩展只是把
-  Claude in Chrome 扩展已经存储的值读出来展示给用户，不会连接 Anthropic 的任何服务。
+  Claude、Claude Code 和 Claude in Chrome 是 Anthropic 的商标。本扩展程序只是把
+  Claude in Chrome 扩展程序已经存储的值读出来展示给用户，不会连接 Anthropic 的任何服务。
 ```
 
 **Português (Brasil)**
@@ -287,23 +291,25 @@ manualmente.
 O cici responde apenas a essa pergunta: qual UUID pertence a qual perfil.
 
 ■ O que ele mostra
-  · O bridgeDeviceId deste perfil — em letras grandes no topo, assim que você abre o pop-up. Um clique copia o valor.
+  · O bridgeDeviceId deste perfil — em letras grandes no topo, assim que você abre o popup. Um clique copia o valor.
   · O nome digitado no pareamento (se houver)
   · A lista dos outros perfis de navegador do mesmo computador, cada um com o próprio ID
-  · Perfis ainda não pareados e perfis sem a extensão Claude também aparecem, devidamente diferenciados
+  · Perfis ainda não pareados e perfis sem a extensão do Claude também aparecem, devidamente diferenciados
 
 ■ Um passo a mais depois da instalação
   Esta extensão lê arquivos dentro da pasta de perfil do Chrome. Para isso,
   você mesmo precisa ativar chrome://extensions → detalhes do cici →
   "Permitir acesso a URLs de arquivo". Como é uma configuração que a extensão
-  não consegue ativar sozinha, o pop-up guia você até essa página.
-  Ao ativar a opção, o Chrome recarrega a extensão, então o pop-up que estava
-  aberto se fecha. Não é preciso reiniciar o navegador — basta abrir o pop-up
+  não consegue ativar sozinha, o popup guia você até essa página.
+  Ao ativar a opção, o Chrome recarrega a extensão, então o popup que estava
+  aberto se fecha. Não é preciso reiniciar o navegador — basta abrir o popup
   de novo e já funciona.
 
 ■ Privacidade
-  · Não faz nenhuma solicitação de rede. Não coleta, não transmite e não armazena nenhum dado.
-  · Apenas lê arquivos deste computador. Não grava nada.
+  · Não faz nenhuma solicitação de rede. Não coleta nem transmite nenhum dado.
+  · Apenas lê arquivos deste computador. Não grava nada no armazenamento de nenhuma outra
+    extensão; os únicos valores que guarda no próprio armazenamento são um número aleatório
+    usado para identificar o perfil atual e o idioma de exibição que você escolheu.
   · Lê somente o armazenamento de extensões (Local Extension Settings) dentro da
     própria pasta de perfil do Chrome e a lista de nomes de perfil (Local State).
     Histórico de navegação, cookies, senhas e conteúdo de páginas não são lidos —
@@ -315,12 +321,12 @@ O cici responde apenas a essa pergunta: qual UUID pertence a qual perfil.
   Uma ferramenta de linha de comando que faz o mesmo trabalho está no mesmo repositório.
 
 ■ Requisitos
-  Chrome 116 ou superior. Também funciona em navegadores baseados em Chromium.
+  Chrome 116 ou superior. Também funciona em outros navegadores baseados em Chromium.
 
 ■ Esta extensão e a Anthropic
   O cici é uma ferramenta não oficial que não foi criada pela Anthropic. Não tem
   afiliação com a Anthropic e não recebeu endosso nem patrocínio da Anthropic.
-  É um software de código aberto, criado e publicado por um indivíduo.
+  É um software de código aberto, criado e publicado por uma única pessoa.
   Claude, Claude Code e Claude in Chrome são marcas comerciais da Anthropic.
   Esta extensão apenas lê e mostra ao usuário um valor que a extensão
   Claude in Chrome já armazenou; ela não se conecta a nenhum serviço da Anthropic.
@@ -341,7 +347,7 @@ chrome.storage.local.get('bridgeDeviceId') を手で入力するしかありま�
 
 cici はそのひとつの質問だけに答えます。どの UUID がどのプロフィールのものか。
 
-■ 何を表示しますか
+■ 表示される内容
   · 現在のプロフィールの bridgeDeviceId — ポップアップを開くと一番上に大きく表示されます。クリック 1 回でコピーできます。
   · ペアリングのときに入力した名前（ある場合）
   · 同じパソコンのほかのブラウザプロフィールの一覧と、それぞれの ID
@@ -356,8 +362,9 @@ cici はそのひとつの質問だけに答えます。どの UUID がどのプ
   ブラウザを再起動する必要はなく、ポップアップを開き直せばすぐに動きます。
 
 ■ プライバシー
-  · ネットワークリクエストは 1 件も行いません。収集・送信・保存するデータはありません。
-  · このパソコンのファイルを読むだけです。何も書き込みません。
+  · ネットワークリクエストは 1 件も行いません。収集・送信するデータはありません。
+  · このパソコンのファイルを読むだけです。ほかの拡張機能のストレージには何も書き込みません。
+    自分のストレージに保存するのは、現在のプロフィール判定用の乱数と表示言語の設定の 2 つだけです。
   · 読み取る対象は、Chrome 自身のプロフィールフォルダにある拡張機能のストレージ
     (Local Extension Settings) と、プロフィール名の一覧 (Local State) だけです。
     閲覧履歴、Cookie、パスワード、ページの内容は読みませんし、読むこともできません。
@@ -368,11 +375,11 @@ cici はそのひとつの質問だけに答えます。どの UUID がどのプ
   同じことをするコマンドラインツールも同じリポジトリにあります。
 
 ■ 動作環境
-  Chrome 116 以上。Chromium ベースのブラウザでも動作します。
+  Chrome 116 以上。ほかの Chromium ベースのブラウザでも動作します。
 
 ■ この拡張機能と Anthropic の関係
   cici は Anthropic が作ったものではない非公式ツールです。Anthropic との提携関係はなく、
-  Anthropic の保証や後援も受けていません。個人が作って公開したオープンソースです。
+  Anthropic の承認や後援も受けていません。個人が作って公開したオープンソースです。
   Claude、Claude Code、Claude in Chrome は Anthropic の商標です。この拡張機能は、
   Claude in Chrome 拡張機能がすでに保存している値を読み取ってユーザーに表示するだけで、
   Anthropic のサービスには接続しません。
@@ -398,7 +405,7 @@ cici responde solo a esa pregunta: qué UUID pertenece a qué perfil.
   · El bridgeDeviceId de este perfil — en grande, arriba del todo, en cuanto abres la ventana emergente. Un clic lo copia.
   · El nombre que introdujiste al emparejar (si lo hay)
   · La lista de los demás perfiles de navegador del mismo equipo, cada uno con su propio ID
-  · Los perfiles aún no emparejados y los perfiles sin la extensión Claude también aparecen, claramente diferenciados
+  · Los perfiles aún no emparejados y los perfiles sin la extensión de Claude también aparecen, claramente diferenciados
 
 ■ Hace falta un paso más después de la instalación
   Esta extensión lee archivos dentro de la carpeta de perfil de Chrome. Para que
@@ -410,8 +417,10 @@ cici responde solo a esa pregunta: qué UUID pertenece a qué perfil.
   basta con volver a abrir la ventana emergente y ya funciona.
 
 ■ Privacidad
-  · No hace ninguna solicitud de red. No recopila, no transmite ni almacena ningún dato.
-  · Solo lee archivos de este equipo. No escribe nada.
+  · No hace ninguna solicitud de red. No recopila ni transmite ningún dato.
+  · Solo lee archivos de este equipo. No escribe nada en el almacenamiento de ninguna otra
+    extensión; los únicos valores que guarda en su propio almacenamiento son un número
+    aleatorio para identificar el perfil actual y el idioma de visualización que elegiste.
   · Lo único que lee es el almacenamiento de extensiones (Local Extension Settings)
     dentro de la propia carpeta de perfil de Chrome y la lista de nombres de perfil
     (Local State). El historial de navegación, las cookies, las contraseñas y el
@@ -423,7 +432,7 @@ cici responde solo a esa pregunta: qué UUID pertenece a qué perfil.
   En el mismo repositorio hay también una herramienta de línea de comandos que hace el mismo trabajo.
 
 ■ Requisitos
-  Chrome 116 o superior. También funciona en navegadores basados en Chromium.
+  Chrome 116 o superior. También funciona en otros navegadores basados en Chromium.
 
 ■ Esta extensión y Anthropic
   cici es una herramienta no oficial que no fue creada por Anthropic. No está
@@ -468,8 +477,10 @@ cici beantwortet nur diese eine Frage: Welche UUID gehört zu welchem Profil?
   sofort.
 
 ■ Datenschutz
-  · Es werden keinerlei Netzwerkanfragen gestellt. Es werden keine Daten erhoben, übertragen oder gespeichert.
-  · Es werden nur Dateien auf diesem Computer gelesen. Es wird nichts geschrieben.
+  · Es werden keinerlei Netzwerkanfragen gestellt. Es werden keine Daten erhoben oder übertragen.
+  · Es werden nur Dateien auf diesem Computer gelesen. In den Speicher anderer Erweiterungen
+    wird nichts geschrieben; im eigenen Speicher liegen nur zwei Werte – eine Zufallszahl zum
+    Erkennen des aktuellen Profils und die gewählte Anzeigesprache.
   · Gelesen werden ausschließlich der Erweiterungsspeicher (Local Extension
     Settings) im Chrome-eigenen Profilordner und die Liste der Profilnamen
     (Local State). Browserverlauf, Cookies, Passwörter und Seiteninhalte
@@ -481,7 +492,7 @@ cici beantwortet nur diese eine Frage: Welche UUID gehört zu welchem Profil?
   Ein Befehlszeilen-Tool, das dieselbe Aufgabe erledigt, liegt im selben Repository.
 
 ■ Voraussetzungen
-  Chrome 116 oder höher. Funktioniert auch in Chromium-basierten Browsern.
+  Chrome 116 oder höher. Funktioniert auch in anderen Chromium-basierten Browsern.
 
 ■ Diese Erweiterung und Anthropic
   cici ist ein inoffizielles Tool, das nicht von Anthropic entwickelt wurde.
@@ -520,15 +531,17 @@ cici ne répond qu’à cette seule question : quel UUID appartient à quel pr
 ■ Une étape de plus après l’installation
   Cette extension lit des fichiers dans le dossier de profil de Chrome. Pour cela,
   vous devez activer vous-même chrome://extensions → détails de cici →
-  « Autoriser l’accès aux URL de fichier ». Comme c’est un réglage qu’une
+  « Autoriser l'accès aux URL de fichier ». Comme c’est un réglage qu’une
   extension ne peut pas activer seule, le pop-up vous guide jusqu’à cette page.
   Quand vous activez ce réglage, Chrome recharge l’extension, et le pop-up qui
   était ouvert se ferme. Inutile de redémarrer le navigateur — rouvrez
   simplement le pop-up et tout fonctionne.
 
 ■ Confidentialité
-  · Elle n’effectue aucune requête réseau. Elle ne collecte, ne transmet et ne stocke aucune donnée.
-  · Elle ne fait que lire des fichiers de cet ordinateur. Elle n’écrit rien.
+  · Elle n’effectue aucune requête réseau. Elle ne collecte ni ne transmet aucune donnée.
+  · Elle ne fait que lire des fichiers de cet ordinateur. Elle n’écrit rien dans le stockage
+    d’aucune autre extension ; les seules valeurs conservées dans son propre stockage sont
+    un nombre aléatoire servant à identifier le profil actuel et la langue d’affichage choisie.
   · Elle ne lit que le stockage des extensions (Local Extension Settings) situé
     dans le propre dossier de profil de Chrome et la liste des noms de profil
     (Local State). L’historique de navigation, les cookies, les mots de passe
@@ -540,7 +553,7 @@ cici ne répond qu’à cette seule question : quel UUID appartient à quel pr
   Un outil en ligne de commande qui fait le même travail se trouve dans le même dépôt.
 
 ■ Configuration requise
-  Chrome 116 ou version ultérieure. Fonctionne aussi sur les navigateurs basés sur Chromium.
+  Chrome 116 ou version ultérieure. Fonctionne aussi sur les autres navigateurs basés sur Chromium.
 
 ■ Cette extension et Anthropic
   cici est un outil non officiel qui n’a pas été créé par Anthropic. Il n’est

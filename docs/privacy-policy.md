@@ -25,7 +25,8 @@ cici 는 사용자 정보를 수집하지 않습니다. 서버가 없고, 계정
 없습니다.
 
 cici 는 어떤 서버에도 접속하지 않습니다. 확장의 콘텐츠 보안 정책(CSP)은
-`default-src 'self'; connect-src 'self' file:; object-src 'none'` 으로 설정되어 있어,
+`default-src 'self'; connect-src 'self' file:; object-src 'none'` 등으로 설정되어 있어
+(전문은 `extension/manifest.json`),
 원격 주소로의 연결이 코드 수준이 아니라 **브라우저 수준에서 차단**됩니다.
 확장에 담긴 코드는 전부 설치 패키지 안에 있으며 외부에서 내려받는 코드가 없습니다.
 
@@ -58,7 +59,7 @@ cici 는 다음 로컬 파일을 **읽기 전용**으로 읽습니다.
 | `<user-data-dir>/Local State` | 화면에 표시할 프로필 이름과 계정 이메일을 읽기 위해 |
 | `<프로필>/Local Extension Settings/fcoeoabgfenejglbffodgkkbkcdhcgfn/` | Claude in Chrome 확장이 저장해 둔 `bridgeDeviceId` 와 `bridgeDisplayName` 을 읽기 위해 |
 | `<프로필>/Local Extension Settings/<cici 자신의 id>/` | 위 §3 의 난수를 찾아 현재 프로필을 판별하기 위해 |
-| `<프로필>/Extensions/<확장 id>/` | 설치된 Claude 확장의 버전을 읽기 위해 (명령줄 도구) |
+| `<프로필>/Extensions/<확장 id>/` | Claude 확장의 설치 여부를 확인하고(확장·명령줄 도구), 설치된 버전을 읽기 위해(명령줄 도구) |
 
 읽은 값은 화면에 표시하기 위해서만 사용되며, 화면을 닫으면 사라집니다.
 어디에도 축적하거나 기록하지 않습니다.

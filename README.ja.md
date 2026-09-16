@@ -13,7 +13,7 @@
 [![dependencies 0](https://img.shields.io/badge/dependencies-0-555?style=flat-square)](package.json)
 [![tests 347](https://img.shields.io/badge/tests-347-3F8F72?style=flat-square)](test)
 
-<img src="docs/images/hero.png" width="820" alt="選択画面に表示されるのは UUID だけですが、cici はそれぞれがどのプロフィールなのかを教えてくれます">
+<img src="docs/images/hero.png" width="820" alt="選択リストに表示されるのは UUID だけですが、cici はそれぞれがどのプロフィールなのかを教えてくれます">
 
 <sub>非公式ツールです。Anthropic が開発したものではなく、Anthropic とは無関係です。<br>
 Claude、Claude Code、Claude in Chrome は Anthropic の商標です。</sub>
@@ -89,7 +89,7 @@ cici が答えるのは、この一つの質問だけです。**どの UUID が�
 
 拡張機能のインストールはプロフィール単位です。ただしポップアップは**このパソコンのすべての
 プロフィール**を表示するので、1 つのプロフィールにインストールするだけでも全体の一覧は
-見られます。「現在のプロフィール」の表示だけが、ポップアップを開いたプロフィール基準になります。
+見られます。「現在のプロフィール」の表示だけは、ポップアップを開いたプロフィールが基準になります。
 
 ---
 

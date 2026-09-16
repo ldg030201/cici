@@ -4,7 +4,7 @@
 
 # cici
 
-**Claude Code 브라우저 선택창의 UUID 가 어느 크롬 프로필인지 알려 주는 확장**
+**Claude Code 브라우저 선택 목록의 UUID 가 어느 크롬 프로필인지 알려 주는 확장**
 
 <sub>🇰🇷 <b>한국어</b> · 🇺🇸 <a href="README.md">English</a> · 🇨🇳 <a href="README.zh-CN.md">简体中文</a> · 🇧🇷 <a href="README.pt.md">Português</a> · 🇯🇵 <a href="README.ja.md">日本語</a> · 🇪🇸 <a href="README.es.md">Español</a> · 🇩🇪 <a href="README.de.md">Deutsch</a> · 🇫🇷 <a href="README.fr.md">Français</a></sub>
 
@@ -13,7 +13,7 @@
 [![dependencies 0](https://img.shields.io/badge/dependencies-0-555?style=flat-square)](package.json)
 [![tests 347](https://img.shields.io/badge/tests-347-3F8F72?style=flat-square)](test)
 
-<img src="docs/images/hero.png" width="820" alt="선택창에는 UUID 만 뜨지만 cici 는 어느 프로필인지 알려준다">
+<img src="docs/images/hero.png" width="820" alt="선택 목록에는 UUID 만 뜨지만 cici 는 어느 프로필인지 알려 준다">
 
 <sub>비공식 도구다. Anthropic 이 만들지 않았고 Anthropic 과 아무 관계가 없다.<br>
 Claude, Claude Code, Claude in Chrome 은 Anthropic 의 상표다.</sub>
@@ -85,7 +85,7 @@ cici 는 그 한 가지 질문에만 답한다. **어느 UUID 가 어느 프로�
 ### 3. 프로필마다 반복
 
 확장 설치는 프로필 단위다. 다만 팝업은 **이 컴퓨터의 모든 프로필**을 보여 주므로, 한 프로필에만
-설치해도 전체 목록은 볼 수 있다. "지금 이 프로필" 표시가 그 프로필 기준일 뿐이다.
+설치해도 전체 목록은 볼 수 있다. "현재 프로필" 표시가 그 프로필 기준일 뿐이다.
 
 ---
 

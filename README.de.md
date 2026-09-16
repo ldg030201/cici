@@ -100,7 +100,7 @@ Karte „Aktuelles Profil“ bezieht sich auf das Profil, in dem das Pop-up geö
 
 * **Null Netzwerkanfragen.** Die CSP ist auf `connect-src 'self' file:` festgelegt, Verbindungen
   nach außen sind damit strukturell unmöglich.
-* **Nur lesend.** Das LevelDB-`LOCK` wird nie belegt; auch bei laufendem Browser ist das Lesen
+* **Nur lesend.** Das LevelDB-`LOCK` wird nie gesetzt; auch bei laufendem Browser ist das Lesen
   daher sicher.
 * **Nichts wird gesammelt, gesendet oder gespeichert.** Gelesene Werte werden angezeigt – das
   ist alles.

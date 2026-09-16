@@ -59,8 +59,8 @@ conocer el UUID.
 
 ### 1. [Instálala desde Chrome Web Store](https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea)
 
-No hace falta clonar el repositorio ni compilar nada. Instalada desde la tienda, Chrome se
-encarga de mantenerla actualizada.
+No hace falta clonar el repositorio ni compilar nada. Una vez instalada desde la tienda, Chrome
+se encarga de mantenerla actualizada.
 
 La ventana emergente está disponible en **ocho idiomas**: español, inglés, coreano, chino
 simplificado, portugués, japonés, alemán y francés. De forma predeterminada sigue el idioma de

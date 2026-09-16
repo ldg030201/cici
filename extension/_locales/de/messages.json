@@ -48,7 +48,7 @@
     "description": "Titel, wenn der Schalter für den Dateizugriff ausgeschaltet ist."
   },
   "needFileAccessWhy": {
-    "message": "Die bridgeDeviceId liegt im Chrome-Profilordner. Um diese Datei zu lesen, muss „Zugriff auf Datei-URLs zulassen“ aktiviert sein.",
+    "message": "Die bridgeDeviceId liegt in einer Datei im Chrome-Profilordner. Um diese Datei zu lesen, muss „Zugriff auf Datei-URLs zulassen“ aktiviert sein.",
     "description": "Begründung, warum die Berechtigung nötig ist."
   },
   "howToTitle": {

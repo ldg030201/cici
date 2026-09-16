@@ -48,7 +48,7 @@
     "description": "Titre affiché quand l’accès aux URL de fichier est désactivé."
   },
   "needFileAccessWhy": {
-    "message": "Le bridgeDeviceId est stocké dans le dossier du profil Chrome. Pour lire ce fichier, il faut activer « Autoriser l’accès aux URL de fichier ».",
+    "message": "Le bridgeDeviceId est stocké dans le dossier du profil Chrome. Pour lire ce fichier, il faut activer « Autoriser l'accès aux URL de fichier ».",
     "description": "Pourquoi la permission est nécessaire."
   },
   "howToTitle": {
@@ -60,7 +60,7 @@
     "description": "Étape 1."
   },
   "howToStep2": {
-    "message": "Activez « Autoriser l’accès aux URL de fichier ».",
+    "message": "Activez « Autoriser l'accès aux URL de fichier ».",
     "description": "Étape 2."
   },
   "howToStep3": {
