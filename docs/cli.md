@@ -2,7 +2,7 @@
 
 터미널에서 모든 프로필의 `bridgeDeviceId` 를 한 번에 보는 방법.
 
-[← README 로 돌아가기](../README.md)
+[← README 로 돌아가기](../README.ko.md)
 
 ---
 

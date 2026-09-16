@@ -6,17 +6,18 @@
 
 **Tells you which Chrome profile owns each UUID in Claude Code's browser picker**
 
+<sub>🇰🇷 <a href="README.ko.md">한국어</a> · 🇺🇸 <b>English</b> · 🇨🇳 <a href="README.zh-CN.md">简体中文</a> · 🇧🇷 <a href="README.pt.md">Português</a></sub>
+
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Install-D97757?style=flat-square&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea)
 [![license MIT](https://img.shields.io/badge/license-MIT-555?style=flat-square)](LICENSE)
 [![dependencies 0](https://img.shields.io/badge/dependencies-0-555?style=flat-square)](package.json)
-[![tests 342](https://img.shields.io/badge/tests-342-3F8F72?style=flat-square)](test)
+[![tests 347](https://img.shields.io/badge/tests-347-3F8F72?style=flat-square)](test)
 
 <img src="docs/images/hero.png" width="820" alt="The picker shows nothing but UUIDs; cici tells you which profile each one is">
 
 <sub>An unofficial tool. Not made by Anthropic, not affiliated with Anthropic.<br>
 Claude, Claude Code, and Claude in Chrome are trademarks of Anthropic.</sub>
 
-<sub>[한국어 README](README.md) is the primary document; this is its English translation.</sub>
 
 </div>
 
@@ -60,8 +61,9 @@ Pinning it via `/chrome` → **Select browser…** works too. Both need you to k
 No need to clone the repository and build anything. Installed from the store, Chrome keeps it
 up to date for you.
 
-The popup comes in **English, Korean, and Simplified Chinese.** It follows Chrome's UI
-language; any other language falls back to English.
+The popup comes in **English, Korean, Simplified Chinese, and Portuguese.** By default it
+follows Chrome's UI language (anything else falls back to English), and the popup header has
+a menu to switch it directly.
 
 ### 2. Turn on file URL access
 
@@ -94,8 +96,9 @@ profile you opened it in.
   connections are structurally impossible.
 * **Read-only.** It never takes the LevelDB `LOCK`, so it is safe while the browser is running.
 * **Nothing collected, sent, or stored.** Values are rendered on screen and that is all.
-* The only thing it ever writes is one random nonce (`__cici_nonce`) into **its own** storage.
-  It writes not a single byte into any other extension's storage.
+* The only things it ever writes are one random nonce (`__cici_nonce`) and your display
+  language choice, both into **its own** storage. It writes not a single byte into any other
+  extension's storage.
 
 Full text: [`docs/privacy-policy.md`](docs/privacy-policy.md).
 

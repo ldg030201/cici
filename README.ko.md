@@ -6,15 +6,18 @@
 
 **Claude Code 브라우저 선택창의 UUID 가 어느 크롬 프로필인지 알려 주는 확장**
 
+<sub>🇰🇷 <b>한국어</b> · 🇺🇸 <a href="README.md">English</a> · 🇨🇳 <a href="README.zh-CN.md">简体中文</a> · 🇧🇷 <a href="README.pt.md">Português</a></sub>
+
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20웹%20스토어-설치하기-D97757?style=flat-square&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea)
 [![license MIT](https://img.shields.io/badge/license-MIT-555?style=flat-square)](LICENSE)
 [![dependencies 0](https://img.shields.io/badge/dependencies-0-555?style=flat-square)](package.json)
-[![tests 342](https://img.shields.io/badge/tests-342-3F8F72?style=flat-square)](test)
+[![tests 347](https://img.shields.io/badge/tests-347-3F8F72?style=flat-square)](test)
 
 <img src="docs/images/hero.png" width="820" alt="선택창에는 UUID 만 뜨지만 cici 는 어느 프로필인지 알려준다">
 
 <sub>비공식 도구다. Anthropic 이 만들지 않았고 Anthropic 과 아무 관계가 없다.<br>
 Claude, Claude Code, Claude in Chrome 은 Anthropic 의 상표다.</sub>
+
 
 </div>
 
@@ -58,8 +61,8 @@ cici 는 그 한 가지 질문에만 답한다. **어느 UUID 가 어느 프로�
 저장소를 받아 직접 빌드할 필요 없다. 스토어에서 설치하면 크롬이 업데이트도
 알아서 해 준다.
 
-팝업은 **한국어·영어·중국어(간체)** 로 나온다. 크롬 UI 언어를 따르고,
-그 밖의 언어에서는 영어가 뜬다.
+팝업은 **한국어·영어·중국어(간체)·포르투갈어**로 나온다. 기본으로는 크롬 UI
+언어를 따르고(그 밖의 언어는 영어), 팝업 헤더의 언어 메뉴에서 직접 바꿀 수도 있다.
 
 ### 2. 파일 URL 접근 켜기
 
@@ -90,8 +93,8 @@ cici 는 그 한 가지 질문에만 답한다. **어느 UUID 가 어느 프로�
 * **네트워크 요청 0건.** CSP 가 `connect-src 'self' file:` 로 묶여 있어 원격 연결 자체가 불가능하다.
 * **읽기 전용.** LevelDB `LOCK` 을 잡지 않으므로 브라우저가 켜져 있어도 안전하다.
 * **수집·전송·저장 없음.** 읽은 값은 화면에 뿌리고 끝난다.
-* 확장이 쓰는 것은 **자기 자신의** 난수(`__cici_nonce`) 하나뿐이다. 다른 확장의 저장소에는
-  한 바이트도 쓰지 않는다.
+* 확장이 **자기 자신의** 저장소에 쓰는 것은 난수(`__cici_nonce`)와 표시 언어 설정,
+  둘뿐이다. 다른 확장의 저장소에는 한 바이트도 쓰지 않는다.
 
 전문은 [`docs/privacy-policy.md`](docs/privacy-policy.md).
 
@@ -108,7 +111,6 @@ cici 는 그 한 가지 질문에만 답한다. **어느 UUID 가 어느 프로�
 | [개발](docs/development.md) | 저장소를 받아서 고치기 |
 | [배포](docs/release.md) | 새 버전을 스토어에 올리는 절차(메인테이너용) |
 | [개인정보 처리방침](docs/privacy-policy.md) | 전문 |
-| [English](README.en.md) | 영어판 |
 
 ---
 

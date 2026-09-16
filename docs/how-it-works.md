@@ -2,7 +2,7 @@
 
 값이 어디에 있고, 확장이 자기 프로필을 어떻게 알아내고, 무엇을 못 하는지.
 
-[← README 로 돌아가기](../README.md)
+[← README 로 돌아가기](../README.ko.md)
 
 ---
 
@@ -58,7 +58,7 @@ cici 는 `CURRENT` → `MANIFEST` 재생 → 살아 있는 `.ldb` + `.log` 순�
 
 열려 있는 문은 하나뿐이다. `host_permissions: ["file:///*"]` + 사용자가 직접 켜는 파일 URL 접근 토글.
 그래서 확장이 이렇게 생겼다. 어느 문을 어떻게 두드렸고 무엇으로 확인했는지는
-[`docs/why.ko.md`](docs/why.ko.md) 에 근거와 함께 적어 두었다. ([English](docs/why.md))
+[`docs/why.ko.md`](why.ko.md) 에 근거와 함께 적어 두었다. ([English](why.md))
 
 ---
 

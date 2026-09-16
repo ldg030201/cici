@@ -6,7 +6,7 @@
 > [Chrome 웹 스토어](https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea)
 > 에서 설치하면 된다. 이 문서는 코드를 고치려는 사람을 위한 것이다.
 
-[← README 로 돌아가기](../README.md)
+[← README 로 돌아가기](../README.ko.md)
 
 ---
 
