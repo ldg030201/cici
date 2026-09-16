@@ -8,8 +8,17 @@
  * 구별할 수 없는 바로 그 에러다).
  */
 
+import { webcrypto } from 'node:crypto';
+
 import { decodeUtf8, resetDirCache } from '../../extension/lib/fileurl.js';
 import { buildLogFile, TYPE_VALUE } from './leveldb-writer.js';
+
+// Node 18 에는 전역 crypto 가 없다(19부터 생겼다). 확장 페이지는 언제나 보안
+// 컨텍스트라 전역 crypto 를 전제하므로(lib/locate.js 의 randomUuid), 브라우저
+// 흉내의 일부로 여기서 채운다. locate.js 는 호출 시점에만 전역을 읽으니
+// import 순서는 상관없다. Node 19+ 에서는 전역 crypto 가 getter 전용이라
+// 대입이 던진다 — 없을 때만 채우는 이 가드가 곧 안전 장치다.
+if (globalThis.crypto === undefined) globalThis.crypto = webcrypto;
 
 /**
  * 전역 속성을 잠깐 갈아 끼운다.
