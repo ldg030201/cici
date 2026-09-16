@@ -13,7 +13,7 @@
 [![dependencies 0](https://img.shields.io/badge/dependencies-0-555?style=flat-square)](package.json)
 [![tests 347](https://img.shields.io/badge/tests-347-3F8F72?style=flat-square)](test)
 
-<img src="docs/images/hero.png" width="820" alt="選択リストに表示されるのは UUID だけですが、cici はそれぞれがどのプロフィールなのかを教えてくれます">
+<img src="docs/images/hero-ja.png" width="820" alt="選択リストに表示されるのは UUID だけですが、cici はそれぞれがどのプロフィールなのかを教えてくれます">
 
 <sub>非公式ツールです。Anthropic が開発したものではなく、Anthropic とは無関係です。<br>
 Claude、Claude Code、Claude in Chrome は Anthropic の商標です。</sub>
@@ -41,7 +41,7 @@ Claude Code はどのブラウザを使うか尋ねてきますが、**手がか
 cici が答えるのは、この一つの質問だけです。**どの UUID がどのプロフィールのものか。**
 
 <div align="center">
-<img src="docs/images/popup.png" width="360" alt="cici のポップアップ — 現在のプロフィールの ID が一番上に、その下にほかのプロフィール">
+<img src="docs/images/popup-ja.png" width="360" alt="cici のポップアップ — 現在のプロフィールの ID が一番上に、その下にほかのプロフィール">
 </div>
 
 ### 一度覚えれば、毎回選ばずにすみます

@@ -13,7 +13,7 @@
 [![dependencies 0](https://img.shields.io/badge/dependencies-0-555?style=flat-square)](package.json)
 [![tests 347](https://img.shields.io/badge/tests-347-3F8F72?style=flat-square)](test)
 
-<img src="docs/images/hero.png" width="820" alt="Le sélecteur n’affiche que des UUID ; cici indique à quel profil correspond chacun">
+<img src="docs/images/hero-fr.png" width="820" alt="Le sélecteur n’affiche que des UUID ; cici indique à quel profil correspond chacun">
 
 <sub>Outil non officiel. Il n’a pas été créé par Anthropic et n’a aucun lien avec Anthropic.<br>
 Claude, Claude Code et Claude in Chrome sont des marques d’Anthropic.</sub>
@@ -42,7 +42,7 @@ ou l’inverse.
 cici répond exactement à cette seule question : **quel UUID appartient à quel profil.**
 
 <div align="center">
-<img src="docs/images/popup.png" width="360" alt="Le pop-up de cici — l’ID du profil actuel en haut, les autres profils en dessous">
+<img src="docs/images/popup-fr.png" width="360" alt="Le pop-up de cici — l’ID du profil actuel en haut, les autres profils en dessous">
 </div>
 
 ### Une fois l’UUID connu, plus besoin de choisir

@@ -13,7 +13,7 @@
 [![dependencies 0](https://img.shields.io/badge/dependencies-0-555?style=flat-square)](package.json)
 [![tests 347](https://img.shields.io/badge/tests-347-3F8F72?style=flat-square)](test)
 
-<img src="docs/images/hero.png" width="820" alt="O seletor mostra apenas UUIDs; o cici diz qual perfil é cada um">
+<img src="docs/images/hero-pt.png" width="820" alt="O seletor mostra apenas UUIDs; o cici diz qual perfil é cada um">
 
 <sub>Ferramenta não oficial. Não foi feita pela Anthropic e não tem vínculo com a Anthropic.<br>
 Claude, Claude Code e Claude in Chrome são marcas comerciais da Anthropic.</sub>
@@ -41,7 +41,7 @@ conta da empresa e o navegador pessoal aparece — ou o contrário.
 O cici responde exatamente a essa única pergunta: **qual UUID pertence a qual perfil.**
 
 <div align="center">
-<img src="docs/images/popup.png" width="360" alt="O popup do cici — o ID do perfil atual no topo, os demais perfis abaixo">
+<img src="docs/images/popup-pt.png" width="360" alt="O popup do cici — o ID do perfil atual no topo, os demais perfis abaixo">
 </div>
 
 ### Descubra uma vez e pare de escolher

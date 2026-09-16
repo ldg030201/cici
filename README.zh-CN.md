@@ -13,7 +13,7 @@
 [![dependencies 0](https://img.shields.io/badge/dependencies-0-555?style=flat-square)](package.json)
 [![tests 347](https://img.shields.io/badge/tests-347-3F8F72?style=flat-square)](test)
 
-<img src="docs/images/hero.png" width="820" alt="选择列表里只显示 UUID，cici 会告诉你每个 UUID 对应哪个个人资料">
+<img src="docs/images/hero-zh-CN.png" width="820" alt="选择列表里只显示 UUID，cici 会告诉你每个 UUID 对应哪个个人资料">
 
 <sub>这是一个非官方工具，并非由 Anthropic 开发，与 Anthropic 没有任何关系。<br>
 Claude、Claude Code 和 Claude in Chrome 是 Anthropic 的商标。</sub>
@@ -41,7 +41,7 @@ Claude、Claude Code 和 Claude in Chrome 是 Anthropic 的商标。</sub>
 cici 只回答这一个问题：**哪个 UUID 对应哪个个人资料。**
 
 <div align="center">
-<img src="docs/images/popup.png" width="360" alt="cici 弹窗——当前个人资料的 ID 在最上方，其他个人资料在下方">
+<img src="docs/images/popup-zh-CN.png" width="360" alt="cici 弹窗——当前个人资料的 ID 在最上方，其他个人资料在下方">
 </div>
 
 ### 记住一次，就不用每次都选

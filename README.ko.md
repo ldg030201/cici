@@ -13,7 +13,7 @@
 [![dependencies 0](https://img.shields.io/badge/dependencies-0-555?style=flat-square)](package.json)
 [![tests 347](https://img.shields.io/badge/tests-347-3F8F72?style=flat-square)](test)
 
-<img src="docs/images/hero.png" width="820" alt="선택 목록에는 UUID 만 뜨지만 cici 는 어느 프로필인지 알려 준다">
+<img src="docs/images/hero-ko.png" width="820" alt="선택 목록에는 UUID 만 뜨지만 cici 는 어느 프로필인지 알려 준다">
 
 <sub>비공식 도구다. Anthropic 이 만들지 않았고 Anthropic 과 아무 관계가 없다.<br>
 Claude, Claude Code, Claude in Chrome 은 Anthropic 의 상표다.</sub>
@@ -41,7 +41,7 @@ Claude, Claude Code, Claude in Chrome 은 Anthropic 의 상표다.</sub>
 cici 는 그 한 가지 질문에만 답한다. **어느 UUID 가 어느 프로필인가.**
 
 <div align="center">
-<img src="docs/images/popup.png" width="360" alt="cici 팝업 — 현재 프로필의 ID 가 맨 위에, 아래에 다른 프로필들">
+<img src="docs/images/popup-ko.png" width="360" alt="cici 팝업 — 현재 프로필의 ID 가 맨 위에, 아래에 다른 프로필들">
 </div>
 
 ### 한 번 알면 매번 안 골라도 된다

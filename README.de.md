@@ -13,7 +13,7 @@
 [![dependencies 0](https://img.shields.io/badge/dependencies-0-555?style=flat-square)](package.json)
 [![tests 347](https://img.shields.io/badge/tests-347-3F8F72?style=flat-square)](test)
 
-<img src="docs/images/hero.png" width="820" alt="Die Auswahl zeigt nur UUIDs – cici zeigt, welches Profil dahintersteckt">
+<img src="docs/images/hero-de.png" width="820" alt="Die Auswahl zeigt nur UUIDs – cici zeigt, welches Profil dahintersteckt">
 
 <sub>Ein inoffizielles Tool. Nicht von Anthropic entwickelt, in keiner Verbindung zu Anthropic.<br>
 Claude, Claude Code und Claude in Chrome sind Marken von Anthropic.</sub>
@@ -42,7 +42,7 @@ Eigentlich sollte es das Firmenkonto sein, doch der private Browser geht auf –
 cici beantwortet genau diese eine Frage: **welche UUID zu welchem Profil gehört.**
 
 <div align="center">
-<img src="docs/images/popup.png" width="360" alt="Das cici-Pop-up – die ID des aktuellen Profils oben, darunter die übrigen Profile">
+<img src="docs/images/popup-de.png" width="360" alt="Das cici-Pop-up – die ID des aktuellen Profils oben, darunter die übrigen Profile">
 </div>
 
 ### Einmal nachschlagen, nie wieder auswählen
