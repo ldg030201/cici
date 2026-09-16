@@ -1,0 +1,5 @@
+# 저장소도 작업 트리도 줄 끝은 LF 로 통일한다. Windows 러너는 core.autocrlf=true
+# 라서 체크아웃 때 텍스트 파일을 CRLF 로 바꾸는데, 그러면 extension/lib 복사본
+# 검사와 자동 생성 헤더 검사(둘 다 바이트 단위 문자열 비교)가 깨진다.
+# text=auto 이므로 바이너리로 판정되는 파일(테스트 픽스처 등)은 건드리지 않는다.
+* text=auto eol=lf
