@@ -1,0 +1,424 @@
+{
+  "extName": {
+    "message": "cici - Claude in Chrome ID",
+    "description": "拡張機能の名前。ウェブストアと拡張機能の管理画面に表示される。"
+  },
+  "extDesc": {
+    "message": "Claude Code のブラウザ選択リストの UUID がどの Chrome プロフィールのものかを表示します。現在のプロフィールの bridgeDeviceId をすぐに確認できます。非公式ツールであり、Anthropic とは無関係です。",
+    "description": "ウェブストアの説明。132文字以内(現在122文字)。ストアの一覧では末尾が切れるため、機能の説明が先に来て、無関係の告知が後に来る。告知は「非公式」で始める — 途中で切れても残った文字が提携を示唆しないように。"
+  },
+  "htmlLang": {
+    "message": "ja",
+    "description": "このカタログが使う言語の BCP 47 タグ。<html lang> にそのまま入る。chrome.i18n.getUILanguage() はブラウザの UI 言語なので答えにならない — _locales にない言語の Chrome は default_locale にフォールバックするため、画面の言語とずれる。新しいロケールを追加したらこの値も一緒に変えること。"
+  },
+  "appTitle": {
+    "message": "Claude in Chrome ID",
+    "description": "ポップアップのヘッダーの製品名。"
+  },
+  "unofficialNote": {
+    "message": "非公式ツールであり、Anthropic とは無関係です。",
+    "description": "ヘッダーのタイトル直下の無関係の告知。タイトルに「Claude in Chrome」が入っていて公式製品と誤解されうるため、誤解が生まれる場所ですぐに否定する。"
+  },
+  "refresh": {
+    "message": "再スキャン",
+    "description": "ヘッダーの再スキャンボタン。"
+  },
+  "langAuto": {
+    "message": "ブラウザの言語に合わせる",
+    "description": "言語選択の既定の項目。Chrome の UI 言語にそのまま従うという意味。"
+  },
+  "langSelectAria": {
+    "message": "表示言語を選択",
+    "description": "ヘッダーの言語選択ボックスのスクリーンリーダー名。個々の言語の項目は popup.html にその言語自身の名前(原語)で書かれているため翻訳しない。"
+  },
+  "loadingProfiles": {
+    "message": "プロフィールを探しています…",
+    "description": "読み込み画面のタイトル。"
+  },
+  "loadingHint": {
+    "message": "このパソコンのブラウザプロフィールを調べています。",
+    "description": "読み込み画面の補足説明。"
+  },
+  "cancelScan": {
+    "message": "中止",
+    "description": "読み込み画面の中止ボタン。読み取りが 1 つ止まったときの逃げ道。"
+  },
+  "needFileAccessTitle": {
+    "message": "ファイルの URL へのアクセス権限が必要です",
+    "description": "ファイルアクセスのトグルがオフのときのタイトル。"
+  },
+  "needFileAccessWhy": {
+    "message": "bridgeDeviceId は Chrome のプロフィールフォルダの中に保存されています。そのファイルを読むには「ファイルの URL へのアクセスを許可する」をオンにする必要があります。",
+    "description": "権限が必要な理由。"
+  },
+  "howToTitle": {
+    "message": "オンにする方法",
+    "description": "手順の見出し。"
+  },
+  "howToStep1": {
+    "message": "下のボタンでこの拡張機能の詳細ページを開きます。",
+    "description": "手順 1。"
+  },
+  "howToStep2": {
+    "message": "「ファイルの URL へのアクセスを許可する」をオンにします。",
+    "description": "手順 2。"
+  },
+  "howToStep3": {
+    "message": "このポップアップをもう一度開きます。",
+    "description": "手順 3。"
+  },
+  "needFileAccessNote": {
+    "message": "トグルをオンにすると Chrome が拡張機能を再読み込みするため、いま開いているこのポップアップはその瞬間に閉じます。ブラウザを再起動する必要はなく、ポップアップを開き直せばすぐに動きます。",
+    "description": "トグルが拡張機能を再読み込みするという案内。"
+  },
+  "openExtensionsPage": {
+    "message": "拡張機能の詳細を開く",
+    "description": "chrome://extensions へ行くボタン。"
+  },
+  "copyUrl": {
+    "message": "アドレスをコピー",
+    "description": "chrome://extensions のアドレスをコピーするボタン。"
+  },
+  "urlCopyHint": {
+    "message": "ボタンを押すとこのポップアップは閉じます。アドレスをコピーして新しいタブに貼り付けても構いません。",
+    "description": "アドレスコピーのボタンの横の説明。"
+  },
+  "currentProfile": {
+    "message": "現在のプロフィール",
+    "description": "現在のプロフィールのカードの上のセクション見出し。"
+  },
+  "otherProfiles": {
+    "message": "このパソコンのほかのプロフィール",
+    "description": "残りのプロフィール一覧のセクション見出し。"
+  },
+  "foundProfiles": {
+    "message": "このパソコンで見つかったプロフィール",
+    "description": "現在のプロフィールを特定できなかったときの一覧のセクション見出し。その一覧には現在のプロフィールも含まれる。"
+  },
+  "badgeCurrent": {
+    "message": "現在",
+    "description": "現在のプロフィールのカードのバッジ。"
+  },
+  "deviceIdLabel": {
+    "message": "bridgeDeviceId",
+    "description": "UUID の上のラベル。翻訳しない。"
+  },
+  "pairingNameLabel": {
+    "message": "ペアリング名",
+    "description": "bridgeDisplayName のラベル。"
+  },
+  "clickToCopy": {
+    "message": "クリックでコピー",
+    "description": "UUID ボタンのツールチップ。"
+  },
+  "copy": {
+    "message": "コピー",
+    "description": "コピーボタン。"
+  },
+  "copied": {
+    "message": "コピーしました",
+    "description": "コピー成功のフィードバック。"
+  },
+  "copyFailed": {
+    "message": "コピーできませんでした。テキストを選択して手動でコピーしてください。",
+    "description": "コピー失敗のフィードバック。"
+  },
+  "copyDeviceIdAria": {
+    "message": "bridgeDeviceId をコピー",
+    "description": "現在のプロフィールの UUID ボタンのスクリーンリーダー名。"
+  },
+  "copyOfAria": {
+    "message": "$PROFILE$ プロフィールの bridgeDeviceId をコピー",
+    "description": "一覧の行のコピーボタンのスクリーンリーダー名。",
+    "placeholders": {
+      "profile": {
+        "content": "$1",
+        "example": "Work"
+      }
+    }
+  },
+  "unnamedProfile": {
+    "message": "名前のないプロフィール",
+    "description": "プロフィール名を読めなかったとき。"
+  },
+  "notPaired": {
+    "message": "まだペアリングされていません",
+    "description": "Claude 拡張機能はあるが bridgeDeviceId がないとき。"
+  },
+  "notPairedHint": {
+    "message": "Claude 拡張機能からこのブラウザを一度 Claude Code に接続すると ID が作られます。",
+    "description": "未ペアリング状態の案内。"
+  },
+  "claudeNotInstalled": {
+    "message": "このプロフィールには Claude 拡張機能がありません",
+    "description": "Local Extension Settings に該当する拡張機能のフォルダがないとき。"
+  },
+  "claudeNotInstalledHint": {
+    "message": "Claude in Chrome をこのプロフィールにインストールすると、ここに ID が表示されます。",
+    "description": "未インストール状態の案内。"
+  },
+  "profileUnreadable": {
+    "message": "このプロフィールフォルダを読めませんでした",
+    "description": "プロフィールの一覧を読めず、拡張機能のインストール有無を判定できないとき。"
+  },
+  "profileUnreadableHint": {
+    "message": "フォルダを読めなかったため、Claude 拡張機能があるかどうか分かりません。下の記録を確認してください。",
+    "description": "読み取り失敗状態の案内。"
+  },
+  "pairingUnknown": {
+    "message": "ペアリングされているか分かりません",
+    "description": "Claude 拡張機能のフォルダは見えるのに、その中のストレージを読めなかったとき。「まだペアリングされていません」と混同してはならない。"
+  },
+  "pairingUnknownHint": {
+    "message": "Claude 拡張機能のストレージを読めませんでした。すでにペアリングされている可能性があります。「再スキャン」を押してみてください。",
+    "description": "ペアリング有無が不明な状態の案内。"
+  },
+  "selfNotFoundTitle": {
+    "message": "現在のプロフィールを特定できませんでした",
+    "description": "nonce の往復が失敗したときのタイトル。"
+  },
+  "selfNotFoundHint": {
+    "message": "下の一覧から自分で探してください。プロフィールフォルダを読めない場合に起こることがあります。",
+    "description": "現在のプロフィール未検出の案内。"
+  },
+  "noProfilesTitle": {
+    "message": "ブラウザプロフィールが 1 つも見つかりませんでした",
+    "description": "プロフィールの列挙が空だったときのタイトル。"
+  },
+  "noProfilesHint": {
+    "message": "ブラウザが既定の場所にインストールされているか確認してください。独自に指定した --user-data-dir で起動したブラウザは見つけられません。",
+    "description": "プロフィールなしの案内。この画面はファイル URL へのアクセスがオンであることを確認した後にしか出ないため、そのトグルを確認し直せと言ってはならない(ユーザーがトグルを触っても拡張機能が再読み込みされるだけで何も解決しない)。"
+  },
+  "scanCutShortTitle": {
+    "message": "スキャンを完了できませんでした",
+    "description": "予算を超えたか、ユーザーが中止して、プロフィールを 1 つも数えられなかったとき。「1 つもない」とは別の状態。"
+  },
+  "scanCutShortHint": {
+    "message": "プロフィールを数えている途中で止まったため、結果がありません。「再スキャン」を押してみてください。",
+    "description": "スキャン中断の案内。"
+  },
+  "noOtherProfiles": {
+    "message": "ほかのプロフィールはありません。",
+    "description": "プロフィールが現在のもの 1 つだけのとき。"
+  },
+  "statusScanned": {
+    "message": "スキャンが終わりました。現在のプロフィールは $PROFILE$ で、ほかのプロフィールは $COUNT$ 個です。",
+    "description": "スキャンが終わったときにスクリーンリーダーに読み上げられる要約。",
+    "placeholders": {
+      "profile": {
+        "content": "$1",
+        "example": "Work"
+      },
+      "count": {
+        "content": "$2",
+        "example": "2"
+      }
+    }
+  },
+  "statusScannedNoSelf": {
+    "message": "スキャンが終わりました。現在のプロフィールは特定できず、プロフィールを $COUNT$ 個見つけました。",
+    "description": "自己検出に失敗したときの要約。",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "errorTitle": {
+    "message": "問題が発生しました",
+    "description": "致命的なエラー画面のタイトル。"
+  },
+  "errorHint": {
+    "message": "「再試行」を押してみてください。それでも失敗し続ける場合は、下の内容をコピーしてプロジェクトのページに知らせてください。",
+    "description": "エラー画面の案内。"
+  },
+  "retry": {
+    "message": "再試行",
+    "description": "エラー画面の再試行ボタン。"
+  },
+  "copyErrorDetails": {
+    "message": "内容をコピー",
+    "description": "エラー画面で診断内容をコピーするボタン。"
+  },
+  "warnSelfDetect": {
+    "message": "現在のプロフィールを探す途中で問題が発生しました: $DETAIL$",
+    "description": "自分のプロフィールの検出が失敗したときに警告一覧に残す行。",
+    "placeholders": {
+      "detail": {
+        "content": "$1",
+        "example": "Failed to fetch"
+      }
+    }
+  },
+  "warnScanTimeout": {
+    "message": "時間内に読み切れませんでした。抜けているプロフィールがあるかもしれません。「再スキャン」を押してみてください。",
+    "description": "全体の予算を超えたか、ユーザーが中止したとき。"
+  },
+  "warnStorageUnavailable": {
+    "message": "chrome.storage.local を使えないため、現在のプロフィールを表示できません。manifest.json の \"permissions\" に \"storage\" が必要です。",
+    "description": "storage 権限がないとき。"
+  },
+  "warnNoExtensionContext": {
+    "message": "chrome.runtime.id を読めません。拡張機能のコンテキストではありません。",
+    "description": "拡張機能の外でポップアップの文書を開いた場合。"
+  },
+  "warnProfileUnreadable": {
+    "message": "$PATH$ フォルダを読めませんでした。このプロフィールの拡張機能のインストール有無は分かりません。",
+    "description": "プロフィールのディレクトリ一覧を読めなかったとき。",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      }
+    }
+  },
+  "warnDirUnreadable": {
+    "message": "$PATH$ フォルダを読めませんでした。",
+    "description": "サブディレクトリの一覧を読めなかったとき。",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      }
+    }
+  },
+  "warnNoLevelDbFiles": {
+    "message": "$PATH$ に LevelDB ファイル(*.ldb、*.sst、*.log)がありません。",
+    "description": "ストレージのディレクトリはあるのに中身が空のとき。",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      }
+    }
+  },
+  "warnLevelDbUnreadable": {
+    "message": "$PATH$ の LevelDB を読めませんでした ($DETAIL$)。",
+    "description": "パーサーが丸ごと失敗したとき。",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "cannot read file:///..."
+      }
+    }
+  },
+  "warnParserNote": {
+    "message": "$PATH$: $DETAIL$",
+    "description": "LevelDB パーサーが残した記録。本文はパーサーが作った英語の診断文字列なので翻訳しない。",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "CURRENT is missing; scanning every table and log"
+      }
+    }
+  },
+  "warnProfileRead": {
+    "message": "$PATH$ を読んでいる途中で問題が発生しました: $DETAIL$",
+    "description": "プロフィール 1 つを読んでいて例外が出たとき。",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Failed to fetch"
+      }
+    }
+  },
+  "warnLocalState": {
+    "message": "$PATH$ の Local State を読めませんでした: $DETAIL$",
+    "description": "プロフィール名とメールアドレスが入ったファイルを読めなかったとき。",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Failed to fetch"
+      }
+    }
+  },
+  "warnBadJson": {
+    "message": "$KEY$ が正しい JSON ではありません ($DETAIL$): $VALUE$",
+    "description": "ディスク上の値が JSON として解析できないとき。",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Unexpected token"
+      },
+      "value": {
+        "content": "$3",
+        "example": "not-json"
+      }
+    }
+  },
+  "warnBadJsonRaw": {
+    "message": "$KEY$ が正しい JSON ではありません ($DETAIL$)。生の値をそのまま使います。",
+    "description": "JSON は壊れているが、値が UUID の形なのでそのまま使った場合。",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Unexpected token"
+      }
+    }
+  },
+  "warnNotUuid": {
+    "message": "$KEY$ が UUID のようには見えません: $VALUE$",
+    "description": "値は読めたが UUID の形ではないとき。",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "value": {
+        "content": "$2",
+        "example": "nope"
+      }
+    }
+  },
+  "warnNotJsonString": {
+    "message": "$KEY$ が JSON 文字列ではありません: $VALUE$",
+    "description": "値が文字列ではないほかの JSON 型のとき。",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "value": {
+        "content": "$2",
+        "example": "123"
+      }
+    }
+  },
+  "warningsTitle": {
+    "message": "スキャン中に残った記録",
+    "description": "警告一覧を開く <details> のタイトル。"
+  },
+  "privacyNote": {
+    "message": "このパソコンのファイルを読むだけで、どこにも送信しません。",
+    "description": "ポップアップ下部の脚注。"
+  },
+  "sourceCode": {
+    "message": "ソースコードを見る (GitHub)",
+    "description": "フッターの GitHub リンクのツールチップとアクセシビリティ名。"
+  }
+}

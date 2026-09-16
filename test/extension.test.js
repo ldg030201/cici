@@ -1585,8 +1585,26 @@ test('_locales: 따옴표로 인용한 버튼 이름은 모든 로케일에서 �
   }
   assert.ok(buttonKeys.has('refresh'), 'popup.html 에서 버튼 키를 찾지 못했습니다');
 
-  // 홑따옴표(ko 의 '다시 시도')와 겹따옴표를 모두 인정한다.
-  const quoted = (text) => [...text.matchAll(/["'\u201c\u201d\u2018\u2019]([^"'\u201c\u201d\u2018\u2019]{2,40})["'\u201c\u201d\u2018\u2019]/g)].map((m) => m[1]);
+  // 따옴표는 스타일별로 여닫는 짝을 정확히 본다. 문자 클래스 하나에 몰아넣으면
+  // 프랑스어 아포스트로피(l\u2019analyse 의 U+2019)가 닫는 홑따옴표로 오인돼 짝이
+  // 어긋나고, 진짜 인용(« … »)을 통째로 놓친다. 기욤 안쪽의 (협폭) 불간격 공백은
+  // 규범이므로(« Réanalyser ») 내용을 trim 해서 버튼 문자열과 비교한다.
+  const QUOTE_PAIRS = [
+    ['"', '"'],
+    ["'", "'"],
+    ['\u201c', '\u201d'], // 굽은 겹따옴표
+    ['\u201e', '\u201c'], // 독일식
+    ['\u300c', '\u300d'], // 일본식 낫표
+    ['\u00ab', '\u00bb'], // 프랑스식 기욤
+  ];
+  const quoted = (text) => {
+    const out = [];
+    for (const [open, close] of QUOTE_PAIRS) {
+      const re = new RegExp(`${open}([^${open}${close}]{2,40})${close}`, 'g');
+      for (const m of text.matchAll(re)) out.push(m[1].trim());
+    }
+    return out;
+  };
 
   // 모든 순서쌍을 본다. 한쪽 방향만 보면 "ko 는 인용하는데 zh 는 인용하지
   // 않는" 누락을 zh→ko 방향에서만 잡을 수 있기 때문이다.

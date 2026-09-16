@@ -1,0 +1,424 @@
+{
+  "extName": {
+    "message": "cici - Claude in Chrome ID",
+    "description": "Name der Erweiterung. Wird im Web Store und in der Erweiterungsverwaltung angezeigt."
+  },
+  "extDesc": {
+    "message": "Zeigt, zu welchem Chrome-Profil jede UUID in der Browserauswahl von Claude Code gehört. Inoffiziell, unabhängig von Anthropic.",
+    "description": "Web-Store-Beschreibung, höchstens 132 Zeichen (aktuell 126). Store-Einträge werden hinten abgeschnitten, deshalb steht die Funktionsbeschreibung zuerst und der Hinweis danach. Der Hinweis beginnt mit „Inoffiziell“, damit auch ein abgeschnittener Rest keine Verbindung zu Anthropic suggeriert."
+  },
+  "htmlLang": {
+    "message": "de",
+    "description": "BCP-47-Tag der Sprache dieses Katalogs; landet unverändert in <html lang>. chrome.i18n.getUILanguage() ist nicht die Antwort: Es liefert die UI-Sprache des Browsers, die vom angezeigten Text abweicht, sobald Chrome für eine fehlende Sprache auf default_locale zurückfällt. Beim Hinzufügen einer neuen Locale muss dieser Wert mit angepasst werden."
+  },
+  "appTitle": {
+    "message": "Claude in Chrome ID",
+    "description": "Produktname im Kopfbereich des Pop-ups."
+  },
+  "unofficialNote": {
+    "message": "Inoffizielles Tool, unabhängig von Anthropic.",
+    "description": "Hinweis direkt unter dem Titel im Kopfbereich. Der Titel enthält „Claude in Chrome“ und kann als offizielles Produkt missverstanden werden; die Klarstellung steht daher genau dort, wo das Missverständnis entsteht."
+  },
+  "refresh": {
+    "message": "Erneut scannen",
+    "description": "Aktualisieren-Schaltfläche im Kopfbereich."
+  },
+  "langAuto": {
+    "message": "Browsersprache verwenden",
+    "description": "Standardeintrag der Sprachauswahl; folgt der UI-Sprache von Chrome."
+  },
+  "langSelectAria": {
+    "message": "Anzeigesprache auswählen",
+    "description": "Screenreader-Name der Sprachauswahl im Kopfbereich. Die konkreten Sprachoptionen stehen fest in popup.html, jeweils im eigenen Sprachnamen, und werden nicht übersetzt."
+  },
+  "loadingProfiles": {
+    "message": "Profile werden gesucht…",
+    "description": "Titel des Ladebildschirms."
+  },
+  "loadingHint": {
+    "message": "Die Browserprofile auf diesem Computer werden durchsucht.",
+    "description": "Untertitel des Ladebildschirms."
+  },
+  "cancelScan": {
+    "message": "Abbrechen",
+    "description": "Abbrechen-Schaltfläche auf dem Ladebildschirm. Der Ausweg, wenn ein Lesevorgang hängt."
+  },
+  "needFileAccessTitle": {
+    "message": "Zugriff auf Datei-URLs erforderlich",
+    "description": "Titel, wenn der Schalter für den Dateizugriff ausgeschaltet ist."
+  },
+  "needFileAccessWhy": {
+    "message": "Die bridgeDeviceId liegt im Chrome-Profilordner. Um diese Datei zu lesen, muss „Zugriff auf Datei-URLs zulassen“ aktiviert sein.",
+    "description": "Begründung, warum die Berechtigung nötig ist."
+  },
+  "howToTitle": {
+    "message": "So wird es aktiviert",
+    "description": "Überschrift der Schrittliste."
+  },
+  "howToStep1": {
+    "message": "Mit der Schaltfläche unten die Detailseite dieser Erweiterung öffnen.",
+    "description": "Schritt 1."
+  },
+  "howToStep2": {
+    "message": "„Zugriff auf Datei-URLs zulassen“ aktivieren.",
+    "description": "Schritt 2."
+  },
+  "howToStep3": {
+    "message": "Dieses Pop-up erneut öffnen.",
+    "description": "Schritt 3."
+  },
+  "needFileAccessNote": {
+    "message": "Beim Umlegen des Schalters lädt Chrome die Erweiterung neu, deshalb schließt sich dieses Pop-up in dem Moment. Ein Neustart des Browsers ist nicht nötig – einfach das Pop-up wieder öffnen, dann funktioniert alles.",
+    "description": "Hinweis, dass der Schalter die Erweiterung neu lädt."
+  },
+  "openExtensionsPage": {
+    "message": "Erweiterungsdetails öffnen",
+    "description": "Schaltfläche, die chrome://extensions öffnet."
+  },
+  "copyUrl": {
+    "message": "Adresse kopieren",
+    "description": "Schaltfläche, die die chrome://extensions-Adresse kopiert."
+  },
+  "urlCopyHint": {
+    "message": "Beim Drücken der Schaltfläche schließt sich dieses Pop-up. Alternativ die Adresse kopieren und in einen neuen Tab einfügen.",
+    "description": "Hinweis neben der Kopieren-Schaltfläche."
+  },
+  "currentProfile": {
+    "message": "Aktuelles Profil",
+    "description": "Abschnittsüberschrift über der Karte des aktuellen Profils."
+  },
+  "otherProfiles": {
+    "message": "Weitere Profile auf diesem Computer",
+    "description": "Abschnittsüberschrift für die übrigen Profile."
+  },
+  "foundProfiles": {
+    "message": "Auf diesem Computer gefundene Profile",
+    "description": "Abschnittsüberschrift der Liste, wenn das aktuelle Profil nicht erkannt wurde; die Liste enthält auch das aktuelle Profil."
+  },
+  "badgeCurrent": {
+    "message": "Aktuell",
+    "description": "Badge auf der Karte des aktuellen Profils."
+  },
+  "deviceIdLabel": {
+    "message": "bridgeDeviceId",
+    "description": "Beschriftung über der UUID. Nicht übersetzen."
+  },
+  "pairingNameLabel": {
+    "message": "Kopplungsname",
+    "description": "Beschriftung für bridgeDisplayName."
+  },
+  "clickToCopy": {
+    "message": "Zum Kopieren klicken",
+    "description": "Tooltip auf der UUID-Schaltfläche."
+  },
+  "copy": {
+    "message": "Kopieren",
+    "description": "Kopieren-Schaltfläche."
+  },
+  "copied": {
+    "message": "Kopiert",
+    "description": "Rückmeldung bei erfolgreichem Kopieren."
+  },
+  "copyFailed": {
+    "message": "Kopieren fehlgeschlagen. Bitte den Text selbst markieren und kopieren.",
+    "description": "Rückmeldung bei fehlgeschlagenem Kopieren."
+  },
+  "copyDeviceIdAria": {
+    "message": "bridgeDeviceId kopieren",
+    "description": "Screenreader-Name der UUID-Schaltfläche des aktuellen Profils."
+  },
+  "copyOfAria": {
+    "message": "bridgeDeviceId des Profils $PROFILE$ kopieren",
+    "description": "Screenreader-Name der Kopieren-Schaltfläche einer Listenzeile.",
+    "placeholders": {
+      "profile": {
+        "content": "$1",
+        "example": "Work"
+      }
+    }
+  },
+  "unnamedProfile": {
+    "message": "Unbenanntes Profil",
+    "description": "Wenn der Profilname nicht gelesen werden konnte."
+  },
+  "notPaired": {
+    "message": "Noch nicht gekoppelt",
+    "description": "Die Claude-Erweiterung ist installiert, hat aber keine bridgeDeviceId."
+  },
+  "notPairedHint": {
+    "message": "Diesen Browser einmal über die Claude-Erweiterung mit Claude Code verbinden, dann wird eine ID erstellt.",
+    "description": "Hinweis für den Zustand „nicht gekoppelt“."
+  },
+  "claudeNotInstalled": {
+    "message": "In diesem Profil ist die Claude-Erweiterung nicht installiert",
+    "description": "Kein entsprechender Erweiterungsordner unter Local Extension Settings."
+  },
+  "claudeNotInstalledHint": {
+    "message": "Claude in Chrome in diesem Profil installieren, dann erscheint die ID hier.",
+    "description": "Hinweis für den Zustand „nicht installiert“."
+  },
+  "profileUnreadable": {
+    "message": "Dieser Profilordner konnte nicht gelesen werden",
+    "description": "Wenn die Profilliste nicht gelesen werden konnte und sich die Installation daher nicht feststellen lässt."
+  },
+  "profileUnreadableHint": {
+    "message": "Der Ordner konnte nicht gelesen werden, daher ist unbekannt, ob die Claude-Erweiterung vorhanden ist. Siehe die Notizen unten.",
+    "description": "Hinweis für den Zustand „nicht lesbar“."
+  },
+  "pairingUnknown": {
+    "message": "Kopplungsstatus unbekannt",
+    "description": "Der Ordner der Claude-Erweiterung ist vorhanden, aber ihr Speicher konnte nicht gelesen werden. Nicht mit „Noch nicht gekoppelt“ verwechseln."
+  },
+  "pairingUnknownHint": {
+    "message": "Der Speicher der Claude-Erweiterung konnte nicht gelesen werden. Möglicherweise besteht bereits eine Kopplung. Auf „Erneut scannen“ klicken.",
+    "description": "Hinweis für den Zustand mit unbekanntem Kopplungsstatus."
+  },
+  "selfNotFoundTitle": {
+    "message": "Aktuelles Profil nicht gefunden",
+    "description": "Titel, wenn der Nonce-Abgleich fehlgeschlagen ist."
+  },
+  "selfNotFoundHint": {
+    "message": "Bitte das eigene Profil in der Liste unten heraussuchen. Das kann passieren, wenn ein Profilordner nicht gelesen werden kann.",
+    "description": "Hinweis, wenn das aktuelle Profil unbekannt ist."
+  },
+  "noProfilesTitle": {
+    "message": "Keine Browserprofile gefunden",
+    "description": "Titel, wenn die Profilsuche leer ausging."
+  },
+  "noProfilesHint": {
+    "message": "Bitte prüfen, ob der Browser am Standardspeicherort installiert ist. Browser, die mit einem eigenen --user-data-dir gestartet wurden, werden nicht gefunden.",
+    "description": "Hinweis für den leeren Zustand. Dieser Bildschirm erscheint erst, nachdem der Datei-URL-Zugriff als aktiviert bestätigt wurde; er darf also nicht auffordern, diesen Schalter zu prüfen (das Umlegen lädt nur die Erweiterung neu und löst nichts)."
+  },
+  "scanCutShortTitle": {
+    "message": "Der Scan wurde nicht abgeschlossen",
+    "description": "Wenn das Zeitbudget überschritten oder der Scan abgebrochen wurde, bevor ein einziges Profil gezählt war. Ein anderer Zustand als „keine gefunden“."
+  },
+  "scanCutShortHint": {
+    "message": "Der Scan wurde beim Zählen der Profile unterbrochen, deshalb gibt es keine Ergebnisse. Auf „Erneut scannen“ klicken.",
+    "description": "Hinweis, wenn der Scan abgebrochen wurde."
+  },
+  "noOtherProfiles": {
+    "message": "Keine weiteren Profile vorhanden.",
+    "description": "Wenn das aktuelle Profil das einzige ist."
+  },
+  "statusScanned": {
+    "message": "Scan abgeschlossen. Aktuelles Profil: $PROFILE$. Weitere Profile: $COUNT$.",
+    "description": "Zusammenfassung, die nach dem Scan vom Screenreader vorgelesen wird.",
+    "placeholders": {
+      "profile": {
+        "content": "$1",
+        "example": "Work"
+      },
+      "count": {
+        "content": "$2",
+        "example": "2"
+      }
+    }
+  },
+  "statusScannedNoSelf": {
+    "message": "Scan abgeschlossen. Aktuelles Profil nicht erkannt. Gefundene Profile: $COUNT$.",
+    "description": "Zusammenfassung, wenn die Selbsterkennung fehlgeschlagen ist.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "errorTitle": {
+    "message": "Ein Problem ist aufgetreten",
+    "description": "Titel des Bildschirms für schwerwiegende Fehler."
+  },
+  "errorHint": {
+    "message": "Auf „Erneut versuchen“ klicken. Wenn es weiter fehlschlägt, die Details unten kopieren und auf der Projektseite melden.",
+    "description": "Hinweis auf dem Fehlerbildschirm."
+  },
+  "retry": {
+    "message": "Erneut versuchen",
+    "description": "Wiederholen-Schaltfläche auf dem Fehlerbildschirm."
+  },
+  "copyErrorDetails": {
+    "message": "Details kopieren",
+    "description": "Schaltfläche, die die Diagnosedaten auf dem Fehlerbildschirm kopiert."
+  },
+  "warnSelfDetect": {
+    "message": "Beim Ermitteln des aktuellen Profils ist ein Problem aufgetreten: $DETAIL$",
+    "description": "Zeile in der Warnliste, wenn die Selbsterkennung fehlschlägt.",
+    "placeholders": {
+      "detail": {
+        "content": "$1",
+        "example": "Failed to fetch"
+      }
+    }
+  },
+  "warnScanTimeout": {
+    "message": "Nicht alles konnte rechtzeitig gelesen werden; möglicherweise fehlen Profile. Auf „Erneut scannen“ klicken.",
+    "description": "Wenn das Gesamtzeitbudget überschritten oder der Scan abgebrochen wurde."
+  },
+  "warnStorageUnavailable": {
+    "message": "chrome.storage.local ist nicht verfügbar, daher kann das aktuelle Profil nicht angezeigt werden. In manifest.json muss \"permissions\" den Eintrag \"storage\" enthalten.",
+    "description": "Wenn die storage-Berechtigung fehlt."
+  },
+  "warnNoExtensionContext": {
+    "message": "chrome.runtime.id ist nicht lesbar. Dies ist kein Erweiterungskontext.",
+    "description": "Wenn das Pop-up-Dokument außerhalb der Erweiterung geöffnet wurde."
+  },
+  "warnProfileUnreadable": {
+    "message": "Der Ordner $PATH$ konnte nicht gelesen werden. Ob die Erweiterung in diesem Profil installiert ist, ist unbekannt.",
+    "description": "Wenn die Verzeichnisliste eines Profils nicht gelesen werden konnte.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      }
+    }
+  },
+  "warnDirUnreadable": {
+    "message": "Der Ordner $PATH$ konnte nicht gelesen werden.",
+    "description": "Wenn eine Unterverzeichnisliste nicht gelesen werden konnte.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      }
+    }
+  },
+  "warnNoLevelDbFiles": {
+    "message": "Keine LevelDB-Dateien (*.ldb, *.sst, *.log) in $PATH$.",
+    "description": "Wenn das Speicherverzeichnis existiert, aber leer ist.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      }
+    }
+  },
+  "warnLevelDbUnreadable": {
+    "message": "Die LevelDB in $PATH$ konnte nicht gelesen werden ($DETAIL$).",
+    "description": "Wenn der Parser komplett fehlgeschlagen ist.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "cannot read file:///..."
+      }
+    }
+  },
+  "warnParserNote": {
+    "message": "$PATH$: $DETAIL$",
+    "description": "Eine Notiz des LevelDB-Parsers. Der Text ist die englische Diagnosemeldung des Parsers und wird nicht übersetzt.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "CURRENT is missing; scanning every table and log"
+      }
+    }
+  },
+  "warnProfileRead": {
+    "message": "Beim Lesen von $PATH$ ist ein Problem aufgetreten: $DETAIL$",
+    "description": "Wenn beim Lesen eines Profils eine Ausnahme auftrat.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Failed to fetch"
+      }
+    }
+  },
+  "warnLocalState": {
+    "message": "Local State in $PATH$ konnte nicht gelesen werden: $DETAIL$",
+    "description": "Wenn die Datei mit Profilnamen und E-Mail-Adressen nicht gelesen werden konnte.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Failed to fetch"
+      }
+    }
+  },
+  "warnBadJson": {
+    "message": "$KEY$ ist kein gültiges JSON ($DETAIL$): $VALUE$",
+    "description": "Wenn ein Wert auf der Festplatte nicht als JSON geparst werden kann.",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Unexpected token"
+      },
+      "value": {
+        "content": "$3",
+        "example": "not-json"
+      }
+    }
+  },
+  "warnBadJsonRaw": {
+    "message": "$KEY$ ist kein gültiges JSON ($DETAIL$). Der Rohwert wird unverändert verwendet.",
+    "description": "Wenn das JSON kaputt ist, der Wert aber wie eine UUID aussieht und daher direkt verwendet wird.",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Unexpected token"
+      }
+    }
+  },
+  "warnNotUuid": {
+    "message": "$KEY$ sieht nicht wie eine UUID aus: $VALUE$",
+    "description": "Wenn der Wert gelesen wurde, aber nicht wie eine UUID geformt ist.",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "value": {
+        "content": "$2",
+        "example": "nope"
+      }
+    }
+  },
+  "warnNotJsonString": {
+    "message": "$KEY$ ist kein JSON-String: $VALUE$",
+    "description": "Wenn der Wert ein anderer JSON-Typ ist.",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "value": {
+        "content": "$2",
+        "example": "123"
+      }
+    }
+  },
+  "warningsTitle": {
+    "message": "Notizen aus dem Scan",
+    "description": "Titel des <details>-Elements mit der Warnliste."
+  },
+  "privacyNote": {
+    "message": "Liest nur Dateien auf diesem Computer; nichts wird irgendwohin gesendet.",
+    "description": "Fußnote am unteren Rand des Pop-ups."
+  },
+  "sourceCode": {
+    "message": "Quellcode ansehen (GitHub)",
+    "description": "Tooltip und barrierefreier Name des GitHub-Links im Footer."
+  }
+}
