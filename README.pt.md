@@ -103,7 +103,7 @@ computador**, então uma única instalação já mostra o quadro completo — ap
   aleatório (`__cici_nonce`) e a sua escolha de idioma de exibição. Ela não escreve um único
   byte no armazenamento de nenhuma outra extensão.
 
-Texto completo: [`docs/privacy-policy.md`](docs/privacy-policy.md).
+Texto completo: [`docs/privacy-policy.en.md`](docs/privacy-policy.en.md).
 
 ---
 
@@ -120,7 +120,7 @@ arquitetura tem uma edição dedicada em inglês.
 | [CLI](docs/cli.md) | Ferramenta complementar que lista todos os perfis pelo terminal (coreano) |
 | [Desenvolvimento](docs/development.md) | Clone o repositório e mexa no código (coreano) |
 | [Publicação](docs/release.md) | Como uma nova versão chega à loja (para mantenedores, coreano) |
-| [Política de privacidade](docs/privacy-policy.md) | Texto completo (coreano) |
+| [Política de privacidade](docs/privacy-policy.en.md) | Texto completo (inglês) |
 
 ---
 

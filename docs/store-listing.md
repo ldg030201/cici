@@ -603,6 +603,17 @@ Claude Code 가 브라우저 선택 화면에 표시하는 UUID 가 어느 프�
 사용자가 알 수 있게 하는 것이 유일한 기능이며, 다른 기능은 없습니다.
 ```
 
+**English — 대시보드에는 이 판을 쓴다.** 심사자는 전 세계에 있어 영어가 심사도 빠르고,
+스토어 기본 언어(영어)와도 맞는다.
+
+```
+The single purpose of this extension is to find the bridgeDeviceId that the
+Claude in Chrome extension has stored in the user's Chrome profiles and show
+it to the user. Its only function is to let the user see which profile owns
+each UUID that Claude Code lists in its browser picker. It has no other
+functionality.
+```
+
 ---
 
 ## 6. 권한 정당화
@@ -638,6 +649,38 @@ chrome.storage.local 에 저장한 값이고, 디스크에서는 다음 경로�
 직접 켜기 전까지는 아무 효과가 없습니다.
 ```
 
+**English — 대시보드에는 이 판을 쓴다.**
+
+```
+The bridgeDeviceId the user is looking for is a value that the Claude in
+Chrome extension stores in its own chrome.storage.local. On disk it lives in
+LevelDB files under:
+
+  <Chrome user-data directory>/<profile>/Local Extension Settings/
+  fcoeoabgfenejglbffodgkkbkcdhcgfn/
+
+Extension APIs cannot read another extension's chrome.storage. The only way
+to show the user this value is to read those files directly, and the only way
+an extension can read local files is a host_permissions grant for the file://
+scheme.
+
+It reads exactly three kinds of things:
+  1. Directory listings used to locate profile directories
+     (e.g. /Users/<user>/Library/Application Support/Google/Chrome/)
+  2. <user-data-dir>/Local State - to display profile names and account emails
+  3. LevelDB files under Local Extension Settings/<extension id>/
+     (the Claude in Chrome extension's, and this extension's own, which is
+     used to identify the current profile)
+
+Access is strictly read-only. It never writes, deletes, or locks files - it
+does not take the LevelDB LOCK - so it is safe while the browser is running.
+Values that are read are only rendered in the popup; nothing is transmitted
+or stored anywhere. The extension makes zero network requests.
+
+This permission has no effect until the user manually enables "Allow access
+to file URLs" on the extension's details page.
+```
+
 ### `permissions: ["storage"]`
 
 ```
@@ -651,6 +694,21 @@ storage 권한이 저장하는 값은 두 개뿐입니다. 위의 난수("__cici
 팝업의 언어 메뉴에서 고른 표시 언어("__cici_lang")입니다. 두 값 모두 사용자 데이터가
 아니고 전송되지 않습니다. 다른 확장의 저장소에는 접근하지 않습니다(그럴 수 있는
 API 도 없습니다).
+```
+
+**English — 대시보드에는 이 판을 쓴다.**
+
+```
+An extension has no API to learn which Chrome profile it is running in. So
+every time the popup opens, this extension generates one random UUID and
+writes it to its own chrome.storage.local under the key "__cici_nonce".
+Chrome persists that value to the current profile's disk immediately, so
+scanning the profiles for the nonce identifies the current profile.
+
+The storage permission stores exactly two values: this nonce, and the display
+language the user picks in the popup ("__cici_lang"). Neither is user data,
+and neither is transmitted anywhere. The extension does not access any other
+extension's storage (there is no API that could).
 ```
 
 ### 요구하지 않는 것
@@ -674,8 +732,12 @@ API 도 없습니다).
 GitHub 에 올라간 그 파일의 주소를 그대로 넣으면 된다.
 
 ```
-https://github.com/ldg030201/cici/blob/main/docs/privacy-policy.md
+https://github.com/ldg030201/cici/blob/main/docs/privacy-policy.en.md
 ```
+
+스토어 기본 언어가 영어이므로 **영어판**([`privacy-policy.en.md`](privacy-policy.en.md))을
+건다. 한국어 원문은 [`privacy-policy.md`](privacy-policy.md) 이고 영어판 머리에
+상호 링크가 있다.
 
 ### 데이터 사용 공개 체크리스트
 

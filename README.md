@@ -101,7 +101,7 @@ profile you opened it in.
   language choice, both into **its own** storage. It writes not a single byte into any other
   extension's storage.
 
-Full text: [`docs/privacy-policy.md`](docs/privacy-policy.md).
+Full text: [`docs/privacy-policy.en.md`](docs/privacy-policy.en.md).
 
 ---
 
@@ -118,7 +118,7 @@ a dedicated English edition.
 | [CLI](docs/cli.md) | A companion tool that lists every profile from the terminal (Korean) |
 | [Development](docs/development.md) | Clone the repository and hack on it (Korean) |
 | [Release](docs/release.md) | How a new version reaches the store (maintainers, Korean) |
-| [Privacy policy](docs/privacy-policy.md) | Full text (Korean) |
+| [Privacy policy](docs/privacy-policy.en.md) | Full text (English) |
 
 ---
 

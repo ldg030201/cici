@@ -108,7 +108,7 @@ Karte „Aktuelles Profil“ bezieht sich auf das Profil, in dem das Pop-up geö
   (`__cici_nonce`) und die eingestellte Anzeigesprache. In den Speicher anderer Erweiterungen
   schreibt sie kein einziges Byte.
 
-Der vollständige Text: [`docs/privacy-policy.md`](docs/privacy-policy.md).
+Der vollständige Text: [`docs/privacy-policy.en.md`](docs/privacy-policy.en.md).
 
 ---
 
@@ -125,7 +125,7 @@ Architektur gibt es zusätzlich in einer eigenen englischen Ausgabe.
 | [CLI](docs/cli.md) | Ein Begleitwerkzeug, das alle Profile im Terminal auflistet (Koreanisch) |
 | [Entwicklung](docs/development.md) | Das Repository klonen und daran arbeiten (Koreanisch) |
 | [Release](docs/release.md) | Wie eine neue Version in den Store kommt (für Maintainer, Koreanisch) |
-| [Datenschutzerklärung](docs/privacy-policy.md) | Vollständiger Text (Koreanisch) |
+| [Datenschutzerklärung](docs/privacy-policy.en.md) | Vollständiger Text (Englisch) |
 
 ---
 

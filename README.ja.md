@@ -102,7 +102,7 @@ cici が答えるのは、この一つの質問だけです。**どの UUID が�
 * 拡張機能が**自分自身の**ストレージに書き込むのは、乱数（`__cici_nonce`）と表示言語の設定の
   2 つだけです。ほかの拡張機能のストレージには 1 バイトも書き込みません。
 
-全文は [`docs/privacy-policy.md`](docs/privacy-policy.md) をご覧ください。
+全文は [`docs/privacy-policy.en.md`](docs/privacy-policy.en.md) をご覧ください。
 
 ---
 
@@ -119,7 +119,7 @@ cici が答えるのは、この一つの質問だけです。**どの UUID が�
 | [CLI](docs/cli.md) | ターミナルからすべてのプロフィールを一度に一覧できる補助ツール（韓国語） |
 | [開発](docs/development.md) | リポジトリをクローンして手を入れる（韓国語） |
 | [リリース](docs/release.md) | 新しいバージョンをストアに公開する手順（メンテナー向け・韓国語） |
-| [プライバシーポリシー](docs/privacy-policy.md) | 全文（韓国語） |
+| [プライバシーポリシー](docs/privacy-policy.en.md) | 全文（英語） |
 
 ---
 

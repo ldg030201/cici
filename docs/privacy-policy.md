@@ -3,6 +3,7 @@
 **적용 대상:** 크롬 확장 프로그램 "cici - Claude in Chrome ID" 및 `cici` 명령줄 도구
 **시행일:** 2026-09-16
 **소스 코드:** <https://github.com/ldg030201/cici> (MIT)
+**영어판:** [privacy-policy.en.md](privacy-policy.en.md) — 편의를 위한 번역이며, 두 판이 어긋나면 한국어판이 우선한다.
 
 ---
 
@@ -136,7 +137,8 @@ cici 가 보유한 이용자 데이터가 없으므로 열람·정정·삭제를
 
 ## 13. 문의
 
-<https://github.com/ldg030201/cici/issues>
+크롬 웹스토어 등록 정보에 공개된 개발자 연락처, 또는 저장소:
+<https://github.com/ldg030201/cici>
 
 ---
 

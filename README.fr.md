@@ -107,7 +107,7 @@ ordinateur** : une seule installation suffit pour voir la liste complète — 
   aléatoire (`__cici_nonce`) et votre choix de langue d’affichage. Elle n’écrit pas un seul
   octet dans le stockage d’une autre extension.
 
-Texte intégral : [`docs/privacy-policy.md`](docs/privacy-policy.md).
+Texte intégral : [`docs/privacy-policy.en.md`](docs/privacy-policy.en.md).
 
 ---
 
@@ -124,7 +124,7 @@ l’architecture dispose d’une édition anglaise dédiée.
 | [CLI](docs/cli.md) | Outil compagnon qui liste tous les profils depuis le terminal (coréen) |
 | [Développement](docs/development.md) | Cloner le dépôt et le modifier (coréen) |
 | [Publication](docs/release.md) | Comment une nouvelle version arrive sur le Store (pour les mainteneurs, coréen) |
-| [Politique de confidentialité](docs/privacy-policy.md) | Texte intégral (coréen) |
+| [Politique de confidentialité](docs/privacy-policy.en.md) | Texte intégral (anglais) |
 
 ---
 

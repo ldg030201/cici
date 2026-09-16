@@ -97,7 +97,7 @@ cici 只回答这一个问题：**哪个 UUID 对应哪个个人资料。**
 * 它写入**自己**存储的只有两样：一个随机数（`__cici_nonce`）和你选择的显示语言。
   对其他扩展程序的存储，一个字节也不会写。
 
-全文见 [`docs/privacy-policy.md`](docs/privacy-policy.md)。
+全文见 [`docs/privacy-policy.en.md`](docs/privacy-policy.en.md)。
 
 ---
 
@@ -113,7 +113,7 @@ cici 只回答这一个问题：**哪个 UUID 对应哪个个人资料。**
 | [CLI](docs/cli.md) | 在终端一次列出所有个人资料的配套工具（韩文） |
 | [开发](docs/development.md) | 克隆仓库动手修改（韩文） |
 | [发布](docs/release.md) | 新版本上架应用商店的流程（维护者用，韩文） |
-| [隐私政策](docs/privacy-policy.md) | 全文（韩文） |
+| [隐私政策](docs/privacy-policy.en.md) | 全文（英文） |
 
 ---
 

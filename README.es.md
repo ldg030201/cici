@@ -105,7 +105,7 @@ la tarjeta del "perfil actual" se refiere al perfil desde el que la abriste.
   aleatorio (`__cici_nonce`) y tu elección de idioma de la interfaz. No escribe un solo byte
   en el almacenamiento de ninguna otra extensión.
 
-Texto completo: [`docs/privacy-policy.md`](docs/privacy-policy.md).
+Texto completo: [`docs/privacy-policy.en.md`](docs/privacy-policy.en.md).
 
 ---
 
@@ -122,7 +122,7 @@ justificación de la arquitectura tiene una edición propia en inglés.
 | [CLI](docs/cli.md) | Herramienta complementaria que lista todos los perfiles desde la terminal (coreano) |
 | [Desarrollo](docs/development.md) | Clona el repositorio y modifícalo (coreano) |
 | [Publicación](docs/release.md) | Cómo llega una nueva versión a la tienda (para mantenedores, coreano) |
-| [Política de privacidad](docs/privacy-policy.md) | Texto completo (coreano) |
+| [Política de privacidad](docs/privacy-policy.en.md) | Texto completo (inglés) |
 
 ---
 
