@@ -461,9 +461,13 @@ describe('scan: browser auto-discovery (no --user-data-dir)', () => {
 
   before(async () => {
     home = await fs.mkdtemp(path.join(os.tmpdir(), 'cici-discover-'));
-    const support = path.join(home, 'Library', 'Application Support');
-    chromeDir = path.join(support, 'Google', 'Chrome');
-    braveDir = path.join(support, 'BraveSoftware', 'Brave-Browser');
+    // These must equal what candidateUserDataDirs() returns for the simulated
+    // darwin platform, which appends the layout with posix separators onto
+    // whatever `home` is — so posix.join, not the native path.join (they
+    // differ on a Windows host, whose filesystem accepts either separator).
+    const support = path.posix.join(home, 'Library', 'Application Support');
+    chromeDir = path.posix.join(support, 'Google', 'Chrome');
+    braveDir = path.posix.join(support, 'BraveSoftware', 'Brave-Browser');
     for (const dir of [chromeDir, braveDir]) {
       await writeJson(path.join(dir, 'Default', 'Preferences'), { profile: { name: 'Only' } });
       await fs.mkdir(path.join(dir, 'Default', 'Local Extension Settings', EXT_ID), { recursive: true });

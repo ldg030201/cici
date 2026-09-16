@@ -170,7 +170,10 @@ describe('discoverBrowsers', () => {
     const found = await discoverBrowsers({ platform: 'darwin', home, env: {} });
     assert.deepEqual(found.map((r) => r.browser), ['chrome', 'brave']);
     assert.equal(found[0].browserName, 'Google Chrome');
-    assert.equal(found[0].userDataDir, path.join(home, 'Library', 'Application Support', 'Google', 'Chrome'));
+    // candidateUserDataDirs is pure and appends the darwin layout with posix
+    // separators onto whatever `home` is, so the expectation must do the same:
+    // on a Windows host the native path.join spells the separators differently.
+    assert.equal(found[0].userDataDir, path.posix.join(home, 'Library', 'Application Support', 'Google', 'Chrome'));
   });
 
   test('returns an empty list when nothing is installed', async () => {

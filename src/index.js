@@ -118,14 +118,18 @@ async function canonicalKey(absPath) {
 /**
  * Case-folded lookup key for the well-known-directory map. macOS and Windows
  * filesystems are case-insensitive, so a lowercase argument still names the
- * browser instead of falling back to "Custom".
+ * browser instead of falling back to "Custom". path.normalize() first: Windows
+ * accepts "/" and "\" alike, so two spellings of the same path (a candidate
+ * joined with posix separators vs. a path.resolve()d argument) must fold to
+ * one key.
  *
  * @param {string} p
  * @param {string} platform
  * @returns {string}
  */
 function foldKey(p, platform) {
-  return platform === 'win32' || platform === 'darwin' ? p.toLowerCase() : p;
+  const normalized = path.normalize(p);
+  return platform === 'win32' || platform === 'darwin' ? normalized.toLowerCase() : normalized;
 }
 
 /**
