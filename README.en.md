@@ -1,368 +1,126 @@
-# cici - Claude in Chrome ID
+<div align="center">
+
+<img src="docs/images/icon.png" width="88" alt="">
+
+# cici
+
+**Tells you which Chrome profile owns each UUID in Claude Code's browser picker**
 
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Install-D97757?style=flat-square&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea)
 [![license MIT](https://img.shields.io/badge/license-MIT-555?style=flat-square)](LICENSE)
 [![dependencies 0](https://img.shields.io/badge/dependencies-0-555?style=flat-square)](package.json)
+[![tests 342](https://img.shields.io/badge/tests-342-3F8F72?style=flat-square)](test)
 
-> 한국어 문서는 [`README.md`](README.md) 를 보세요.
+<img src="docs/images/hero.png" width="820" alt="The picker shows nothing but UUIDs; cici tells you which profile each one is">
 
-> **Unofficial.** cici is not made by Anthropic and is not affiliated with Anthropic.
+<sub>An unofficial tool. Not made by Anthropic, not affiliated with Anthropic.<br>
+Claude, Claude Code, and Claude in Chrome are trademarks of Anthropic.</sub>
 
-> [한국어 README](README.md) is the primary document; this is its English translation.
+<sub>[한국어 README](README.md) is the primary document; this is its English translation.</sub>
 
-Tells you which Chrome profile owns the UUID (`bridgeDeviceId`) that Claude Code shows in its
-browser picker.
+</div>
 
-With more than one browser paired, Claude Code shows you this:
+---
+
+## The problem
+
+If you use more than one Chrome profile — work, personal, a side project — Claude Code asks
+which browser to use and gives you **nothing but a UUID to go on.**
 
 ```
 Which browser?
-  1. 11111111-2222-4333-8444-555555555555
-  2. 66666666-7777-4888-8999-aaaaaaaaaaaa
-  3. bbbbbbbb-cccc-4ddd-8eee-ffffffffffff
+  1. 8c71d0e4-2f96-4a83-b7d5-16ea93c4f082
+  2. 4f2a9c81-7b3e-4d15-9a62-c08e5d1f7b40
+  3. b93e5a27-c418-4f6d-8e10-7d24af95c3b1
 ```
 
-Nothing but UUIDs. To work out which one is your work profile, you have to open each profile, open
-the Claude in Chrome extension's service-worker DevTools, and type
-`chrome.storage.local.get('bridgeDeviceId', console.log)` by hand.
+Pick the wrong one and **a browser signed into the wrong account opens.** You meant to work in
+your company account and your personal browser pops up — or the other way around.
 
-cici answers exactly one question: **which UUID belongs to which profile?**
+cici answers exactly that one question: **which UUID belongs to which profile.**
 
-It only reads. It never writes, never takes the LevelDB `LOCK`, and makes zero network requests, so
-it is safe to use while the browser is running.
+<div align="center">
+<img src="docs/images/popup.png" width="360" alt="The cici popup — the current profile's ID on top, other profiles below">
+</div>
+
+### Learn it once and stop picking
+
+```
+Open the work browser (4f2a9c81-7b3e-4d15-9a62-c08e5d1f7b40)
+```
+
+Pinning it via `/chrome` → **Select browser…** works too. Both need you to know the UUID.
 
 ---
 
-## Two front ends
+## Install
 
-|  | **Extension (MV3)** | **CLI** |
-| --- | --- | --- |
-| Answers | **this profile's** ID, plus the other profiles | every profile on this machine |
-| Needs | Chrome 116+, one file-URL toggle | Node 18.17+ |
-| Install | install the extension, flip the toggle | `node bin/cici.js` |
-| Per profile | yes (install and toggle are both per-profile) | no (all at once) |
+### 1. [Install from the Chrome Web Store](https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea)
 
-Both run the same parser, so both report the same value.
+No need to clone the repository and build anything. Installed from the store, Chrome keeps it
+up to date for you.
 
----
+The popup comes in **English, Korean, and Simplified Chinese.** It follows Chrome's UI
+language; any other language falls back to English.
 
-## A. The extension
+### 2. Turn on file URL access
 
-### Install
+This one step is **required**. Without it the popup shows instructions instead of results.
 
-> It is not on the Chrome Web Store yet. The listing material is prepared in
-> [`docs/store-listing.md`](docs/store-listing.md) (Korean).
-> For now, clone the repo and load it unpacked.
+1. Open `chrome://extensions`
+2. cici → **Details**
+3. Turn on **Allow access to file URLs**
+4. Click the toolbar icon
 
-```sh
-git clone https://github.com/ldg030201/cici.git
-```
+> Flipping the toggle makes Chrome reload the extension, which closes the popup. That is not a
+> bug. No browser restart needed — **just open the popup again.**
 
-1. Open `chrome://extensions`.
-2. Turn on **Developer mode** (top right).
-3. Click **Load unpacked** and pick the `extension/` folder.
-4. Open the extension's **Details** and turn on **"Allow access to file URLs"**.
-5. Click the icon to open the popup.
+**Why this permission is needed.** The `bridgeDeviceId` is a value the Claude in Chrome
+extension keeps in its own `chrome.storage.local`, and one extension cannot read another
+extension's storage. Reading the file on disk is the only way. Every other route we tried, and
+why each one is closed, is documented with evidence in [`docs/why.md`](docs/why.md).
 
-Steps 4 and 5 are needed for a Web Store install too — the toggle defaults to **off** there, and no
-API lets the extension turn it on itself.
+### 3. Repeat per profile
 
-**Flipping that toggle reloads the extension**, which destroys the popup you had open. That is
-expected. You do not need to restart the browser; just open the popup again.
-
-If you skip step 4, the popup shows an explanation and a button that deep-links to the details page.
-
-### The popup
-
-```
-┌──────────────────────────────────────────────┐
-│ cici                                    ⟳    │
-│ Claude in Chrome bridge ID                   │
-├──────────────────────────────────────────────┤
-│ Current profile                              │
-│ ┌──────────────────────────────────────────┐ │
-│ │ Google Chrome                  [current] │ │
-│ │ Personal                                 │ │
-│ │ you@example.com                          │ │
-│ │                                          │ │
-│ │ bridgeDeviceId                    [Copy] │ │
-│ │ ┌──────────────────────────────────────┐ │ │
-│ │ │ 11111111-2222-4333-8444-555555555555 │ │ │
-│ │ └──────────────────────────────────────┘ │ │
-│ │ Pairing name   MacBook                   │ │
-│ └──────────────────────────────────────────┘ │
-│                                              │
-│ Other profiles on this computer              │
-│ ┌──────────────────────────────────────────┐ │
-│ │ Google Chrome · Work              [Copy] │ │
-│ │ work@example.com                         │ │
-│ │ 66666666-7777-4888-8999-aaaaaaaaaaaa     │ │
-│ ├──────────────────────────────────────────┤ │
-│ │ Brave · Default                          │ │
-│ │ Not paired yet                           │ │
-│ └──────────────────────────────────────────┘ │
-├──────────────────────────────────────────────┤
-│ cici only reads files on this computer.      │
-│ Nothing is ever sent anywhere.               │
-└──────────────────────────────────────────────┘
-```
-
-"No ID" is not one answer, so the popup says five different things:
-
-| Message | Meaning |
-| --- | --- |
-| a UUID | paired |
-| Not paired yet | the extension is there but has never been connected to Claude Code |
-| The Claude extension is not in this profile | not installed |
-| Cannot tell whether this profile is paired | the extension's storage could not be read — it may already be paired |
-| Could not read this profile folder | the profile folder itself was unreadable — installed or not is unknown |
-
-Calling either of the last two "not found" would be a lie, so they are kept apart.
-
-### Permissions
-
-`extension/manifest.json` asks for two things and nothing else.
-
-| Permission | Used for |
-| --- | --- |
-| `host_permissions: ["file:///*"]` | reading profile directory listings and LevelDB files with `fetch('file:///…')`. It does nothing at all until the user flips the toggle. |
-| `permissions: ["storage"]` | writing one random value (`__cici_nonce`) into its *own* `chrome.storage.local` to work out which profile it is running in — see "How it works" below. |
-
-No `tabs`, no `scripting`, no `nativeMessaging`, no `<all_urls>`, no remote code, no content
-scripts, and no background service worker. It runs only while the popup is open.
-
----
-
-## B. The CLI
-
-```sh
-node bin/cici.js
-```
-
-or from a clone:
-
-```sh
-git clone https://github.com/ldg030201/cici.git
-cd cici
-npm link      # puts a `cici` command on your PATH
-cici
-```
-
-`node bin/cici.js` or `npm start` works too. Zero runtime dependencies.
-
-### Output
-
-```
-$ cici
-Browser        Profile    Name      Email             Paired name  bridgeDeviceId                        Ext
--------------  ---------  --------  ----------------  -----------  ------------------------------------  -----
-Google Chrome  Default    Personal  you@example.com   MacBook      11111111-2222-4333-8444-555555555555  1.4.2
-Google Chrome  Profile 1  Work      work@example.com  -            66666666-7777-4888-8999-aaaaaaaaaaaa  1.4.2
-Brave          Default    Brave     -                 -            not paired                            1.4.2
-Google Chrome  Profile 2  Test      -                 -            not installed                         -
-
-bridgeDeviceId is the id Claude Code shows in its browser picker when more than one browser is connected.
-```
-
-`not paired` means the extension is installed but has never been connected; `not installed` rows
-only appear with `--all`. When the table is wider than the terminal, the name / email / paired-name
-columns shrink first — the profile and the UUID never do, because a UUID broken across a wrapped
-line cannot be double-clicked.
-
-### Flags
-
-| Flag | What it does |
-| --- | --- |
-| `--json` | print a JSON array instead of the table |
-| `--all` | include profiles where the extension is not installed |
-| `--user-data-dir <dir>` | scan only this user-data directory (repeatable; disables auto-discovery). Use `--user-data-dir=<dir>` for a path starting with `-` |
-| `--ext-id <id>` | extension id to look for (32 letters a–p, repeatable). Defaults to the known Claude in Chrome ids |
-| `--no-color` | disable ANSI colors. `NO_COLOR`, `FORCE_COLOR=0` and `TERM=dumb` are honored too |
-| `-q`, `--quiet` | suppress warnings on stderr |
-| `-h`, `--help` | show help |
-| `-v`, `--version` | print the version |
-
-### Exit codes
-
-| Code | Meaning |
-| --- | --- |
-| `0` | at least one `bridgeDeviceId` was found |
-| `1` | nothing found (stderr says where it looked) |
-| `2` | usage error |
-
-### Examples
-
-```sh
-cici
-cici --all
-cici --json | jq '.[] | select(.deviceId) | {profileName, deviceId}'
-cici --user-data-dir "$HOME/Library/Application Support/BraveSoftware/Brave-Browser"
-```
-
----
-
-## Programmatic API
-
-```js
-import { scan, scanReport } from 'cici';
-
-const rows = await scan();
-for (const row of rows) {
-  if (row.deviceId) console.log(row.profileName, row.deviceId);
-}
-
-// also reports which directories were searched, plus warnings not tied to a profile
-const { rows: all, searched, warnings } = await scanReport({ includeUninstalled: true });
-```
-
-One row:
-
-```json
-{
-  "browser": "chrome",
-  "browserName": "Google Chrome",
-  "userDataDir": "/Users/you/Library/Application Support/Google/Chrome",
-  "profileDir": "/Users/you/Library/Application Support/Google/Chrome/Default",
-  "profileDirName": "Default",
-  "profileName": "Personal",
-  "email": "you@example.com",
-  "gaiaName": "You",
-  "extensionId": "fcoeoabgfenejglbffodgkkbkcdhcgfn",
-  "extensionVersion": "1.4.2",
-  "deviceId": "11111111-2222-4333-8444-555555555555",
-  "displayName": "MacBook",
-  "warnings": []
-}
-```
-
-`ScanOptions` takes `userDataDirs`, `extensionIds`, `includeUninstalled`, and `platform` / `home` /
-`env` for tests. `scan()` never throws because one profile is broken — problems arrive in that row's
-`warnings`.
-
----
-
-## How it works
-
-Chrome stores an extension's `chrome.storage.local` as a LevelDB inside the profile:
-
-```
-<user-data-dir>/<profile>/Local Extension Settings/fcoeoabgfenejglbffodgkkbkcdhcgfn/
-├─ CURRENT            → names the live MANIFEST
-├─ MANIFEST-000001    → VersionEdit log: which .ldb files are live
-├─ 000005.ldb         → SSTable; data blocks are snappy-compressed
-└─ 000007.log         → WAL: records inside 32 KiB blocks, CRC32C
-```
-
-`bridgeDeviceId` and `bridgeDisplayName` live in there as JSON strings (quotes included, so they
-need `JSON.parse`). cici reads it as real LevelDB: `CURRENT` → MANIFEST replay → live `.ldb` + `.log`.
-
-**It never does a substring search.** `includes('bridgeDeviceId')` over raw WAL bytes **silently
-misses the value** whenever a record straddles a 32 KiB block boundary and the 7-byte record header
-lands inside the string — 5 misses in 10 trials, measured. Waiting or retrying does not fix it. Only
-a real parser finds it.
-
-### How the extension knows which profile it is in
-
-There is no API for it. `chrome.identity.getProfileUserInfo()` returns empty strings for a
-signed-out profile, and `Default` / `Profile 3` is a convention, not an identity
-(`--profile-directory=Work` can name it anything).
-
-So it uses a **nonce round-trip**: the popup writes a fresh random UUID to its *own*
-`chrome.storage.local`; Chrome flushes it straight to
-`<some profile>/Local Extension Settings/<cici's own id>/*.log`; the popup then reads its own
-storage in every candidate profile over `file://` and finds the one that contains the nonce. That is
-the profile it is running in. (Measured: the nonce was on disk before `set()` even resolved.)
-
-### Why `file://`
-
-Every extension API route to another extension's `chrome.storage` is closed — `sendMessage`/`connect`,
-`chrome.debugger`, `chrome.scripting`, `storage.sync`, `web_accessible_resources`, `webRequest`, the
-File System Access API, enterprise policy, third-party native hosts. All of them were tried.
-
-Exactly one door opens: `host_permissions: ["file:///*"]` plus the toggle the user flips themselves.
-Which door was knocked on, what came back, and how each answer was verified is written up in
-[`docs/why.md`](docs/why.md) ([한국어](docs/why.ko.md)).
-
----
-
-## Supported browsers and paths
-
-Google Chrome · Chrome Beta · Chrome Dev · Chrome Canary · Chromium · Brave · Microsoft Edge ·
-Arc (macOS) · Vivaldi · Opera
-
-| OS | user-data dir (Chrome) |
-| --- | --- |
-| macOS | `~/Library/Application Support/Google/Chrome` |
-| Windows | `%LOCALAPPDATA%\Google\Chrome\User Data` |
-| Linux | `~/.config/google-chrome` |
-
-Profile names and emails come from `profile.info_cache` in `<user-data-dir>/Local State`, never from
-directory names.
+Extensions install per profile. The popup still lists **every profile on this computer**, so
+one install shows you the whole picture — only the "current profile" card is specific to the
+profile you opened it in.
 
 ---
 
 ## Privacy
 
-* **Zero network requests.** Neither front end contacts anything. The extension's CSP is
-  `connect-src 'self' file:`, so a remote connection is impossible by construction.
-* **Read-only.** `readFile` / `readdir` / `stat` (CLI) and `fetch('file://…')` (extension). The
-  LevelDB `LOCK` is never taken.
-* **Nothing collected, sent, or stored.** Values are rendered and forgotten.
-* The only thing the extension writes is one random value (`__cici_nonce`) into **its own**
-  storage, overwritten on every run. It writes nothing to any other extension's storage.
+* **Zero network requests.** The CSP is locked to `connect-src 'self' file:`, so remote
+  connections are structurally impossible.
+* **Read-only.** It never takes the LevelDB `LOCK`, so it is safe while the browser is running.
+* **Nothing collected, sent, or stored.** Values are rendered on screen and that is all.
+* The only thing it ever writes is one random nonce (`__cici_nonce`) into **its own** storage.
+  It writes not a single byte into any other extension's storage.
 
-Full text: [`docs/privacy-policy.md`](docs/privacy-policy.md) (Korean).
-
----
-
-## Limitations
-
-* **The file-URL toggle is manual and per profile.** No API can request it, and the extension cannot
-  flip it. A Web Store install has it off by default.
-* **Extension installs are per profile too.** Five profiles means five installs and five toggles.
-  Use the CLI if you want everything at once.
-* **A browser started with a custom `--user-data-dir` is invisible to the extension** — it only
-  walks the standard locations. The CLI takes `--user-data-dir`.
-* **`file://` discovery is measured on macOS only.** The listing format is platform-independent so
-  the parser carries over; path discovery does not. snap/flatpak Chromium keeps profiles under
-  `~/snap/...` or `~/.var/app/...` and is additionally sandboxed.
-* **If Chrome tightens `file://`, the extension design dies at once.** The File System Access API
-  already hard-blocks the user-data directory. The CLI is outside the browser and unaffected.
-* **`bridgeDeviceId` only exists after pairing.** Run `/chrome` in Claude Code once first.
+Full text: [`docs/privacy-policy.md`](docs/privacy-policy.md).
 
 ---
 
-## Development
+## Documentation
 
-```sh
-npm test           # node --test test/*.test.js — 334 tests, zero dependencies
-npm start          # node bin/cici.js
-npm run build:ext  # copy the shared parser from src/ into extension/lib/
-npm run check:ext  # verify the copies match, without writing anything
-npm run icons      # regenerate extension/icons/*.png
-```
-
-There is no build step. The extension loads as plain ES modules.
-
-`extension/lib/leveldb-core.js` and `extension/lib/snappy.js` are generated copies of `src/`. Edit
-`src/` and run `npm run build:ext`; `npm test` goes red if they drift.
-
----
-
-## Docs
+Most documents are in Korean (the project's primary language); the architecture rationale has
+a dedicated English edition.
 
 | Document | Contents |
 | --- | --- |
-| [`docs/why.md`](docs/why.md) | why the design is what it is — every avenue tried, why it is closed, evidence and verification |
-| [`docs/why.ko.md`](docs/why.ko.md) | the Korean original of the above |
-| [`docs/store-listing.md`](docs/store-listing.md) | Chrome Web Store listing material (Korean) |
-| [`docs/privacy-policy.md`](docs/privacy-policy.md) | privacy policy (Korean) |
+| [Why this architecture](docs/why.md) | Every route we tried and why each is closed — with evidence (English) |
+| [Extension in detail](docs/extension.md) | Popup screens, the five states it distinguishes, permissions (Korean) |
+| [How it works and limits](docs/how-it-works.md) | Where the value lives, how it finds its own profile (Korean) |
+| [CLI](docs/cli.md) | A companion tool that lists every profile from the terminal (Korean) |
+| [Development](docs/development.md) | Clone the repository and hack on it (Korean) |
+| [Release](docs/release.md) | How a new version reaches the store (maintainers, Korean) |
+| [Privacy policy](docs/privacy-policy.md) | Full text (Korean) |
 
 ---
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT — [`LICENSE`](LICENSE)
 
-cici is an unofficial tool. It is not made by Anthropic, and it is neither affiliated with nor
-endorsed by Anthropic. Claude, Claude Code, and Claude in Chrome are trademarks of Anthropic.
+cici is an unofficial tool not made by Anthropic; it is not affiliated with, endorsed by, or
+sponsored by Anthropic. Claude, Claude Code, and Claude in Chrome are trademarks of Anthropic.
