@@ -55,19 +55,25 @@ Shows which Chrome profile owns each bridgeDeviceId in Claude Code's browser pic
 显示 Claude Code 浏览器选择列表中的 UUID 对应哪个 Chrome 个人资料，并直接展示当前个人资料的 bridgeDeviceId。非官方工具，与 Anthropic 无关。
 ```
 
+**Português (Brasil) (130자)**
+
+```
+Mostra o perfil do Chrome de cada bridgeDeviceId no seletor de navegador do Claude Code. Não oficial, sem vínculo com a Anthropic.
+```
+
 **순서에 이유가 있다.** 스토어 목록의 카드에서는 이 문장의 뒤가 잘린다. 그래서
 기능 설명을 앞에 두고 무관계 고지를 뒤에 붙였다 — 잘리면 기능 설명만 남고, 남은 글자가
-거짓이 되지는 않는다. 고지 자체도 "비공식" / "Unofficial" / "非官方" 로 시작한다.
+거짓이 되지는 않는다. 고지 자체도 "비공식" / "Unofficial" / "非官方" / "Não oficial" 로 시작한다.
 `Anthropic` 을 앞에 두면 하필 그 자리에서 잘렸을 때 `… Anthropic` 만 남아 제휴처럼
 읽힐 수 있다.
 
-한국어·영어는 한도(132자)에 여유가 얼마 없다. `messages.json` 의 `extDesc` 를 고치면
+한국어·영어·포르투갈어는 한도(132자)에 여유가 얼마 없다. `messages.json` 의 `extDesc` 를 고치면
 길이를 다시 재고 이 표도 함께 고쳐야 한다.
 
-**중국어 용어는 크롬을 따른다.** 크롬 zh-CN 언어팩(152.0.7977.83 실측)은 profile 을
-`个人资料` 로 옮기고 `配置文件` 은 한 번도 쓰지 않는다. 파일 URL 토글의 실제 문구는
-`允许访问文件网址` 다. 팝업·스토어 문구 모두 이 용어를 따라야 사용자가 크롬 화면과
-대조할 수 있다.
+**번역 용어는 크롬을 따른다.** 크롬 언어팩(152.0.7977.83 실측) 기준으로 zh-CN 은
+profile 을 `个人资料` 로 옮기고(`配置文件` 0회) 파일 URL 토글은 `允许访问文件网址`,
+pt-BR 은 profile 을 `perfil` 로 옮기고 토글은 `Permitir acesso a URLs de arquivo` 다.
+팝업·스토어 문구 모두 이 용어를 따라야 사용자가 크롬 화면과 대조할 수 있다.
 
 ---
 
@@ -233,6 +239,62 @@ cici 只回答这一个问题：哪个 UUID 属于哪个个人资料。
   Claude in Chrome 扩展已经存储的值读出来展示给用户，不会连接 Anthropic 的任何服务。
 ```
 
+**Português (Brasil)**
+
+```
+Quando você tem mais de um navegador conectado ao Claude Code, o Claude Code
+pergunta qual navegador usar e mostra cada candidato apenas como um UUID.
+
+  1. 11111111-2222-4333-8444-555555555555
+  2. 66666666-7777-4888-8999-aaaaaaaaaaaa
+
+Não há como saber qual deles é o perfil do trabalho e qual é o perfil pessoal.
+Até agora, era preciso abrir as ferramentas do desenvolvedor do service worker
+da extensão em cada perfil e digitar chrome.storage.local.get('bridgeDeviceId')
+manualmente.
+
+O cici responde apenas a essa pergunta: qual UUID pertence a qual perfil.
+
+■ O que ele mostra
+  · O bridgeDeviceId deste perfil — em letras grandes no topo, assim que você abre o pop-up. Um clique copia o valor.
+  · O nome digitado no pareamento (se houver)
+  · A lista dos outros perfis de navegador do mesmo computador, cada um com o próprio ID
+  · Perfis ainda não pareados e perfis sem a extensão Claude também aparecem, devidamente diferenciados
+
+■ Um passo a mais depois da instalação
+  Esta extensão lê arquivos dentro da pasta de perfil do Chrome. Para isso,
+  você mesmo precisa ativar chrome://extensions → detalhes do cici →
+  "Permitir acesso a URLs de arquivo". Como é uma configuração que a extensão
+  não consegue ativar sozinha, o pop-up guia você até essa página.
+  Ao ativar a opção, o Chrome recarrega a extensão, então o pop-up que estava
+  aberto se fecha. Não é preciso reiniciar o navegador — basta abrir o pop-up
+  de novo e já funciona.
+
+■ Privacidade
+  · Não faz nenhuma solicitação de rede. Não coleta, não transmite e não armazena nenhum dado.
+  · Apenas lê arquivos deste computador. Não grava nada.
+  · Lê somente o armazenamento de extensões (Local Extension Settings) dentro da
+    própria pasta de perfil do Chrome e a lista de nomes de perfil (Local State).
+    Histórico de navegação, cookies, senhas e conteúdo de páginas não são lidos —
+    nem poderiam ser.
+  · Sem anúncios, sem ferramentas de análise, sem código remoto.
+
+■ Código aberto
+  Código-fonte completo: https://github.com/ldg030201/cici (MIT)
+  Uma ferramenta de linha de comando que faz o mesmo trabalho está no mesmo repositório.
+
+■ Requisitos
+  Chrome 116 ou superior. Também funciona em navegadores baseados em Chromium.
+
+■ Esta extensão e a Anthropic
+  O cici é uma ferramenta não oficial que não foi criada pela Anthropic. Não tem
+  afiliação com a Anthropic e não recebeu endosso nem patrocínio da Anthropic.
+  É um software de código aberto, criado e publicado por um indivíduo.
+  Claude, Claude Code e Claude in Chrome são marcas comerciais da Anthropic.
+  Esta extensão apenas lê e mostra ao usuário um valor que a extensão
+  Claude in Chrome já armazenou; ela não se conecta a nenhum serviço da Anthropic.
+```
+
 > **브라우저 이름을 나열하지 말 것.** 2026-09-04 첫 제출이 이 줄 하나로 거부됐다
 > (키워드 스팸, 위반 참조 ID `Yellow Argon`). 지적된 원문은
 > `Chrome, Chromium, Brave, Microsoft Edge, Vivaldi, Opera, Arc` 였다.
@@ -251,10 +313,10 @@ cici 只回答这一个问题：哪个 UUID 属于哪个个人资料。
 | 항목 | 값 |
 | --- | --- |
 | 카테고리 | **개발자 도구 (Developer Tools)** |
-| 언어 | 한국어, 영어, 중국어(간체) |
+| 언어 | 한국어, 영어, 중국어(간체), 포르투갈어(브라질) |
 | 대상 연령 | 전체 |
 
-`_locales` 에 `ko`·`en`·`zh_CN` 이 있고 `default_locale` 은 `en` 이다 — 폴백이 `ko` 면
+`_locales` 에 `ko`·`en`·`zh_CN`·`pt` 가 있고 `default_locale` 은 `en` 이다 — 폴백이 `ko` 면
 지원하지 않는 언어(프랑스어, 일본어…)의 크롬 사용자가 전부 한국어 화면을 보게 된다.
 대시보드에서는 언어마다 스토어 등록 정보를 따로 만든다(§3 의 각 언어판을 붙여 넣는다).
 
@@ -315,9 +377,10 @@ chrome.storage.local 에 "__cici_nonce" 키로 씁니다. 크롬은 그 값을 �
 디스크에 곧바로 기록하므로, 프로필들을 훑어 그 난수가 들어 있는 프로필을 찾으면
 그곳이 현재 프로필입니다.
 
-storage 권한은 오직 이 용도로만 씁니다. 저장하는 값은 매번 새로 만드는 난수 하나이며,
-사용자 데이터가 아니고 전송되지 않습니다. 다른 확장의 저장소에는 접근하지 않습니다
-(그럴 수 있는 API 도 없습니다).
+storage 권한이 저장하는 값은 두 개뿐입니다. 위의 난수("__cici_nonce")와, 사용자가
+팝업의 언어 메뉴에서 고른 표시 언어("__cici_lang")입니다. 두 값 모두 사용자 데이터가
+아니고 전송되지 않습니다. 다른 확장의 저장소에는 접근하지 않습니다(그럴 수 있는
+API 도 없습니다).
 ```
 
 ### 요구하지 않는 것
@@ -452,8 +515,7 @@ cd extension && zip -r -X ../cici-extension-<version>.zip . -x '.*' -x '__MACOSX
 
 ## 10. 등록 후
 
-- [ ] 웹스토어 링크를 `README.md` 의 설치 절차에 반영 (현재는 "압축해제 로드" 로만 적혀 있다)
-- [ ] `README.en.md` 에도 동일 반영
+- [ ] 웹스토어 링크를 언어별 README 전부(`README.md`=영어 메인, `README.ko.md`, `README.zh-CN.md`, `README.pt.md`)의 설치 절차에 반영
 - [ ] 웹스토어 설치본에서 파일 URL 토글이 실제로 꺼져 있는지, 팝업 안내 화면이 제대로 뜨는지 확인
       (지금까지 이 상태는 사이드로드로만 재현했다 — [`why.ko.md`](why.ko.md) §6-6 참고)
 - [ ] Windows / Linux 에서 실제로 프로필을 찾는지 확인. 아직 macOS 에서만 실측했다

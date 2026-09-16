@@ -43,6 +43,9 @@ const CLAUDE_ID = CLAUDE_EXTENSION_IDS[0];
 /** 가짜 프로젝트 주소. 실제 저장소 주소는 manifest.json 에만 있다. */
 const HOMEPAGE = 'https://example.invalid/cici';
 
+/** 가짜 버전. 푸터가 이걸 그대로 그리는지 본다 — 실제 버전은 manifest.json 에만 있다. */
+const VERSION = '7.7.7';
+
 const HOME = '/Users/you';
 const CHROME_DIR = `${HOME}/Library/Application Support/Google/Chrome`;
 const BRAVE_DIR = `${HOME}/Library/Application Support/BraveSoftware/Brave-Browser`;
@@ -181,6 +184,8 @@ function standardFs() {
  *   똑같이 밟는 경로다. 홈 루트 리스팅을 영영 멈춰 두고, popup.js 가 건 타이머를
  *   실제로 터뜨려서 재현한다.
  * @param {string} [opts.breakDom] 이 id 의 요소를 지워서 렌더링을 죽인다(오류 화면 확인용).
+ * @param {string} [opts.langPref] chrome.storage.local 에 미리 저장돼 있는 표시 언어.
+ *   지난 팝업에서 언어를 골라 둔 사용자의 모습이다.
  */
 async function mountPopup(opts = {}) {
   const {
@@ -194,6 +199,7 @@ async function mountPopup(opts = {}) {
     denyDirs = [],
     cancelDuringScan = false,
     breakDom = null,
+    langPref = null,
   } = opts;
 
   const html = await readFile(path.join(EXT, 'popup.html'), 'utf8');
@@ -215,11 +221,14 @@ async function mountPopup(opts = {}) {
   let clipboardWorks = true;
 
   const store = new Map();
+  if (langPref !== null) store.set('__cici_lang', langPref);
   const chromeStub = {
     runtime: {
       id: SELF_ID,
       // 오류 화면은 "알릴 곳"을 코드에 박지 않고 매니페스트에서 읽는다.
-      getManifest: () => ({ homepage_url: HOMEPAGE }),
+      // 푸터의 버전도 마찬가지다.
+      getManifest: () => ({ homepage_url: HOMEPAGE, version: VERSION }),
+      getURL: (p) => `chrome-extension://${SELF_ID}/${String(p).replace(/^\/+/, '')}`,
     },
     i18n: {
       getMessage(key, subs) {
@@ -256,6 +265,10 @@ async function mountPopup(opts = {}) {
   if (storagePermission) {
     chromeStub.storage = {
       local: {
+        // 표시 언어 설정이 여기서 나온다. 값 하나만 묻는 형태만 흉내 낸다.
+        async get(key) {
+          return { [key]: store.get(key) };
+        },
         async set(obj) {
           for (const [k, v] of Object.entries(obj)) store.set(k, v);
           // 진짜 크롬처럼, 값은 즉시 그 프로필의 WAL 에 나타난다. 파일 경로는
@@ -312,6 +325,14 @@ async function mountPopup(opts = {}) {
     stub(globalThis, 'clearTimeout', () => {}),
     stub(globalThis, 'fetch', async (url) => {
       const u = new URL(String(url));
+      // 표시 언어 카탈로그는 확장 패키지 안에서 온다. 진짜 파일을 준다 —
+      // 여기서 가짜 카탈로그를 만들면 "그 로케일에 그 키가 정말 있는가"를
+      // 이 테스트가 더는 증명하지 못한다.
+      if (u.protocol === 'chrome-extension:') {
+        const rel = decodeURIComponent(u.pathname).replace(/^\/+/, '');
+        const bytes = await readFile(path.join(EXT, rel));
+        return fakeResponse(200, bytes);
+      }
       if (u.protocol !== 'file:') throw new TypeError('Failed to fetch');
       let p = decodeURIComponent(u.pathname);
       if (/^\/[A-Za-z]:\//.test(p)) p = p.slice(1);
@@ -395,6 +416,24 @@ async function mountPopup(opts = {}) {
       try {
         await node.dispatch('click');
         if (opts.rerun) await waitSettled();
+      } finally {
+        for (const restore of previous) restore();
+      }
+    },
+    /**
+     * 셀렉트 값을 바꾸고 change 를 쏜다. popup.js 의 리스너가 다시 그리는
+     * 것까지(async 전부) 기다린다.
+     *
+     * @param {string} selector
+     * @param {string} value
+     */
+    async change(selector, value) {
+      const node = doc.querySelector(selector);
+      assert.ok(node, `${selector} 를 찾지 못했습니다`);
+      node.value = value;
+      const previous = applyStubs();
+      try {
+        await node.dispatch('change');
       } finally {
         for (const restore of previous) restore();
       }
@@ -915,8 +954,14 @@ test('en 로케일 경고 상자에는 한글이 한 글자도 없다', async ()
   assert.equal(app.doc.getElementById('warn-box').hidden, false, '경고가 생기는 배치여야 의미가 있습니다');
   const text = app.text('#warn-text');
   assert.doesNotMatch(text, /[가-힣]/, `en 화면에 한글이 섞였습니다: ${text}`);
-  // 화면 전체도 마찬가지다.
-  assert.doesNotMatch(app.all(), /[가-힣]/, 'en 화면 어딘가에 한글이 남아 있습니다');
+  // 화면 전체도 마찬가지다 — 단 언어 선택 메뉴는 예외다. 그 항목들은 일부러
+  // 각 언어의 원어 이름("한국어", "简体中文")으로 적는다. 지금 화면의 언어를
+  // 못 읽는 사람이 자기 언어를 찾는 목록이기 때문이다.
+  let whole = app.all();
+  for (const option of app.doc.querySelectorAll('#lang-select option')) {
+    whole = whole.replace(option.textContent, '');
+  }
+  assert.doesNotMatch(whole, /[가-힣]/, 'en 화면 어딘가에 한글이 남아 있습니다');
 });
 
 test('ko 로케일에서도 경고는 카탈로그 문장으로 나온다', async () => {
@@ -931,6 +976,57 @@ test('ko 로케일에서도 경고는 카탈로그 문장으로 나온다', asyn
   assert.match(text, /LevelDB/);
   assert.match(text, /[가-힣]/, 'ko 화면인데 경고가 영어입니다');
   assert.doesNotMatch(text, /^warn[A-Z]/m, '메시지 키가 그대로 새어 나왔습니다');
+});
+
+test('푸터에 manifest 의 버전이 그대로 뜬다', async () => {
+  const { fs, selfProfileDir } = standardFs();
+  const app = await mountPopup({ fs, selfProfileDir });
+
+  const node = app.doc.getElementById('version');
+  assert.equal(node.hidden, false);
+  assert.equal(node.textContent, `v${VERSION}`);
+});
+
+test('저장된 표시 언어가 있으면 브라우저 언어 대신 그 언어로 그린다', async () => {
+  const en = JSON.parse(await readFile(path.join(EXT, '_locales/en/messages.json'), 'utf8'));
+  const { fs, selfProfileDir } = standardFs();
+  // 브라우저(chrome.i18n 스텁)는 ko 를 주지만, 사용자는 지난 팝업에서 en 을 골라 뒀다.
+  const app = await mountPopup({ fs, selfProfileDir, langPref: 'en' });
+
+  assert.equal(app.panel(), 'result');
+  assert.equal(app.doc.lang, 'en');
+  assert.equal(app.text('#self-label'), en.currentProfile.message);
+  assert.equal(app.doc.getElementById('lang-select').value, 'en');
+  assertNoKeyLeak(app, en);
+  assert.doesNotMatch(app.all(), /\$[A-Z_]{3,}\$/);
+});
+
+test('언어를 고르면 저장되고, 정적·동적 텍스트가 그 자리에서 바뀐다', async () => {
+  const zh = JSON.parse(await readFile(path.join(EXT, '_locales/zh_CN/messages.json'), 'utf8'));
+  const { fs, selfProfileDir } = standardFs();
+  const app = await mountPopup({ fs, selfProfileDir });
+
+  assert.equal(app.text('#self-label'), msg('currentProfile'), '시작은 브라우저 언어(ko)여야 합니다');
+
+  await app.change('#lang-select', 'zh_CN');
+
+  assert.equal(app.store.get('__cici_lang'), 'zh_CN', '선택이 저장돼야 다음 팝업이 기억합니다');
+  assert.equal(app.doc.lang, 'zh-CN');
+  assert.equal(app.text('.hd-title'), zh.appTitle.message); // 정적 i18n 경로
+  assert.equal(app.text('#self-label'), zh.currentProfile.message); // 동적 렌더 경로
+  assert.equal(app.text('.card-self .badge'), zh.badgeCurrent.message);
+  assertNoKeyLeak(app, zh);
+});
+
+test('저장된 언어가 없는 로케일이면 조용히 브라우저 언어로 물러선다', async () => {
+  // _locales 에서 지워진 로케일이 저장소에 남아 있던 경우다. 언어 설정 때문에
+  // 팝업이 죽거나, 셀렉터가 실제와 다른 상태를 표시하면 안 된다.
+  const { fs, selfProfileDir } = standardFs();
+  const app = await mountPopup({ fs, selfProfileDir, langPref: 'tlh' });
+
+  assert.equal(app.panel(), 'result');
+  assert.equal(app.doc.lang, 'ko');
+  assert.equal(app.doc.getElementById('lang-select').value, 'auto');
 });
 
 /**

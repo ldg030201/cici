@@ -1,0 +1,424 @@
+{
+  "extName": {
+    "message": "cici - Claude in Chrome ID",
+    "description": "Nome da extensão, exibido na Chrome Web Store e na página de gerenciamento de extensões."
+  },
+  "extDesc": {
+    "message": "Mostra o perfil do Chrome de cada bridgeDeviceId no seletor de navegador do Claude Code. Não oficial, sem vínculo com a Anthropic.",
+    "description": "Descrição da Web Store, com no máximo 132 caracteres (atualmente 130). A lista da loja corta o final, então o que a extensão faz vem primeiro e o aviso de não afiliação vem depois. O aviso começa com \"Não oficial\" — assim, mesmo cortado no meio, o que sobra não sugere afiliação."
+  },
+  "htmlLang": {
+    "message": "pt",
+    "description": "Tag BCP 47 do idioma deste catálogo; vai direto para <html lang>. chrome.i18n.getUILanguage() não serve — ela informa o idioma da interface do navegador, e o Chrome recorre ao default_locale quando o idioma não existe em _locales, divergindo do texto exibido. Ao adicionar um novo locale, atualize também este valor."
+  },
+  "appTitle": {
+    "message": "Claude in Chrome ID",
+    "description": "Nome do produto no cabeçalho do popup."
+  },
+  "unofficialNote": {
+    "message": "Ferramenta não oficial, sem vínculo com a Anthropic.",
+    "description": "Aviso de não afiliação logo abaixo do título do cabeçalho. O título contém \"Claude in Chrome\" e pode ser confundido com um produto oficial, então a negação fica exatamente onde o mal-entendido nasce."
+  },
+  "refresh": {
+    "message": "Verificar novamente",
+    "description": "Botão de atualização no cabeçalho."
+  },
+  "langAuto": {
+    "message": "Seguir idioma do navegador",
+    "description": "Item padrão do seletor de idioma; segue o idioma da interface do Chrome."
+  },
+  "langSelectAria": {
+    "message": "Escolher idioma de exibição",
+    "description": "Nome para leitores de tela do seletor de idioma do cabeçalho. As opções de idioma concretas estão fixas no popup.html com seus nomes nativos e não são traduzidas."
+  },
+  "loadingProfiles": {
+    "message": "Procurando perfis…",
+    "description": "Título da tela de carregamento."
+  },
+  "loadingHint": {
+    "message": "Verificando os perfis de navegador deste computador.",
+    "description": "Texto auxiliar da tela de carregamento."
+  },
+  "cancelScan": {
+    "message": "Parar",
+    "description": "Botão de parada da tela de carregamento. A saída quando uma leitura trava."
+  },
+  "needFileAccessTitle": {
+    "message": "É necessário acesso a URLs de arquivo",
+    "description": "Título exibido quando o acesso a arquivos está desativado."
+  },
+  "needFileAccessWhy": {
+    "message": "O bridgeDeviceId fica salvo dentro da pasta do perfil do Chrome. Para ler esse arquivo, é preciso ativar \"Permitir acesso a URLs de arquivo\".",
+    "description": "Por que a permissão é necessária."
+  },
+  "howToTitle": {
+    "message": "Como ativar",
+    "description": "Título da lista de passos."
+  },
+  "howToStep1": {
+    "message": "Abra a página de detalhes desta extensão com o botão abaixo.",
+    "description": "Passo 1."
+  },
+  "howToStep2": {
+    "message": "Ative \"Permitir acesso a URLs de arquivo\".",
+    "description": "Passo 2."
+  },
+  "howToStep3": {
+    "message": "Abra este popup novamente.",
+    "description": "Passo 3."
+  },
+  "needFileAccessNote": {
+    "message": "Ao ativar essa opção, o Chrome recarrega a extensão, então este popup fecha nesse momento. Não é preciso reiniciar o navegador — basta abrir o popup de novo e ele já funciona.",
+    "description": "Aviso de que a opção recarrega a extensão."
+  },
+  "openExtensionsPage": {
+    "message": "Abrir detalhes da extensão",
+    "description": "Botão que abre chrome://extensions."
+  },
+  "copyUrl": {
+    "message": "Copiar endereço",
+    "description": "Botão que copia o endereço chrome://extensions."
+  },
+  "urlCopyHint": {
+    "message": "O popup fecha quando você pressiona o botão. Você também pode copiar o endereço e colá-lo em uma nova guia.",
+    "description": "Texto ao lado do botão de copiar endereço."
+  },
+  "currentProfile": {
+    "message": "Perfil atual",
+    "description": "Título da seção acima do cartão do perfil atual."
+  },
+  "otherProfiles": {
+    "message": "Outros perfis deste computador",
+    "description": "Título da seção da lista dos demais perfis."
+  },
+  "foundProfiles": {
+    "message": "Perfis encontrados neste computador",
+    "description": "Título da seção da lista quando o perfil atual não foi identificado; a lista também inclui o perfil atual."
+  },
+  "badgeCurrent": {
+    "message": "atual",
+    "description": "Selo do cartão do perfil atual."
+  },
+  "deviceIdLabel": {
+    "message": "bridgeDeviceId",
+    "description": "Rótulo acima do UUID. Não traduzir."
+  },
+  "pairingNameLabel": {
+    "message": "Nome do pareamento",
+    "description": "Rótulo do bridgeDisplayName."
+  },
+  "clickToCopy": {
+    "message": "Clique para copiar",
+    "description": "Dica de ferramenta do botão do UUID."
+  },
+  "copy": {
+    "message": "Copiar",
+    "description": "Botão de copiar."
+  },
+  "copied": {
+    "message": "Copiado",
+    "description": "Feedback de cópia bem-sucedida."
+  },
+  "copyFailed": {
+    "message": "Não foi possível copiar. Selecione o texto e copie manualmente.",
+    "description": "Feedback de falha na cópia."
+  },
+  "copyDeviceIdAria": {
+    "message": "Copiar bridgeDeviceId",
+    "description": "Nome para leitores de tela do botão do UUID do perfil atual."
+  },
+  "copyOfAria": {
+    "message": "Copiar o bridgeDeviceId do perfil $PROFILE$",
+    "description": "Nome para leitores de tela do botão de copiar de uma linha da lista.",
+    "placeholders": {
+      "profile": {
+        "content": "$1",
+        "example": "Work"
+      }
+    }
+  },
+  "unnamedProfile": {
+    "message": "Perfil sem nome",
+    "description": "Quando o nome do perfil não pôde ser lido."
+  },
+  "notPaired": {
+    "message": "Ainda não pareado",
+    "description": "Quando a extensão do Claude existe, mas não há bridgeDeviceId."
+  },
+  "notPairedHint": {
+    "message": "Conecte este navegador ao Claude Code uma vez pela extensão do Claude e o ID será criado.",
+    "description": "Orientação para o estado não pareado."
+  },
+  "claudeNotInstalled": {
+    "message": "A extensão do Claude não está neste perfil",
+    "description": "Quando a pasta da extensão não existe em Local Extension Settings."
+  },
+  "claudeNotInstalledHint": {
+    "message": "Instale o Claude in Chrome neste perfil e o ID aparecerá aqui.",
+    "description": "Orientação para o estado não instalado."
+  },
+  "profileUnreadable": {
+    "message": "Não foi possível ler a pasta deste perfil",
+    "description": "Quando a listagem do perfil não pôde ser lida e não dá para determinar se a extensão está instalada."
+  },
+  "profileUnreadableHint": {
+    "message": "A pasta não pôde ser lida, então não dá para saber se a extensão do Claude está presente. Confira as anotações abaixo.",
+    "description": "Orientação para o estado ilegível."
+  },
+  "pairingUnknown": {
+    "message": "Não é possível saber se este perfil está pareado",
+    "description": "Quando a pasta da extensão do Claude existe, mas o armazenamento dentro dela não pôde ser lido. Não confundir com \"ainda não pareado\"."
+  },
+  "pairingUnknownHint": {
+    "message": "Não foi possível ler o armazenamento da extensão do Claude. O perfil pode já estar pareado. Tente \"Verificar novamente\".",
+    "description": "Orientação para o estado de pareamento desconhecido."
+  },
+  "selfNotFoundTitle": {
+    "message": "Não foi possível identificar o perfil atual",
+    "description": "Título quando a ida e volta do nonce falhou."
+  },
+  "selfNotFoundHint": {
+    "message": "Encontre o seu na lista abaixo. Isso pode acontecer quando uma pasta de perfil não pode ser lida.",
+    "description": "Orientação quando o perfil atual não foi detectado."
+  },
+  "noProfilesTitle": {
+    "message": "Nenhum perfil de navegador encontrado",
+    "description": "Título quando a enumeração de perfis veio vazia."
+  },
+  "noProfilesHint": {
+    "message": "Verifique se o navegador está instalado no local padrão. Navegadores iniciados com um --user-data-dir personalizado não podem ser encontrados.",
+    "description": "Orientação para nenhum perfil. Esta tela só aparece depois de confirmado que o acesso a URLs de arquivo está ativado, então não deve mandar o usuário conferir essa opção (mexer nela só recarrega a extensão e não resolve nada)."
+  },
+  "scanCutShortTitle": {
+    "message": "A verificação não foi concluída",
+    "description": "Quando o tempo estourou ou o usuário parou antes de qualquer perfil ser contado. Estado diferente de \"nenhum encontrado\"."
+  },
+  "scanCutShortHint": {
+    "message": "A verificação parou no meio da contagem de perfis, então não há resultados. Tente \"Verificar novamente\".",
+    "description": "Orientação para verificação interrompida."
+  },
+  "noOtherProfiles": {
+    "message": "Não há outros perfis.",
+    "description": "Quando o perfil atual é o único."
+  },
+  "statusScanned": {
+    "message": "Verificação concluída. Perfil atual: $PROFILE$. Outros perfis: $COUNT$.",
+    "description": "Resumo lido pelo leitor de tela quando a verificação termina.",
+    "placeholders": {
+      "profile": {
+        "content": "$1",
+        "example": "Work"
+      },
+      "count": {
+        "content": "$2",
+        "example": "2"
+      }
+    }
+  },
+  "statusScannedNoSelf": {
+    "message": "Verificação concluída. O perfil atual não foi identificado. Perfis encontrados: $COUNT$.",
+    "description": "Resumo quando a autodetecção falhou.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "errorTitle": {
+    "message": "Algo deu errado",
+    "description": "Título da tela de erro fatal."
+  },
+  "errorHint": {
+    "message": "Pressione \"Tentar novamente\". Se continuar falhando, copie os detalhes abaixo e informe na página do projeto.",
+    "description": "Orientação da tela de erro."
+  },
+  "retry": {
+    "message": "Tentar novamente",
+    "description": "Botão de nova tentativa da tela de erro."
+  },
+  "copyErrorDetails": {
+    "message": "Copiar detalhes",
+    "description": "Botão que copia o diagnóstico na tela de erro."
+  },
+  "warnSelfDetect": {
+    "message": "Ocorreu um problema ao procurar o perfil atual: $DETAIL$",
+    "description": "Linha registrada na lista de avisos quando a detecção do próprio perfil falha.",
+    "placeholders": {
+      "detail": {
+        "content": "$1",
+        "example": "Failed to fetch"
+      }
+    }
+  },
+  "warnScanTimeout": {
+    "message": "A leitura não terminou dentro do tempo. Alguns perfis podem estar faltando. Tente \"Verificar novamente\".",
+    "description": "Quando o orçamento total de tempo estourou ou o usuário parou a verificação."
+  },
+  "warnStorageUnavailable": {
+    "message": "chrome.storage.local não está disponível, então o perfil atual não pode ser mostrado. O manifest.json precisa de \"storage\" em \"permissions\".",
+    "description": "Quando falta a permissão storage."
+  },
+  "warnNoExtensionContext": {
+    "message": "Não foi possível ler chrome.runtime.id. Este não é um contexto de extensão.",
+    "description": "Quando o documento do popup foi aberto fora da extensão."
+  },
+  "warnProfileUnreadable": {
+    "message": "Não foi possível ler a pasta $PATH$, então não dá para saber se a extensão está instalada neste perfil.",
+    "description": "Quando a listagem do diretório do perfil falhou.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      }
+    }
+  },
+  "warnDirUnreadable": {
+    "message": "Não foi possível ler a pasta $PATH$.",
+    "description": "Quando a listagem de um subdiretório falhou.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      }
+    }
+  },
+  "warnNoLevelDbFiles": {
+    "message": "Não há arquivos LevelDB (*.ldb, *.sst, *.log) em $PATH$.",
+    "description": "Quando o diretório de armazenamento existe, mas está vazio.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      }
+    }
+  },
+  "warnLevelDbUnreadable": {
+    "message": "Não foi possível ler o LevelDB de $PATH$ ($DETAIL$).",
+    "description": "Quando o parser falhou por completo.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "cannot read file:///..."
+      }
+    }
+  },
+  "warnParserNote": {
+    "message": "$PATH$: $DETAIL$",
+    "description": "Anotação deixada pelo parser de LevelDB. O detalhe é a mensagem de diagnóstico em inglês gerada pelo próprio parser e não é traduzido.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "CURRENT is missing; scanning every table and log"
+      }
+    }
+  },
+  "warnProfileRead": {
+    "message": "Ocorreu um problema ao ler $PATH$: $DETAIL$",
+    "description": "Quando a leitura de um perfil lançou uma exceção.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Failed to fetch"
+      }
+    }
+  },
+  "warnLocalState": {
+    "message": "Não foi possível ler o Local State de $PATH$: $DETAIL$",
+    "description": "Quando o arquivo com nomes e e-mails dos perfis não pôde ser lido.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "/Users/you/Library/Application Support/Google/Chrome/Default"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Failed to fetch"
+      }
+    }
+  },
+  "warnBadJson": {
+    "message": "$KEY$ não é um JSON válido ($DETAIL$): $VALUE$",
+    "description": "Quando um valor do disco não pode ser interpretado como JSON.",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Unexpected token"
+      },
+      "value": {
+        "content": "$3",
+        "example": "not-json"
+      }
+    }
+  },
+  "warnBadJsonRaw": {
+    "message": "$KEY$ não é um JSON válido ($DETAIL$). Usando o valor bruto.",
+    "description": "Quando o JSON está quebrado, mas o valor bruto parece um UUID e é usado como está.",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "Unexpected token"
+      }
+    }
+  },
+  "warnNotUuid": {
+    "message": "$KEY$ não se parece com um UUID: $VALUE$",
+    "description": "Quando o valor foi lido, mas não tem formato de UUID.",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "value": {
+        "content": "$2",
+        "example": "nope"
+      }
+    }
+  },
+  "warnNotJsonString": {
+    "message": "$KEY$ não é uma string JSON: $VALUE$",
+    "description": "Quando o valor é outro tipo de JSON, não uma string.",
+    "placeholders": {
+      "key": {
+        "content": "$1",
+        "example": "bridgeDeviceId"
+      },
+      "value": {
+        "content": "$2",
+        "example": "123"
+      }
+    }
+  },
+  "warningsTitle": {
+    "message": "Anotações da verificação",
+    "description": "Título do <details> que abre a lista de avisos."
+  },
+  "privacyNote": {
+    "message": "Lê apenas arquivos deste computador e não envia nada a lugar nenhum.",
+    "description": "Nota de rodapé do popup."
+  },
+  "sourceCode": {
+    "message": "Ver código-fonte no GitHub",
+    "description": "Dica de ferramenta e nome acessível do link do GitHub no rodapé."
+  }
+}

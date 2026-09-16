@@ -23,6 +23,14 @@
     "message": "다시 검사",
     "description": "헤더의 새로고침 버튼."
   },
+  "langAuto": {
+    "message": "브라우저 언어에 따름",
+    "description": "언어 선택의 기본 항목. 크롬 UI 언어를 그대로 따른다는 뜻."
+  },
+  "langSelectAria": {
+    "message": "표시 언어 선택",
+    "description": "헤더 언어 선택 상자의 스크린리더 이름. 구체 언어 항목은 popup.html 에 자기 언어 이름(원어)으로 박혀 있어 번역하지 않는다."
+  },
   "loadingProfiles": {
     "message": "프로필을 찾는 중…",
     "description": "로딩 화면의 제목."

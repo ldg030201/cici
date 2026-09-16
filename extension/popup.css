@@ -162,6 +162,29 @@ body {
   color: var(--fg);
 }
 
+/*
+ * 헤더의 표시 언어 선택. 아이콘 버튼과 같은 높이·테두리로 나란히 앉는다.
+ * max-width 는 가장 긴 항목(langAuto 번역)이 아니라 헤더 제목을 지키기 위한
+ * 상한이다 — 넘치면 브라우저가 알아서 줄인다.
+ */
+.lang-select {
+  flex: none;
+  max-width: 132px;
+  height: 28px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--fg-muted);
+  font-family: var(--sans);
+  font-size: 11px;
+}
+
+.lang-select:hover {
+  background: var(--card-2);
+  color: var(--fg);
+}
+
 .icon-btn[data-busy] svg {
   animation: spin 0.8s linear infinite;
 }
@@ -243,6 +266,14 @@ body {
 .ft-row p {
   flex: 1;
   min-width: 0;
+}
+
+/* 푸터의 버전. 데이터가 아니라 배경 정보라 가장 조용한 색을 쓴다. */
+.version {
+  flex: none;
+  color: var(--fg-faint);
+  font-family: var(--mono);
+  font-size: 10px;
 }
 
 .gh-link {

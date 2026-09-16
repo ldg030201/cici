@@ -23,6 +23,14 @@
     "message": "重新扫描",
     "description": "顶部的刷新按钮。"
   },
+  "langAuto": {
+    "message": "跟随浏览器语言",
+    "description": "语言选择器的默认项，表示跟随 Chrome 界面语言。"
+  },
+  "langSelectAria": {
+    "message": "选择显示语言",
+    "description": "标题栏语言选择框的屏幕阅读器名称。具体语言选项在 popup.html 中以各自的母语名称硬编码，不需要翻译。"
+  },
   "loadingProfiles": {
     "message": "正在查找个人资料…",
     "description": "加载界面的标题。"

@@ -2,7 +2,7 @@
 
 Chrome 웹 스토어에서 설치한 cici 확장의 화면과 권한.
 
-[← README 로 돌아가기](../README.md)
+[← README 로 돌아가기](../README.ko.md)
 
 ---
 
@@ -21,9 +21,15 @@ UUID 상자를 클릭하거나 **복사** 버튼을 누르면 클립보드로 �
 
 ## 언어
 
-한국어·영어·중국어(간체). 크롬 UI 언어를 따르고, `_locales` 에 없는 언어에서는
-영어(`default_locale`)로 나온다. 새 언어를 보태려면 `extension/_locales/<로케일>/messages.json`
-하나를 추가하면 된다 — 키 누락·placeholder 불일치는 테스트가 전 로케일을 자동으로 잡는다.
+한국어·영어·중국어(간체)·포르투갈어. 기본으로는 크롬 UI 언어를 따르고, `_locales` 에
+없는 언어에서는 영어(`default_locale`)로 나온다. **팝업 헤더의 언어 메뉴로 직접 바꿀 수도
+있다** — 크롬은 `chrome.i18n` 을 브라우저 언어에 고정해 두므로, 이 메뉴는 고른 로케일의
+`messages.json` 을 확장 패키지에서 직접 읽어 그린다. 선택은 확장 자신의 저장소
+(`__cici_lang`)에 남아 다음 팝업에서도 유지된다.
+
+새 언어를 보태려면 `extension/_locales/<로케일>/messages.json` 을 추가하고 `popup.html`
+의 언어 메뉴에 항목을 더하면 된다 — 키 누락·placeholder 불일치·메뉴 누락은 테스트가
+전 로케일을 자동으로 잡는다.
 
 ## 확장이 구분하는 상태
 
@@ -46,7 +52,7 @@ UUID 상자를 클릭하거나 **복사** 버튼을 누르면 클립보드로 �
 | 권한 | 쓰는 곳 |
 | --- | --- |
 | `host_permissions: ["file:///*"]` | 프로필 폴더 목록과 LevelDB 파일을 `fetch('file:///…')` 로 읽는다. 사용자가 토글을 켜기 전에는 아무 효과가 없다. |
-| `permissions: ["storage"]` | 자기 `chrome.storage.local` 에 난수 하나(`__cici_nonce`)를 써서 **현재 프로필이 어느 폴더인지** 알아낸다. 아래 "동작 원리" 참고. |
+| `permissions: ["storage"]` | 자기 `chrome.storage.local` 에 난수(`__cici_nonce`)를 써서 **현재 프로필이 어느 폴더인지** 알아내고, 표시 언어 선택(`__cici_lang`)을 기억한다. |
 
 `tabs`, `scripting`, `nativeMessaging`, `<all_urls>`, 원격 코드 — 전부 없다.
 백그라운드 서비스워커도 없다. 팝업을 열 때만 동작한다.

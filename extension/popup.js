@@ -32,13 +32,105 @@ const PANELS = ['loading', 'access', 'result', 'error'];
 /** @param {string} id */
 const byId = (id) => document.getElementById(id);
 
+// ---------------------------------------------------------------------------
+// 표시 언어
+//
+// chrome.i18n 은 브라우저 UI 언어에 고정돼 있어 확장이 바꿀 방법이 없다. 그래서
+// 사용자가 헤더에서 언어를 고르면, 그 로케일의 messages.json 을 확장 패키지에서
+// 직접 읽어 t() 가 chrome.i18n 보다 먼저 보게 한다. 'auto' 는 브라우저 언어
+// 그대로다. 선택은 chrome.storage.local 에 남는다 — 이 확장이 자기 저장소에
+// 쓰는 값은 자기 탐지용 난수(lib/locate.js)와 이 설정, 둘뿐이다(개인정보
+// 문서가 이 사실을 그대로 말하므로, 여기에 키를 더하면 그 문서도 고쳐야 한다).
+
+const LANG_PREF_KEY = '__cici_lang';
+
+/** 고른 로케일의 카탈로그. null 이면 chrome.i18n(브라우저 언어)을 쓴다. */
+let overrideCatalog = null;
+
 /**
- * 로케일 문자열. 메시지가 없어도 팝업이 비지 않도록 키 이름으로 되돌린다.
+ * 패키지 안의 카탈로그를 읽는다. CSP 의 connect-src 'self' 가 허용하는 경로다.
+ * @param {string} lang `_locales` 디렉터리 이름
+ */
+async function loadCatalog(lang) {
+  // 옵션 value 는 popup.html 이 정의하고 테스트가 _locales 와 대조하지만,
+  // 저장소에서 읽은 값이 흘러들 수도 있으니 경로 조각으로 안전한지 한 번 더 본다.
+  if (!/^[A-Za-z_]+$/.test(lang)) throw new Error(`unexpected locale: ${lang}`);
+  const getURL = globalThis.chrome?.runtime?.getURL;
+  if (typeof getURL !== 'function') throw new Error('no extension context');
+  const res = await fetch(getURL(`_locales/${lang}/messages.json`));
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return JSON.parse(await res.text());
+}
+
+/**
+ * 카탈로그 항목 하나를 크롬과 같은 규칙으로 조립한다.
+ * `$NAME$`(대소문자 무관) → placeholders[name].content 의 `$1…$9` → subs.
+ * `$$` 는 `$` 하나다.
+ *
+ * @param {{message: string, placeholders?: Record<string, {content?: string}>}} entry
+ * @param {string[]} subs
+ */
+function catalogMessage(entry, subs) {
+  const byName = new Map(
+    Object.entries(entry.placeholders ?? {}).map(([name, p]) => [
+      name.toLowerCase(),
+      String(p?.content ?? ''),
+    ]),
+  );
+  return entry.message.replace(/\$\$|\$([A-Za-z0-9_@]+)\$/g, (match, name) => {
+    if (match === '$$') return '$';
+    const content = byName.get(String(name).toLowerCase());
+    if (content === undefined) return match;
+    return content.replace(/\$(\d)/g, (_, digit) => String(subs[Number(digit) - 1] ?? ''));
+  });
+}
+
+/** @returns {Promise<string>} 저장된 선택. 없거나 못 읽으면 'auto'. */
+async function readLangPref() {
+  try {
+    const got = await globalThis.chrome?.storage?.local?.get(LANG_PREF_KEY);
+    const value = got?.[LANG_PREF_KEY];
+    return typeof value === 'string' ? value : 'auto';
+  } catch {
+    return 'auto';
+  }
+}
+
+/** @param {string} value */
+async function writeLangPref(value) {
+  try {
+    await globalThis.chrome?.storage?.local?.set({ [LANG_PREF_KEY]: value });
+  } catch {
+    // 저장이 안 돼도 이번 팝업이 열려 있는 동안은 고른 언어로 동작한다.
+  }
+}
+
+/**
+ * 선택을 적용하고 셀렉터 표시를 실제 상태와 맞춘다. 카탈로그를 못 읽으면
+ * (지워진 로케일이 저장돼 있던 경우 등) 조용히 'auto' 로 물러선다 — 팝업이
+ * 언어 설정 때문에 죽으면 안 된다.
+ *
+ * @param {string} value 'auto' 또는 `_locales` 디렉터리 이름
+ */
+async function applyLangChoice(value) {
+  overrideCatalog = value === 'auto' ? null : await loadCatalog(value).catch(() => null);
+  const select = byId('lang-select');
+  if (select) select.value = overrideCatalog === null ? 'auto' : value;
+}
+
+/**
+ * 로케일 문자열. 사용자가 고른 카탈로그가 먼저고, 다음이 브라우저 언어이며,
+ * 그래도 없으면 팝업이 비지 않도록 키 이름으로 되돌린다.
  * @param {string} key
  * @param {string[]} [subs]
  * @returns {string}
  */
 function t(key, subs) {
+  const entry = overrideCatalog?.[key];
+  if (entry && typeof entry.message === 'string') {
+    const list = Array.isArray(subs) ? subs.map(String) : subs === undefined ? [] : [String(subs)];
+    return catalogMessage(entry, list);
+  }
   try {
     const msg = globalThis.chrome?.i18n?.getMessage(key, subs);
     if (msg) return msg;
@@ -802,6 +894,21 @@ function fillSourceLink() {
   node.hidden = false;
 }
 
+/** 푸터의 버전. 출처는 manifest 하나뿐이다 — 코드에 버전을 두 번 적지 않는다. */
+function fillVersion() {
+  const node = byId('version');
+  if (!node) return;
+  let version = '';
+  try {
+    version = globalThis.chrome?.runtime?.getManifest?.()?.version ?? '';
+  } catch {
+    version = '';
+  }
+  if (typeof version !== 'string' || version === '') return;
+  node.textContent = `v${version}`;
+  node.hidden = false;
+}
+
 /**
  * 이 확장을 알릴 곳. `manifest.json` 의 `homepage_url` 에서 가져온다.
  * 코드에 주소를 박아 두지 않으므로 저장소 위치가 바뀌어도 한 군데만 고치면 된다.
@@ -911,12 +1018,30 @@ function wire() {
       copyWithFeedback(url);
     }
   });
+
+  byId('lang-select').addEventListener('change', async (event) => {
+    const value = String(event.target?.value ?? 'auto');
+    await writeLangPref(value);
+    await applyLangChoice(value);
+    applyStaticI18n();
+    // 동적 텍스트(카드·목록·경고)는 그릴 때 t() 를 부르므로 다시 그려야 바뀐다.
+    // 검사 실측이 13~50ms 라 결과를 캐시해 두는 것보다 다시 도는 쪽이 단순하다.
+    if (!running) await run();
+  });
 }
 
-function boot() {
+async function boot() {
+  // 언어 선택을 **첫 그리기 전에** 읽는다. 나중에 읽으면 저장된 언어로
+  // 갈아입는 깜빡임이 매번 보인다.
+  try {
+    await applyLangChoice(await readLangPref());
+  } catch {
+    overrideCatalog = null;
+  }
   try {
     applyStaticI18n();
     fillSourceLink();
+    fillVersion();
     wire();
   } catch (err) {
     renderFatal(err);

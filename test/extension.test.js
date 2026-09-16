@@ -309,6 +309,19 @@ test('extension/ 의 fetch 는 file:// 만 연다', async () => {
     }
 
     const fetches = [...source.matchAll(/\bfetch\s*\(/g)];
+    if (rel === 'popup.js') {
+      // 표시 언어 카탈로그는 확장 패키지 안(chrome-extension://自)에서 읽는다.
+      // 패키지 읽기는 네트워크가 아니고, file:// 로더의 FIFO 멈춤 위험도 없어
+      // 타임아웃 규율(fileurl.js) 밖이어도 된다. 다만 반드시
+      // chrome.runtime.getURL 을 거친 주소여야 한다 — 그 밖의 fetch 는 유출이다.
+      const viaGetUrl = [...source.matchAll(/\bfetch\s*\(\s*getURL\s*\(/g)];
+      assert.equal(
+        fetches.length,
+        viaGetUrl.length,
+        'popup.js: fetch 는 fetch(getURL(...)) 형태만 허용됩니다',
+      );
+      continue;
+    }
     if (rel !== path.join('lib', 'fileurl.js')) {
       assert.equal(fetches.length, 0, `${rel}: fetch 는 lib/fileurl.js 에만 있어야 합니다`);
       continue;
@@ -1524,6 +1537,18 @@ test('_locales: 모든 로케일의 키가 ko 와 정확히 같다', async () =>
       );
     }
   }
+});
+
+test('_locales: 팝업 언어 선택지는 로케일 디렉터리와 1:1 이다', async () => {
+  // 로케일을 추가하고 셀렉터에 넣는 것을 잊으면 그 언어는 있는데 고를 수 없고,
+  // 지운 로케일이 선택지에 남으면 고르는 순간 카탈로그 로드가 실패한다.
+  const html = await readFile(path.join(EXT, 'popup.html'), 'utf8');
+  const select = /<select\b[^>]*id="lang-select"[\s\S]*?<\/select>/.exec(html)?.[0];
+  assert.ok(select, 'popup.html 에 lang-select 가 없습니다');
+  const values = [...select.matchAll(/<option\s+value="([^"]+)"/g)].map((m) => m[1]);
+  assert.equal(values[0], 'auto', '첫 항목은 브라우저 언어(auto)여야 합니다');
+  const dirs = (await readdir(path.join(EXT, '_locales'))).sort();
+  assert.deepEqual(values.slice(1).sort(), dirs, '선택지와 _locales 디렉터리가 어긋납니다');
 });
 
 test('_locales: htmlLang 은 자기 디렉터리 이름의 BCP 47 표기다', async () => {

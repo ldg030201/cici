@@ -23,6 +23,14 @@
     "message": "Scan again",
     "description": "Refresh button in the header."
   },
+  "langAuto": {
+    "message": "Match browser language",
+    "description": "Default entry of the language picker; follows the Chrome UI language."
+  },
+  "langSelectAria": {
+    "message": "Choose display language",
+    "description": "Screen-reader name of the header language picker. The concrete language options are hardcoded in popup.html in their own native names, so they are not translated."
+  },
   "loadingProfiles": {
     "message": "Looking for profiles…",
     "description": "Loading screen title."
