@@ -18,7 +18,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node --test test/*.test.js",
+    "test": "node scripts/run-tests.mjs",
     "start": "node bin/cici.js",
     "build:ext": "node scripts/build-extension.mjs",
     "check:ext": "node scripts/build-extension.mjs --check",
