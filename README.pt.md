@@ -6,7 +6,7 @@
 
 **Mostra qual perfil do Chrome está por trás de cada UUID no seletor de navegador do Claude Code**
 
-<sub>🇰🇷 <a href="README.ko.md">한국어</a> · 🇺🇸 <a href="README.md">English</a> · 🇨🇳 <a href="README.zh-CN.md">简体中文</a> · 🇧🇷 <b>Português</b></sub>
+<sub>🇰🇷 <a href="README.ko.md">한국어</a> · 🇺🇸 <a href="README.md">English</a> · 🇨🇳 <a href="README.zh-CN.md">简体中文</a> · 🇧🇷 <b>Português</b> · 🇯🇵 <a href="README.ja.md">日本語</a> · 🇪🇸 <a href="README.es.md">Español</a> · 🇩🇪 <a href="README.de.md">Deutsch</a> · 🇫🇷 <a href="README.fr.md">Français</a></sub>
 
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Instalar-D97757?style=flat-square&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea)
 [![license MIT](https://img.shields.io/badge/license-MIT-555?style=flat-square)](LICENSE)
@@ -62,9 +62,10 @@ o UUID.
 Não é preciso clonar o repositório nem compilar nada. Instalando pela loja, o próprio Chrome
 cuida das atualizações.
 
-O popup está disponível em **português, inglês, coreano e chinês simplificado.** Por padrão ele
-segue o idioma da interface do Chrome (qualquer outro idioma cai para o inglês), e o ícone de
-globo no canto superior direito do popup permite trocar diretamente.
+O popup está disponível em **oito idiomas** — português, inglês, coreano, chinês simplificado,
+japonês, espanhol, alemão e francês. Por padrão ele segue o idioma da interface do Chrome
+(qualquer outro idioma cai para o inglês), e o ícone de globo no canto superior direito do
+popup permite trocar diretamente.
 
 ### 2. Ative o acesso a URLs de arquivo
 

@@ -6,7 +6,7 @@
 
 **Claude Code 브라우저 선택창의 UUID 가 어느 크롬 프로필인지 알려 주는 확장**
 
-<sub>🇰🇷 <b>한국어</b> · 🇺🇸 <a href="README.md">English</a> · 🇨🇳 <a href="README.zh-CN.md">简体中文</a> · 🇧🇷 <a href="README.pt.md">Português</a></sub>
+<sub>🇰🇷 <b>한국어</b> · 🇺🇸 <a href="README.md">English</a> · 🇨🇳 <a href="README.zh-CN.md">简体中文</a> · 🇧🇷 <a href="README.pt.md">Português</a> · 🇯🇵 <a href="README.ja.md">日本語</a> · 🇪🇸 <a href="README.es.md">Español</a> · 🇩🇪 <a href="README.de.md">Deutsch</a> · 🇫🇷 <a href="README.fr.md">Français</a></sub>
 
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20웹%20스토어-설치하기-D97757?style=flat-square&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea)
 [![license MIT](https://img.shields.io/badge/license-MIT-555?style=flat-square)](LICENSE)
@@ -61,8 +61,9 @@ cici 는 그 한 가지 질문에만 답한다. **어느 UUID 가 어느 프로�
 저장소를 받아 직접 빌드할 필요 없다. 스토어에서 설치하면 크롬이 업데이트도
 알아서 해 준다.
 
-팝업은 **한국어·영어·중국어(간체)·포르투갈어**로 나온다. 기본으로는 크롬 UI
-언어를 따르고(그 밖의 언어는 영어), 팝업 오른쪽 위의 지구본 아이콘으로 직접 바꿀 수도 있다.
+팝업은 **8개 언어**(한국어·영어·중국어 간체·포르투갈어·일본어·스페인어·독일어·
+프랑스어)로 나온다. 기본으로는 크롬 UI 언어를 따르고(그 밖의 언어는 영어),
+팝업 오른쪽 위의 지구본 아이콘으로 직접 바꿀 수도 있다.
 
 ### 2. 파일 URL 접근 켜기
 

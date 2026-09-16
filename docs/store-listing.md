@@ -61,19 +61,50 @@ Shows which Chrome profile owns each bridgeDeviceId in Claude Code's browser pic
 Mostra o perfil do Chrome de cada bridgeDeviceId no seletor de navegador do Claude Code. Não oficial, sem vínculo com a Anthropic.
 ```
 
+**日本語 (122자)**
+
+```
+Claude Code のブラウザ選択リストの UUID がどの Chrome プロフィールのものかを表示します。現在のプロフィールの bridgeDeviceId をすぐに確認できます。非公式ツールであり、Anthropic とは無関係です。
+```
+
+**Español (129자)**
+
+```
+Muestra a qué perfil de Chrome pertenece cada bridgeDeviceId del selector de Claude Code. No oficial, sin relación con Anthropic.
+```
+
+**Deutsch (126자)**
+
+```
+Zeigt, zu welchem Chrome-Profil jede UUID in der Browserauswahl von Claude Code gehört. Inoffiziell, unabhängig von Anthropic.
+```
+
+**Français (132자)**
+
+```
+Indique le profil Chrome de chaque bridgeDeviceId du sélecteur de navigateur de Claude Code. Non officiel, sans lien avec Anthropic.
+```
+
 **순서에 이유가 있다.** 스토어 목록의 카드에서는 이 문장의 뒤가 잘린다. 그래서
 기능 설명을 앞에 두고 무관계 고지를 뒤에 붙였다 — 잘리면 기능 설명만 남고, 남은 글자가
-거짓이 되지는 않는다. 고지 자체도 "비공식" / "Unofficial" / "非官方" / "Não oficial" 로 시작한다.
+거짓이 되지는 않는다. 고지 자체도 각 언어에서 "비공식(Unofficial/非官方/Não oficial/非公式/No oficial/Inoffiziell/Non officiel)" 에 해당하는 말로 시작한다.
 `Anthropic` 을 앞에 두면 하필 그 자리에서 잘렸을 때 `… Anthropic` 만 남아 제휴처럼
 읽힐 수 있다.
 
-한국어·영어·포르투갈어는 한도(132자)에 여유가 얼마 없다. `messages.json` 의 `extDesc` 를 고치면
+대부분 한도(132자)에 여유가 얼마 없고, 프랑스어는 정확히 132자다. `messages.json` 의 `extDesc` 를 고치면
 길이를 다시 재고 이 표도 함께 고쳐야 한다.
 
-**번역 용어는 크롬을 따른다.** 크롬 언어팩(152.0.7977.83 실측) 기준으로 zh-CN 은
-profile 을 `个人资料` 로 옮기고(`配置文件` 0회) 파일 URL 토글은 `允许访问文件网址`,
-pt-BR 은 profile 을 `perfil` 로 옮기고 토글은 `Permitir acesso a URLs de arquivo` 다.
-팝업·스토어 문구 모두 이 용어를 따라야 사용자가 크롬 화면과 대조할 수 있다.
+**번역 용어는 크롬을 따른다.** 사용자가 크롬 화면과 대조할 수 있어야 하므로,
+profile 의 역어와 파일 URL 토글 문구는 크롬 언어팩(152.0.7977.83 실측)을 그대로 쓴다.
+
+| 로케일 | profile | 파일 URL 토글(크롬 실제 문구) |
+| --- | --- | --- |
+| zh-CN | 个人资料 (配置文件 0회) | 允许访问文件网址 |
+| pt-BR | perfil | Permitir acesso a URLs de arquivo |
+| ja | プロフィール (크롬 자체가 プロファイル와 혼용 — 다수 쪽) | ファイルの URL へのアクセスを許可する |
+| es | perfil | Permitir el acceso a las URL del archivo |
+| de | Profil | Zugriff auf Datei-URLs zulassen |
+| fr | profil | Autoriser l'accès aux URL de fichier |
 
 ---
 
@@ -295,6 +326,232 @@ O cici responde apenas a essa pergunta: qual UUID pertence a qual perfil.
   Claude in Chrome já armazenou; ela não se conecta a nenhum serviço da Anthropic.
 ```
 
+**日本語**
+
+```
+Claude Code にブラウザを 2 つ以上接続していると、Claude Code はどのブラウザを
+使うかを尋ねる際、候補を UUID ひとつだけで表示します。
+
+  1. 11111111-2222-4333-8444-555555555555
+  2. 66666666-7777-4888-8999-aaaaaaaaaaaa
+
+どちらが仕事用のプロフィールで、どちらが個人用のプロフィールなのか、知る方法がありません。
+これまでは、プロフィールごとに拡張機能のサービスワーカーのデベロッパーツールを開き、
+chrome.storage.local.get('bridgeDeviceId') を手で入力するしかありませんでした。
+
+cici はそのひとつの質問だけに答えます。どの UUID がどのプロフィールのものか。
+
+■ 何を表示しますか
+  · 現在のプロフィールの bridgeDeviceId — ポップアップを開くと一番上に大きく表示されます。クリック 1 回でコピーできます。
+  · ペアリングのときに入力した名前（ある場合）
+  · 同じパソコンのほかのブラウザプロフィールの一覧と、それぞれの ID
+  · まだペアリングされていないプロフィールも、Claude 拡張機能のないプロフィールも、そのまま区別して表示します
+
+■ インストール後にもう 1 ステップ必要です
+  この拡張機能は Chrome のプロフィールフォルダの中のファイルを読みます。そのためには、
+  chrome://extensions → cici の詳細 → 「ファイルの URL へのアクセスを許可する」を
+  自分でオンにする必要があります。拡張機能が自分ではオンにできない設定のため、
+  ポップアップがそのページまでご案内します。
+  トグルをオンにすると Chrome が拡張機能を再読み込みするため、開いていたポップアップは閉じます。
+  ブラウザを再起動する必要はなく、ポップアップを開き直せばすぐに動きます。
+
+■ プライバシー
+  · ネットワークリクエストは 1 件も行いません。収集・送信・保存するデータはありません。
+  · このパソコンのファイルを読むだけです。何も書き込みません。
+  · 読み取る対象は、Chrome 自身のプロフィールフォルダにある拡張機能のストレージ
+    (Local Extension Settings) と、プロフィール名の一覧 (Local State) だけです。
+    閲覧履歴、Cookie、パスワード、ページの内容は読みませんし、読むこともできません。
+  · 広告もアナリティクスもリモートコードもありません。
+
+■ オープンソース
+  全ソース: https://github.com/ldg030201/cici (MIT)
+  同じことをするコマンドラインツールも同じリポジトリにあります。
+
+■ 動作環境
+  Chrome 116 以上。Chromium ベースのブラウザでも動作します。
+
+■ この拡張機能と Anthropic の関係
+  cici は Anthropic が作ったものではない非公式ツールです。Anthropic との提携関係はなく、
+  Anthropic の保証や後援も受けていません。個人が作って公開したオープンソースです。
+  Claude、Claude Code、Claude in Chrome は Anthropic の商標です。この拡張機能は、
+  Claude in Chrome 拡張機能がすでに保存している値を読み取ってユーザーに表示するだけで、
+  Anthropic のサービスには接続しません。
+```
+
+**Español**
+
+```
+Cuando tienes más de un navegador conectado a Claude Code, Claude Code pregunta
+qué navegador usar y muestra cada candidato únicamente como un UUID.
+
+  1. 11111111-2222-4333-8444-555555555555
+  2. 66666666-7777-4888-8999-aaaaaaaaaaaa
+
+No hay forma de saber cuál es el perfil de trabajo y cuál es el perfil personal.
+Hasta ahora, había que abrir las herramientas de desarrollo del service worker
+de la extensión en cada perfil y escribir chrome.storage.local.get('bridgeDeviceId')
+a mano.
+
+cici responde solo a esa pregunta: qué UUID pertenece a qué perfil.
+
+■ Qué muestra
+  · El bridgeDeviceId de este perfil — en grande, arriba del todo, en cuanto abres la ventana emergente. Un clic lo copia.
+  · El nombre que introdujiste al emparejar (si lo hay)
+  · La lista de los demás perfiles de navegador del mismo equipo, cada uno con su propio ID
+  · Los perfiles aún no emparejados y los perfiles sin la extensión Claude también aparecen, claramente diferenciados
+
+■ Hace falta un paso más después de la instalación
+  Esta extensión lee archivos dentro de la carpeta de perfil de Chrome. Para que
+  funcione, tienes que activar tú mismo chrome://extensions → detalles de cici →
+  "Permitir el acceso a las URL del archivo". Es un ajuste que la extensión no
+  puede activar por sí sola, así que la ventana emergente te guía hasta esa página.
+  Al activar la opción, Chrome vuelve a cargar la extensión, por lo que la ventana
+  emergente que estuviera abierta se cierra. No hace falta reiniciar el navegador:
+  basta con volver a abrir la ventana emergente y ya funciona.
+
+■ Privacidad
+  · No hace ninguna solicitud de red. No recopila, no transmite ni almacena ningún dato.
+  · Solo lee archivos de este equipo. No escribe nada.
+  · Lo único que lee es el almacenamiento de extensiones (Local Extension Settings)
+    dentro de la propia carpeta de perfil de Chrome y la lista de nombres de perfil
+    (Local State). El historial de navegación, las cookies, las contraseñas y el
+    contenido de las páginas no se leen, y tampoco podrían leerse.
+  · Sin anuncios, sin herramientas de análisis, sin código remoto.
+
+■ Código abierto
+  Código fuente completo: https://github.com/ldg030201/cici (MIT)
+  En el mismo repositorio hay también una herramienta de línea de comandos que hace el mismo trabajo.
+
+■ Requisitos
+  Chrome 116 o superior. También funciona en navegadores basados en Chromium.
+
+■ Esta extensión y Anthropic
+  cici es una herramienta no oficial que no fue creada por Anthropic. No está
+  afiliada a Anthropic y no ha recibido el respaldo ni el patrocinio de Anthropic.
+  Es software de código abierto, creado y publicado por un particular.
+  Claude, Claude Code y Claude in Chrome son marcas comerciales de Anthropic.
+  Esta extensión solo lee y muestra al usuario un valor que la extensión
+  Claude in Chrome ya ha almacenado; no se conecta a ningún servicio de Anthropic.
+```
+
+**Deutsch**
+
+```
+Wenn mehr als ein Browser mit Claude Code verbunden ist, fragt Claude Code,
+welcher Browser verwendet werden soll – und zeigt jeden Kandidaten nur als
+eine UUID an.
+
+  1. 11111111-2222-4333-8444-555555555555
+  2. 66666666-7777-4888-8999-aaaaaaaaaaaa
+
+Es gibt keine Möglichkeit zu erkennen, welches davon das Arbeitsprofil und
+welches das private Profil ist. Bisher musste man dafür in jedem Profil die
+Entwicklertools des Service Workers der Erweiterung öffnen und
+chrome.storage.local.get('bridgeDeviceId') von Hand eingeben.
+
+cici beantwortet nur diese eine Frage: Welche UUID gehört zu welchem Profil?
+
+■ Was angezeigt wird
+  · Die bridgeDeviceId dieses Profils – groß ganz oben, sobald das Pop-up geöffnet wird. Ein Klick kopiert sie.
+  · Der beim Koppeln eingegebene Name (falls vorhanden)
+  · Die Liste der anderen Browserprofile auf demselben Computer, jeweils mit eigener ID
+  · Auch noch nicht gekoppelte Profile und Profile ohne die Claude-Erweiterung werden angezeigt, klar voneinander unterschieden
+
+■ Nach der Installation ist ein weiterer Schritt nötig
+  Diese Erweiterung liest Dateien im Chrome-Profilordner. Dafür unter
+  chrome://extensions → Details zu cici den Schalter
+  „Zugriff auf Datei-URLs zulassen“ selbst aktivieren. Eine Erweiterung kann
+  diese Einstellung nicht selbst aktivieren, deshalb führt das Pop-up bis zu
+  dieser Seite. Beim Aktivieren des Schalters lädt Chrome die Erweiterung
+  neu, daher schließt sich ein geöffnetes Pop-up. Ein Neustart des Browsers
+  ist nicht nötig – einfach das Pop-up erneut öffnen, dann funktioniert es
+  sofort.
+
+■ Datenschutz
+  · Es werden keinerlei Netzwerkanfragen gestellt. Es werden keine Daten erhoben, übertragen oder gespeichert.
+  · Es werden nur Dateien auf diesem Computer gelesen. Es wird nichts geschrieben.
+  · Gelesen werden ausschließlich der Erweiterungsspeicher (Local Extension
+    Settings) im Chrome-eigenen Profilordner und die Liste der Profilnamen
+    (Local State). Browserverlauf, Cookies, Passwörter und Seiteninhalte
+    werden nicht gelesen – und können auch nicht gelesen werden.
+  · Keine Werbung, keine Analysetools, kein Remote-Code.
+
+■ Open Source
+  Vollständiger Quellcode: https://github.com/ldg030201/cici (MIT)
+  Ein Befehlszeilen-Tool, das dieselbe Aufgabe erledigt, liegt im selben Repository.
+
+■ Voraussetzungen
+  Chrome 116 oder höher. Funktioniert auch in Chromium-basierten Browsern.
+
+■ Diese Erweiterung und Anthropic
+  cici ist ein inoffizielles Tool, das nicht von Anthropic entwickelt wurde.
+  Es steht in keiner Verbindung zu Anthropic und wird von Anthropic weder
+  unterstützt noch gesponsert. Es ist Open-Source-Software, von einer
+  Privatperson erstellt und veröffentlicht. Claude, Claude Code und
+  Claude in Chrome sind Marken von Anthropic. Diese Erweiterung liest
+  lediglich einen Wert aus, den die Erweiterung Claude in Chrome bereits
+  gespeichert hat, und zeigt ihn an; sie stellt keine Verbindung zu einem
+  Dienst von Anthropic her.
+```
+
+**Français**
+
+```
+Quand vous avez plus d’un navigateur connecté à Claude Code, Claude Code
+demande quel navigateur utiliser et n’affiche chaque candidat que sous la
+forme d’un UUID.
+
+  1. 11111111-2222-4333-8444-555555555555
+  2. 66666666-7777-4888-8999-aaaaaaaaaaaa
+
+Impossible de savoir lequel est le profil professionnel et lequel est le
+profil personnel. Jusqu’ici, il fallait ouvrir dans chaque profil les outils
+de développement du service worker de l’extension et taper
+chrome.storage.local.get('bridgeDeviceId') à la main.
+
+cici ne répond qu’à cette seule question : quel UUID appartient à quel profil.
+
+■ Ce que cici affiche
+  · Le bridgeDeviceId de ce profil — en grand tout en haut dès que vous ouvrez le pop-up. Un clic suffit pour le copier.
+  · Le nom saisi lors de l’association (le cas échéant)
+  · La liste des autres profils de navigateur du même ordinateur, chacun avec son propre ID
+  · Les profils pas encore associés et les profils sans l’extension Claude apparaissent aussi, clairement distingués
+
+■ Une étape de plus après l’installation
+  Cette extension lit des fichiers dans le dossier de profil de Chrome. Pour cela,
+  vous devez activer vous-même chrome://extensions → détails de cici →
+  « Autoriser l’accès aux URL de fichier ». Comme c’est un réglage qu’une
+  extension ne peut pas activer seule, le pop-up vous guide jusqu’à cette page.
+  Quand vous activez ce réglage, Chrome recharge l’extension, et le pop-up qui
+  était ouvert se ferme. Inutile de redémarrer le navigateur — rouvrez
+  simplement le pop-up et tout fonctionne.
+
+■ Confidentialité
+  · Elle n’effectue aucune requête réseau. Elle ne collecte, ne transmet et ne stocke aucune donnée.
+  · Elle ne fait que lire des fichiers de cet ordinateur. Elle n’écrit rien.
+  · Elle ne lit que le stockage des extensions (Local Extension Settings) situé
+    dans le propre dossier de profil de Chrome et la liste des noms de profil
+    (Local State). L’historique de navigation, les cookies, les mots de passe
+    et le contenu des pages ne sont pas lus — et ne peuvent pas l’être.
+  · Pas de publicité, pas d’outils d’analyse, pas de code distant.
+
+■ Open source
+  Code source complet : https://github.com/ldg030201/cici (MIT)
+  Un outil en ligne de commande qui fait le même travail se trouve dans le même dépôt.
+
+■ Configuration requise
+  Chrome 116 ou version ultérieure. Fonctionne aussi sur les navigateurs basés sur Chromium.
+
+■ Cette extension et Anthropic
+  cici est un outil non officiel qui n’a pas été créé par Anthropic. Il n’est
+  pas affilié à Anthropic et n’a reçu ni approbation ni parrainage d’Anthropic.
+  C’est un logiciel open source, créé et publié par un particulier.
+  Claude, Claude Code et Claude in Chrome sont des marques d’Anthropic.
+  Cette extension ne fait que lire et montrer à l’utilisateur une valeur que
+  l’extension Claude in Chrome a déjà enregistrée ; elle ne se connecte à
+  aucun service d’Anthropic.
+```
+
 > **브라우저 이름을 나열하지 말 것.** 2026-09-04 첫 제출이 이 줄 하나로 거부됐다
 > (키워드 스팸, 위반 참조 ID `Yellow Argon`). 지적된 원문은
 > `Chrome, Chromium, Brave, Microsoft Edge, Vivaldi, Opera, Arc` 였다.
@@ -313,10 +570,10 @@ O cici responde apenas a essa pergunta: qual UUID pertence a qual perfil.
 | 항목 | 값 |
 | --- | --- |
 | 카테고리 | **개발자 도구 (Developer Tools)** |
-| 언어 | 한국어, 영어, 중국어(간체), 포르투갈어(브라질) |
+| 언어 | 한국어, 영어, 중국어(간체), 포르투갈어(브라질), 일본어, 스페인어, 독일어, 프랑스어 |
 | 대상 연령 | 전체 |
 
-`_locales` 에 `ko`·`en`·`zh_CN`·`pt` 가 있고 `default_locale` 은 `en` 이다 — 폴백이 `ko` 면
+`_locales` 에 `ko`·`en`·`zh_CN`·`pt`·`ja`·`es`·`de`·`fr` 가 있고 `default_locale` 은 `en` 이다 — 폴백이 `ko` 면
 지원하지 않는 언어(프랑스어, 일본어…)의 크롬 사용자가 전부 한국어 화면을 보게 된다.
 대시보드에서는 언어마다 스토어 등록 정보를 따로 만든다(§3 의 각 언어판을 붙여 넣는다).
 

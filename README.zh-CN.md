@@ -6,7 +6,7 @@
 
 **一款告诉你 Claude Code 浏览器选择列表中的 UUID 对应哪个 Chrome 个人资料的扩展程序**
 
-<sub>🇰🇷 <a href="README.ko.md">한국어</a> · 🇺🇸 <a href="README.md">English</a> · 🇨🇳 <b>简体中文</b> · 🇧🇷 <a href="README.pt.md">Português</a></sub>
+<sub>🇰🇷 <a href="README.ko.md">한국어</a> · 🇺🇸 <a href="README.md">English</a> · 🇨🇳 <b>简体中文</b> · 🇧🇷 <a href="README.pt.md">Português</a> · 🇯🇵 <a href="README.ja.md">日本語</a> · 🇪🇸 <a href="README.es.md">Español</a> · 🇩🇪 <a href="README.de.md">Deutsch</a> · 🇫🇷 <a href="README.fr.md">Français</a></sub>
 
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20网上应用店-立即安装-D97757?style=flat-square&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea)
 [![license MIT](https://img.shields.io/badge/license-MIT-555?style=flat-square)](LICENSE)
@@ -60,8 +60,9 @@ cici 只回答这一个问题：**哪个 UUID 对应哪个个人资料。**
 
 不需要克隆仓库自己构建。从应用商店安装后，Chrome 还会自动保持更新。
 
-弹窗提供**韩语、英语、简体中文和葡萄牙语**界面。默认跟随 Chrome 的界面语言
-（其他语言回退到英语），也可以点击弹窗右上角的地球图标直接切换。
+弹窗提供**八种语言**界面：韩语、英语、简体中文、葡萄牙语、日语、西班牙语、
+德语、法语。默认跟随 Chrome 的界面语言（其他语言回退到英语），
+也可以点击弹窗右上角的地球图标直接切换。
 
 ### 2. 开启文件网址访问权限
 

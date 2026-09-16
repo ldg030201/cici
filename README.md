@@ -6,7 +6,7 @@
 
 **Tells you which Chrome profile owns each UUID in Claude Code's browser picker**
 
-<sub>🇰🇷 <a href="README.ko.md">한국어</a> · 🇺🇸 <b>English</b> · 🇨🇳 <a href="README.zh-CN.md">简体中文</a> · 🇧🇷 <a href="README.pt.md">Português</a></sub>
+<sub>🇰🇷 <a href="README.ko.md">한국어</a> · 🇺🇸 <b>English</b> · 🇨🇳 <a href="README.zh-CN.md">简体中文</a> · 🇧🇷 <a href="README.pt.md">Português</a> · 🇯🇵 <a href="README.ja.md">日本語</a> · 🇪🇸 <a href="README.es.md">Español</a> · 🇩🇪 <a href="README.de.md">Deutsch</a> · 🇫🇷 <a href="README.fr.md">Français</a></sub>
 
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Install-D97757?style=flat-square&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/gfffgnkeglhkdnkoindcikdblebcmgea)
 [![license MIT](https://img.shields.io/badge/license-MIT-555?style=flat-square)](LICENSE)
@@ -61,9 +61,10 @@ Pinning it via `/chrome` → **Select browser…** works too. Both need you to k
 No need to clone the repository and build anything. Installed from the store, Chrome keeps it
 up to date for you.
 
-The popup comes in **English, Korean, Simplified Chinese, and Portuguese.** By default it
-follows Chrome's UI language (anything else falls back to English), and the globe icon at the
-top right of the popup switches it directly.
+The popup comes in **eight languages** — English, Korean, Simplified Chinese, Portuguese,
+Japanese, Spanish, German, and French. By default it follows Chrome's UI language (anything
+else falls back to English), and the globe icon at the top right of the popup switches it
+directly.
 
 ### 2. Turn on file URL access
 
