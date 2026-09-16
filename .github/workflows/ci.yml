@@ -9,11 +9,10 @@
 # 바로 그 경로를 다루는 것이다.
 name: CI
 
+# 수동 실행 전용. 커밋마다 자동으로 돌지 않는다 — 로컬 `npm test` 가 1차 방어선이고,
+# CI 는 3개 OS × Node 3버전 매트릭스가 필요할 때(릴리스 전 등) Actions 탭의
+# "Run workflow" 버튼으로 돌린다. (2026-09-16, 사용자 결정)
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

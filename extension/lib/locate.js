@@ -455,11 +455,13 @@ export async function readProfileMeta(userDataDir) {
 
 /**
  * 랜덤 UUID. 확장 페이지는 언제나 보안 컨텍스트라 `crypto.randomUUID()` 가 있다.
+ * `globalThis.` 를 붙이는 이유: 테스트는 이 파일을 Node 에서 돌리는데, 전역
+ * `crypto` 식별자는 Node 19부터라 Node 18 에서는 맨이름 참조가 ReferenceError 다.
  *
  * @returns {string}
  */
 function randomUuid() {
-  return crypto.randomUUID();
+  return globalThis.crypto.randomUUID();
 }
 
 /**
