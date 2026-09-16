@@ -62,8 +62,8 @@ No need to clone the repository and build anything. Installed from the store, Ch
 up to date for you.
 
 The popup comes in **English, Korean, Simplified Chinese, and Portuguese.** By default it
-follows Chrome's UI language (anything else falls back to English), and the popup header has
-a menu to switch it directly.
+follows Chrome's UI language (anything else falls back to English), and the globe icon at the
+top right of the popup switches it directly.
 
 ### 2. Turn on file URL access
 

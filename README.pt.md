@@ -63,8 +63,8 @@ Não é preciso clonar o repositório nem compilar nada. Instalando pela loja, o
 cuida das atualizações.
 
 O popup está disponível em **português, inglês, coreano e chinês simplificado.** Por padrão ele
-segue o idioma da interface do Chrome (qualquer outro idioma cai para o inglês), e o menu de
-idiomas no cabeçalho do popup permite trocar diretamente.
+segue o idioma da interface do Chrome (qualquer outro idioma cai para o inglês), e o ícone de
+globo no canto superior direito do popup permite trocar diretamente.
 
 ### 2. Ative o acesso a URLs de arquivo
 

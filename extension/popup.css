@@ -163,26 +163,44 @@ body {
 }
 
 /*
- * 헤더의 표시 언어 선택. 아이콘 버튼과 같은 높이·테두리로 나란히 앉는다.
- * max-width 는 가장 긴 항목(langAuto 번역)이 아니라 헤더 제목을 지키기 위한
- * 상한이다 — 넘치면 브라우저가 알아서 줄인다.
+ * 헤더의 표시 언어 메뉴. 겉모습은 지구본 아이콘 버튼(.icon-btn 과 같은 크기)
+ * 이고, 실제 컨트롤은 그 위를 통째로 덮은 투명한 네이티브 <select> 다.
+ * 이렇게 하면 클릭 시 브라우저의 진짜 드롭다운이 열리고, 포커스·키보드·
+ * 스크린리더 동작을 하나도 다시 구현할 필요가 없다.
  */
-.lang-select {
+.lang-wrap {
+  position: relative;
   flex: none;
-  max-width: 132px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
   height: 28px;
-  padding: 0 4px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--card);
   color: var(--fg-muted);
-  font-family: var(--sans);
-  font-size: 11px;
 }
 
-.lang-select:hover {
+.lang-wrap:hover {
   background: var(--card-2);
   color: var(--fg);
+}
+
+.lang-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* 진짜 포커스는 투명한 select 가 받는다. 테두리는 보이는 껍데기에 그린다. */
+.lang-wrap:has(.lang-select:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .icon-btn[data-busy] svg {
