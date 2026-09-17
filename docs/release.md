@@ -33,6 +33,24 @@ npm run check:ext && npm test
 `check:ext` 는 `extension/lib` 의 복사본이 `src` 와 같은지 본다. 이게 어긋나면
 스토어에 옛 파서가 올라간다.
 
+이어서 **진짜 크롬에 확장을 얹는 스모크 테스트**를 돌린다.
+
+```sh
+npm run e2e:ext
+```
+
+단위 테스트는 `chrome`/`fetch` 를 전부 흉내 내므로, "크롬이 정말 이 확장을
+로드하고 팝업이 결과 화면까지 도달하는가"는 증명하지 못한다. 이 스크립트가
+Chrome for Testing 을 임시 프로필로 띄워 팝업을 실제로 열어 그것을 확인한다
+(개인정보는 찍지 않고 개수·시간만 낸다). Chrome for Testing 이 없으면
+`npx playwright install chromium` 으로 받거나 `--chrome=` 로 지정한다.
+브랜드판 Google Chrome 은 137+ 에서 `--load-extension` 을 막으므로 쓸 수 없다.
+
+이 스크립트는 이 머신의 실제 크롬 프로필을 검사하므로, 열거되는 프로필 수와
+검사 시간은 실제 크롬의 실행 상태에 좌우된다(PASS/FAIL 은 그와 무관한
+"결과 화면 도달 + 계측 출력"만 본다). 첫 팝업이 느릴 때는 출력의 `[cici] scan`
+줄에서 `enumerate` 시간과 `reads` 수가 첫 단서다.
+
 ## 3. zip 만들기
 
 ```sh
