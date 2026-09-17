@@ -1,7 +1,7 @@
 # cici Privacy Policy
 
 **Applies to:** the Chrome extension "cici - Claude in Chrome ID" and the `cici` command-line tool
-**Effective:** 2026-09-16
+**Effective:** 2026-09-17
 **Source code:** <https://github.com/ldg030201/cici> (MIT)
 
 > This is an English translation of the [Korean original](privacy-policy.md), provided for
@@ -35,12 +35,13 @@ All code ships inside the installed package; nothing is downloaded.
 
 ## 3. Data we store
 
-The extension stores **two values** in its own `chrome.storage.local`.
+The extension stores **three values** in its own extension storage.
 
-| Key | Value | Purpose |
-| --- | --- | --- |
-| `__cici_nonce` | A randomly generated UUID (e.g. `3f2a…`) | Determining **which Chrome profile** the extension is running in |
-| `__cici_lang` | The display language the user picked (e.g. `en`) | Keeping the popup's language choice for the next popup |
+| Key | Storage | Value | Purpose |
+| --- | --- | --- | --- |
+| `__cici_nonce` | `chrome.storage.local` | A randomly generated UUID (e.g. `3f2a…`) | Determining **which Chrome profile** the extension is running in |
+| `__cici_lang` | `chrome.storage.local` | The display language the user picked (e.g. `en`) | Keeping the popup's language choice for the next popup |
+| `__cici_scan` | `chrome.storage.session` | The last scan result — exactly what the popup renders (profile names, account emails, UUIDs) | A cache so the popup can show the previous result instantly when reopened. A fresh scan always re-runs behind it |
 
 There is no API that tells an extension which profile it lives in. So every time the popup
 opens, it generates a fresh nonce, writes it to its own storage, and scans the profiles for
@@ -48,8 +49,13 @@ the profile whose disk contains that nonce. That profile is the current one.
 
 The nonce is not user data; it is regenerated on every run, overwriting the previous one.
 The display language is stored only when the user operates the language menu in the popup
-header. Neither value is transmitted anywhere or ever leaves the user's browser.
+header.
 
+`chrome.storage.session`, which holds the scan cache (`__cici_scan`), is an **in-memory-only
+store**: it is never written to disk, and Chrome clears it when the browser is closed. Its
+contents are the same values that §4 reads from disk and the popup already shows on screen.
+
+None of the three values is transmitted anywhere or ever leaves the user's browser.
 cici writes nothing else to disk. The command-line tool stores nothing at all.
 
 ## 4. Data we read
@@ -64,8 +70,9 @@ cici reads the following local files, **read-only**.
 | `<profile>/Local Extension Settings/<cici's own id>/` | To find the nonce from §3 and identify the current profile |
 | `<profile>/Extensions/<extension id>/` | To check whether the Claude extension is installed (extension and CLI) and to read its version (CLI) |
 
-Values that are read are used only to render the screen and are gone when it closes.
-Nothing is accumulated or recorded anywhere.
+Values that are read are used only to render the screen. After it closes they persist only
+in the in-memory scan cache of §3 for the duration of the browser session, and are gone when
+the browser closes. Nothing is written to disk or sent anywhere.
 
 ### What we do not read
 
@@ -113,7 +120,8 @@ cici collects personal data from no one, which includes children.
 
 Since no personal data is collected or stored, there is no retention period and no deletion
 procedure. The values in §3 are removed by Chrome together with the extension's storage
-when the extension is uninstalled.
+when the extension is uninstalled. The scan cache (`__cici_scan`) is gone even sooner —
+as soon as the browser is closed.
 
 ## 10. Your rights
 
@@ -129,7 +137,7 @@ and the extension ships **human-readable**, with no bundling or minification.
 | --- | --- |
 | No network requests | Search `extension/` for `fetch(` — only `file:` URLs and the extension's own packaged language catalogs (via `chrome.runtime.getURL`) appear. There is no `XMLHttpRequest`, `WebSocket`, or `sendBeacon` |
 | No remote code | See `content_security_policy` in `manifest.json`. There is no external `<script src>` |
-| No writes | The only writing API used is `chrome.storage.local.set`, and only for `__cici_nonce` and `__cici_lang`. The CLI uses only `readFile`/`readdir`/`stat` |
+| No writes | The only writing APIs used are `chrome.storage.local.set` (`__cici_nonce`, `__cici_lang`) and `chrome.storage.session.set` (`__cici_scan`, in-memory only). The CLI uses only `readFile`/`readdir`/`stat` |
 | Only two permissions | `permissions` and `host_permissions` in `extension/manifest.json` |
 
 You can also open your browser's DevTools network tab while using the popup: no request appears.

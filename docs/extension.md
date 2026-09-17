@@ -53,7 +53,7 @@ UUID 상자를 클릭하거나 **복사** 버튼을 누르면 클립보드로 �
 | 권한 | 쓰는 곳 |
 | --- | --- |
 | `host_permissions: ["file:///*"]` | 프로필 폴더 목록과 LevelDB 파일을 `fetch('file:///…')` 로 읽는다. 사용자가 토글을 켜기 전에는 아무 효과가 없다. |
-| `permissions: ["storage"]` | 자기 `chrome.storage.local` 에 난수(`__cici_nonce`)를 써서 **현재 프로필이 어느 폴더인지** 알아내고, 표시 언어 선택(`__cici_lang`)을 기억한다. |
+| `permissions: ["storage"]` | 자기 `chrome.storage.local` 에 난수(`__cici_nonce`)를 써서 **현재 프로필이 어느 폴더인지** 알아내고, 표시 언어 선택(`__cici_lang`)을 기억한다. 마지막 검사 결과(`__cici_scan`)는 메모리 전용 `chrome.storage.session` 에 캐시해 다음 팝업을 즉시 그린다 — 재검사는 항상 뒤에서 다시 돈다. |
 
 `tabs`, `scripting`, `nativeMessaging`, `<all_urls>`, 원격 코드 — 전부 없다.
 백그라운드 서비스워커도 없다. 팝업을 열 때만 동작한다.

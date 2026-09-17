@@ -145,7 +145,8 @@ cici 는 그 한 가지 질문에만 답합니다. 어느 UUID 가 어느 프로
 ■ 개인정보
   · 네트워크 요청을 한 건도 하지 않습니다. 수집·전송하는 데이터가 없습니다.
   · 이 컴퓨터의 파일을 읽기만 합니다. 다른 확장의 저장소에는 아무것도 쓰지 않으며,
-    확장 자신의 저장소에 남기는 값은 현재 프로필 확인용 난수와 표시 언어 설정 둘뿐입니다.
+    확장 자신의 저장소에 남기는 값은 현재 프로필 확인용 난수, 표시 언어 설정, 그리고
+    마지막 검사 결과 캐시(메모리 전용 세션 저장소 — 브라우저를 닫으면 삭제) 셋뿐입니다.
   · 읽는 대상은 크롬 자신의 프로필 폴더에 있는 확장 저장소(Local Extension Settings)와
     프로필 이름 목록(Local State)뿐입니다. 방문 기록, 쿠키, 비밀번호, 페이지 내용은
     읽지 않고 읽을 수도 없습니다.
@@ -200,7 +201,8 @@ cici answers that one question only: which UUID belongs to which profile.
   · It makes no network requests at all. It collects and transmits no data.
   · It only reads files on this computer. It writes nothing into any other extension's
     storage; the only values it keeps in its own storage are a random nonce used to find
-    the current profile and your display-language choice.
+    the current profile, your display-language choice, and a cache of the last scan
+    result (in-memory session storage only — cleared when the browser closes).
   · The only things it reads are the extension storage (Local Extension Settings)
     inside Chrome's own profile folder and the list of profile names (Local State).
     It does not — and cannot — read your browsing history, cookies, passwords,
@@ -254,7 +256,8 @@ cici 只回答这一个问题：哪个 UUID 属于哪个个人资料。
 ■ 隐私
   · 不发出任何网络请求。不收集、不传输任何数据。
   · 只读取这台电脑上的文件。不向任何其他扩展程序的存储写入内容；它自己的存储中
-    只保存两个值：用于识别当前个人资料的随机数和你选择的显示语言。
+    只保存三个值：用于识别当前个人资料的随机数、你选择的显示语言，以及上次扫描
+    结果的缓存（仅存于内存的会话存储，关闭浏览器即清除）。
   · 读取的对象仅限 Chrome 自己的个人资料文件夹中的扩展存储
     （Local Extension Settings）和个人资料名称列表（Local State）。
     浏览记录、Cookie、密码、页面内容一概不读取，也无法读取。
@@ -309,7 +312,9 @@ O cici responde apenas a essa pergunta: qual UUID pertence a qual perfil.
   · Não faz nenhuma solicitação de rede. Não coleta nem transmite nenhum dado.
   · Apenas lê arquivos deste computador. Não grava nada no armazenamento de nenhuma outra
     extensão; os únicos valores que guarda no próprio armazenamento são um número aleatório
-    usado para identificar o perfil atual e o idioma de exibição que você escolheu.
+    usado para identificar o perfil atual, o idioma de exibição que você escolheu e um
+    cache do último resultado da verificação (armazenamento de sessão apenas em memória —
+    apagado ao fechar o navegador).
   · Lê somente o armazenamento de extensões (Local Extension Settings) dentro da
     própria pasta de perfil do Chrome e a lista de nomes de perfil (Local State).
     Histórico de navegação, cookies, senhas e conteúdo de páginas não são lidos —
@@ -364,7 +369,8 @@ cici はそのひとつの質問だけに答えます。どの UUID がどのプ
 ■ プライバシー
   · ネットワークリクエストは 1 件も行いません。収集・送信するデータはありません。
   · このパソコンのファイルを読むだけです。ほかの拡張機能のストレージには何も書き込みません。
-    自分のストレージに保存するのは、現在のプロフィール判定用の乱数と表示言語の設定の 2 つだけです。
+    自分のストレージに保存するのは、現在のプロフィール判定用の乱数、表示言語の設定、
+    前回のスキャン結果のキャッシュ（メモリのみのセッションストレージ — ブラウザを閉じると消えます）の 3 つだけです。
   · 読み取る対象は、Chrome 自身のプロフィールフォルダにある拡張機能のストレージ
     (Local Extension Settings) と、プロフィール名の一覧 (Local State) だけです。
     閲覧履歴、Cookie、パスワード、ページの内容は読みませんし、読むこともできません。
@@ -420,7 +426,9 @@ cici responde solo a esa pregunta: qué UUID pertenece a qué perfil.
   · No hace ninguna solicitud de red. No recopila ni transmite ningún dato.
   · Solo lee archivos de este equipo. No escribe nada en el almacenamiento de ninguna otra
     extensión; los únicos valores que guarda en su propio almacenamiento son un número
-    aleatorio para identificar el perfil actual y el idioma de visualización que elegiste.
+    aleatorio para identificar el perfil actual, el idioma de visualización que elegiste
+    y una caché del último análisis (almacenamiento de sesión solo en memoria, que se
+    borra al cerrar el navegador).
   · Lo único que lee es el almacenamiento de extensiones (Local Extension Settings)
     dentro de la propia carpeta de perfil de Chrome y la lista de nombres de perfil
     (Local State). El historial de navegación, las cookies, las contraseñas y el
@@ -479,8 +487,10 @@ cici beantwortet nur diese eine Frage: Welche UUID gehört zu welchem Profil?
 ■ Datenschutz
   · Es werden keinerlei Netzwerkanfragen gestellt. Es werden keine Daten erhoben oder übertragen.
   · Es werden nur Dateien auf diesem Computer gelesen. In den Speicher anderer Erweiterungen
-    wird nichts geschrieben; im eigenen Speicher liegen nur zwei Werte – eine Zufallszahl zum
-    Erkennen des aktuellen Profils und die gewählte Anzeigesprache.
+    wird nichts geschrieben; im eigenen Speicher liegen nur drei Werte – eine Zufallszahl
+    zum Erkennen des aktuellen Profils, die gewählte Anzeigesprache und ein Cache des
+    letzten Scan-Ergebnisses (Sitzungsspeicher nur im Arbeitsspeicher, wird beim
+    Schließen des Browsers gelöscht).
   · Gelesen werden ausschließlich der Erweiterungsspeicher (Local Extension
     Settings) im Chrome-eigenen Profilordner und die Liste der Profilnamen
     (Local State). Browserverlauf, Cookies, Passwörter und Seiteninhalte
@@ -541,7 +551,9 @@ cici ne répond qu’à cette seule question : quel UUID appartient à quel pr
   · Elle n’effectue aucune requête réseau. Elle ne collecte ni ne transmet aucune donnée.
   · Elle ne fait que lire des fichiers de cet ordinateur. Elle n’écrit rien dans le stockage
     d’aucune autre extension ; les seules valeurs conservées dans son propre stockage sont
-    un nombre aléatoire servant à identifier le profil actuel et la langue d’affichage choisie.
+    un nombre aléatoire servant à identifier le profil actuel, la langue d’affichage choisie
+    et un cache du dernier résultat d’analyse (stockage de session en mémoire uniquement,
+    effacé à la fermeture du navigateur).
   · Elle ne lit que le stockage des extensions (Local Extension Settings) situé
     dans le propre dossier de profil de Chrome et la liste des noms de profil
     (Local State). L’historique de navigation, les cookies, les mots de passe
@@ -690,10 +702,12 @@ chrome.storage.local 에 "__cici_nonce" 키로 씁니다. 크롬은 그 값을 �
 디스크에 곧바로 기록하므로, 프로필들을 훑어 그 난수가 들어 있는 프로필을 찾으면
 그곳이 현재 프로필입니다.
 
-storage 권한이 저장하는 값은 두 개뿐입니다. 위의 난수("__cici_nonce")와, 사용자가
-팝업의 언어 메뉴에서 고른 표시 언어("__cici_lang")입니다. 두 값 모두 사용자 데이터가
-아니고 전송되지 않습니다. 다른 확장의 저장소에는 접근하지 않습니다(그럴 수 있는
-API 도 없습니다).
+storage 권한이 저장하는 값은 세 개뿐입니다. 위의 난수("__cici_nonce"), 사용자가
+팝업의 언어 메뉴에서 고른 표시 언어("__cici_lang"), 그리고 마지막 검사 결과를 다음
+팝업에서 즉시 보여 주기 위한 캐시("__cici_scan")입니다. 캐시는 메모리에만 존재하는
+chrome.storage.session 에 있어 디스크에 기록되지 않고 브라우저를 닫으면 사라지며,
+내용은 팝업 화면에 이미 표시되는 값과 같습니다. 세 값 모두 어디에도 전송되지
+않습니다. 다른 확장의 저장소에는 접근하지 않습니다(그럴 수 있는 API 도 없습니다).
 ```
 
 **English — 대시보드에는 이 판을 쓴다.**
@@ -705,10 +719,14 @@ writes it to its own chrome.storage.local under the key "__cici_nonce".
 Chrome persists that value to the current profile's disk immediately, so
 scanning the profiles for the nonce identifies the current profile.
 
-The storage permission stores exactly two values: this nonce, and the display
-language the user picks in the popup ("__cici_lang"). Neither is user data,
-and neither is transmitted anywhere. The extension does not access any other
-extension's storage (there is no API that could).
+The storage permission stores exactly three values: this nonce, the display
+language the user picks in the popup ("__cici_lang"), and a cache of the last
+scan result ("__cici_scan") so a reopened popup can show it instantly. The
+cache lives in chrome.storage.session, which exists in memory only - it is
+never written to disk and Chrome clears it when the browser closes - and it
+holds the same values the popup already renders. None of these values is
+transmitted anywhere. The extension does not access any other extension's
+storage (there is no API that could).
 ```
 
 ### 요구하지 않는 것
