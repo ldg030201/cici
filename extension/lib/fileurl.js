@@ -156,17 +156,50 @@ function errorMessage(err) {
  * @param {unknown} err
  * @returns {Error}
  */
+/**
+ * 상한을 꽉 채우고 끊긴 것인지(= 그쪽이 응답 자체를 하지 않는다) 표시한다.
+ *
+ * "없는 경로"와 "응답하지 않는 경로"는 다음에 할 일이 다르다 — 앞엣것은 다시
+ * 물어도 싸게 끝나지만, 뒤엣것은 물을 때마다 상한만큼 또 기다린다.
+ *
+ * @template {Error} T
+ * @param {T} failure 우리가 만든 에러
+ * @param {unknown} cause 원래 에러
+ * @returns {T}
+ */
+function markTimeout(failure, cause) {
+  const name = cause && typeof cause === 'object' ? cause.name : '';
+  failure.timedOut = name === 'TimeoutError' || name === 'AbortError';
+  return failure;
+}
+
 function fetchFailure(url, err) {
-  return new Error(
-    `cannot read ${url} (${errorMessage(err)}); ` +
-      'the path may not exist, or "Allow access to file URLs" may be off',
+  return markTimeout(
+    new Error(
+      `cannot read ${url} (${errorMessage(err)}); ` +
+        'the path may not exist, or "Allow access to file URLs" may be off',
+    ),
+    err,
   );
 }
 
 /**
- * 디렉터리 리스팅 하나를 기다리는 상한. 리스팅은 작고 빠르다(실측 1ms 안팎).
+ * 디렉터리 리스팅 하나를 기다리는 상한. 리스팅은 작고 빠르다(실측 1ms 안팎,
+ * 항목 88개짜리 실제 프로필도 22ms).
+ *
+ * 예전에는 5초였다. 그런데 macOS 는 크롬이 **다른 브라우저의** 데이터 폴더
+ * (`…/BraveSoftware/Brave-Browser`, `…/Microsoft Edge`)를 읽는 것을 TCC 로
+ * 막으면서, 거부를 돌려주는 대신 **응답을 아예 하지 않는다**. 그래서 그 리스팅은
+ * 상한을 꽉 채우고서야 끊겼고, 설치만 되어 있고 우리가 읽을 수 없는 브라우저가
+ * 둘 있는 것만으로 팝업의 첫 화면이 5초 뒤로 밀렸다(실측: enumerate 5072ms 중
+ * 5001ms 가 이 둘).
+ *
+ * 더 기다린다고 답이 오지 않으므로 — 5초든 1.2초든 결과는 똑같은 실패다 —
+ * 정상적인 리스팅을 놓치지 않을 만큼만 남기고 줄인다. 실측치의 50배가 넘고,
+ * 그래도 놓친 디렉터리는 `Local State` 의 `profile.info_cache` 가 받아 준다
+ * (`listProfileDirs` 의 unknown 복구 경로).
  */
-const LIST_TIMEOUT_MS = 5000;
+const LIST_TIMEOUT_MS = 1200;
 
 /**
  * 파일 하나를 기다리는 상한. 실제 LevelDB 파일은 프로필당 최대 6.5MB 정도이고
@@ -295,7 +328,11 @@ async function fetchAs(url, timeoutMs, readBody) {
       else if (typeof body === 'string') fetchStats.bytes += body.length;
       return body;
     } catch (err) {
-      throw new Error(`cannot read the body of ${url} (${errorMessage(err)})`);
+      // 여기도 타임아웃을 표시해야 한다. macOS 가 TCC 로 막는 디렉터리는 **응답
+      // 객체는 돌려주고 본문에서 멈춘다**(실측: 위 fetch 는 통과하고 res.text()
+      // 가 상한까지 매달렸다). 그래서 이 갈래를 빼놓으면 정작 문제가 되는
+      // 경우를 하나도 못 잡는다.
+      throw markTimeout(new Error(`cannot read the body of ${url} (${errorMessage(err)})`), err);
     }
   } finally {
     const took = now() - started;
@@ -557,6 +594,19 @@ export async function listDir(absPath) {
 /** @type {Map<string, Promise<DirEntry[]|null>>} */
 const dirCache = new Map();
 
+/**
+ * 상한을 꽉 채우고 끊긴 디렉터리들. **응답 자체를 하지 않는 곳**이다.
+ *
+ * macOS 는 크롬이 다른 브라우저의 데이터 폴더를 읽는 것을 TCC 로 막으면서 거부
+ * 대신 침묵한다. 그런 곳은 다시 물어도 또 상한만큼 기다릴 뿐이라, 한 번 겪으면
+ * 기억해 두고 건너뛴다. `dirCache` 와 달리 "다시 검사"로 비우지 않는다 — 그
+ * 사실은 디스크 내용이 아니라 **환경**이고, 한 번 더 물어 봐야 4초를 또 버릴
+ * 뿐이기 때문이다. 팝업은 이 목록을 세션에 얹어 두어 다음 팝업도 아낀다.
+ *
+ * @type {Set<string>}
+ */
+let stalledDirs = new Set();
+
 /** @param {string} absPath */
 function cacheKey(absPath) {
   return String(absPath).replace(/[\\/]+$/, '');
@@ -565,9 +615,26 @@ function cacheKey(absPath) {
 /**
  * 리스팅 캐시를 비운다. 검사를 다시 시작할 때(팝업의 "다시 검사") 부른다.
  * 디스크가 그 사이에 바뀌었을 수 있기 때문이다.
+ *
+ * 무응답 목록({@link getStalledDirs})은 **비우지 않는다.** 위 주석 참고.
  */
 export function resetDirCache() {
   dirCache.clear();
+}
+
+/**
+ * 지난 검사에서 알아낸 무응답 디렉터리를 미리 알려 준다. 팝업이 세션에 저장해
+ * 두었던 목록을 넘긴다.
+ *
+ * @param {Iterable<string>} paths
+ */
+export function setStalledDirs(paths) {
+  stalledDirs = new Set([...(paths ?? [])].filter((p) => typeof p === 'string').map(cacheKey));
+}
+
+/** @returns {string[]} 지금까지 무응답으로 확인된 디렉터리 */
+export function getStalledDirs() {
+  return [...stalledDirs];
 }
 
 /**
@@ -578,11 +645,16 @@ export function resetDirCache() {
  */
 export function listDirOrNull(absPath) {
   const key = cacheKey(absPath);
+  // 이미 응답하지 않는다고 확인된 곳이다. 또 물으면 상한만큼 또 기다린다.
+  if (stalledDirs.has(key)) return Promise.resolve(null);
   let hit = dirCache.get(key);
   if (hit === undefined) {
     hit = listDir(key).then(
       (entries) => entries,
-      () => null,
+      (err) => {
+        if (err && err.timedOut) stalledDirs.add(key);
+        return null;
+      },
     );
     dirCache.set(key, hit);
   }

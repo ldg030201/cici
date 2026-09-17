@@ -323,14 +323,6 @@ async function openPopup(port, popupUrl, options = {}) {
   const target = await res.json();
 
   const cdp = await Cdp.connect(target.webSocketDebuggerUrl);
-  // 가짜 결과를 세션 캐시에 심는다. 이 탭은 곧 버리고, 다음에 여는 팝업이
-  // 그것을 첫 화면으로 그린다.
-  if (seedDemo) {
-    await cdp.send('Runtime.evaluate', {
-      expression: `chrome.storage.session.set(${JSON.stringify({ __cici_scan: DEMO_SCAN })})`,
-      awaitPromise: true,
-    });
-  }
   /** @type {string[]} 팝업의 [cici] 계측 로그 (개인정보 없음: 횟수·바이트·ms 뿐) */
   const scanLogs = [];
   cdp.onEvent = (method, params) => {
@@ -405,9 +397,46 @@ async function openPopup(port, popupUrl, options = {}) {
     returnByValue: true,
   });
 
+  // 가짜 결과는 **맨 마지막에** 심는다. 이 팝업의 재검사가 캐시를 덮어쓴 뒤여야
+  // 살아남기 때문이다(검사가 끝나면 그 결과로 캐시가 갱신된다). 다음에 여는
+  // 팝업이 이것을 첫 화면으로 그린다.
+  if (seedDemo) {
+    await cdp.send('Runtime.evaluate', {
+      expression: `chrome.storage.session.set(${JSON.stringify({ __cici_scan: DEMO_SCAN })})`,
+      awaitPromise: true,
+    });
+  }
+
+  // 세션 캐시에 무엇이 남았는지. 응답하지 않는 디렉터리를 기억하는 장치가
+  // 실제로 동작하는지는 이 값으로만 확인된다.
+  const { result: cached } = await cdp.send('Runtime.evaluate', {
+    expression: `(async () => {
+      const g = await chrome.storage.session.get('__cici_scan');
+      const fu = await import('./lib/fileurl.js');
+      const s = fu.snapshotFetchStats();
+      return JSON.stringify({
+        has: Boolean(g.__cici_scan),
+        rows: g.__cici_scan?.data?.rows?.length ?? null,
+        // 응답하지 않는 디렉터리 수. 경로 자체는 [cici] slow read 줄이 이미
+        // (홈 아래 이름을 지운 채로) 보여 준다.
+        stalled: (g.__cici_scan?.stalled ?? []).length,
+        reads: s.count,
+      });
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+
   cdp.close();
   await fetch(`http://127.0.0.1:${port}/json/close/${target.id}`).catch(() => {});
-  return { state, firstPaintMs, scanLogs, langSwitchMs, geo: JSON.parse(geo.value) };
+  return {
+    state,
+    firstPaintMs,
+    scanLogs,
+    langSwitchMs,
+    geo: JSON.parse(geo.value),
+    cache: JSON.parse(cached.value ?? 'null'),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -458,6 +487,7 @@ const check = (ok, label, detail = '') => {
     check(cold.scanLogs.length > 0, 'B. 검사 계측이 찍힌다');
     console.log(`      첫 화면까지 ${cold.firstPaintMs}ms · 프로필 ${cold.state.rows + (cold.state.selfUuid ? 1 : 0)}개`);
     for (const line of cold.scanLogs) console.log(`      ${line}`);
+    console.log(`      캐시: ${JSON.stringify(cold.cache)}`);
 
     // --- B2. 헤더 배치 ------------------------------------------------------
     // 언어 단추와 새로고침은 오른쪽 끝에 **서로 붙어** 있어야 한다. 예전에는
@@ -484,6 +514,19 @@ const check = (ok, label, detail = '') => {
     // --- C. 같은 세션에서 팝업 재오픈 (세션 캐시) --------------------------
     const warm = await openPopup(port, popupUrl);
     check(warm.state.panel === 'result', 'C. 재오픈 → 결과 화면 도달', `panel=${warm.state.panel}`);
+    // 두 번째 검사의 계측. 응답하지 않는 디렉터리를 기억해 두었다면 여기서
+    // `skipped N` 이 붙고 enumerate 가 확 줄어 있어야 한다.
+    for (const line of warm.scanLogs) console.log(`      ${line}`);
+    // 응답하지 않는 디렉터리가 있었던 환경에서만 의미가 있는 확인이다. macOS 는
+    // 크롬이 다른 브라우저의 데이터 폴더를 읽는 것을 TCC 로 막으면서 거부 대신
+    // 침묵하고, 그때마다 상한(LIST_TIMEOUT_MS)을 통째로 버린다.
+    if ((cold.cache?.stalled ?? 0) > 0) {
+      check(
+        warm.scanLogs.some((l) => l.includes('skipped')),
+        'C. 응답하지 않는 디렉터리를 다시 묻지 않는다',
+        `무응답 ${cold.cache.stalled}곳`,
+      );
+    }
     // 캐시 효과는 콜드가 프로필을 찾아 캐시를 남겼을 때만 유의미하다(빈 결과는
     // 캐시하지 않는다). 못 찾은 환경에서는 비교 자체를 건너뛴다.
     if (cold.state.rows > 0 || cold.state.selfUuid) {
@@ -502,9 +545,12 @@ const check = (ok, label, detail = '') => {
     await openPopup(port, popupUrl, { seedDemo: true, waitScanLog: false, settleTimeoutMs: 20000 });
     // 앞 장면이 언어를 바꿔 두었고 그 선택은 저장된다(그게 정상 동작이다).
     // 그림은 언어별로 따로 남겨야 비교가 되므로 여기서 명시적으로 정한다.
+    // `seedDemo` 를 다시 주는 이유: 이 팝업의 재검사도 캐시를 덮어쓰므로,
+    // 다음 장면(일본어)이 쓸 것을 닫기 직전에 새로 심어 둔다.
     const demo = await openPopup(port, popupUrl, {
       waitScanLog: false,
       lang: 'ko',
+      seedDemo: true,
       shotPath: path.join(shotDir, 'demo.png'),
       settleTimeoutMs: 20000,
     });

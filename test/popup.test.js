@@ -188,6 +188,12 @@ function standardFs() {
  *   지난 팝업에서 언어를 골라 둔 사용자의 모습이다.
  * @param {object|null} [opts.sessionCache] chrome.storage.session 에 미리 들어 있는
  *   검사 결과 캐시. 같은 브라우저 세션에서 팝업을 두 번째 여는 사용자의 모습이다.
+ * @param {string[]} [opts.timeoutDirs] 이 경로로 시작하는 리스팅이 타임아웃으로
+ *   끊긴다. 실제 현상은 **영영 무응답**이고(macOS 가 크롬을 TCC 로 막을 때의
+ *   모습 — 거부조차 오지 않는다), `AbortSignal.timeout` 이 그것을 상한이 지난 뒤
+ *   `TimeoutError` 로 바꿔 준다. 여기서는 그 상한을 실제로 기다리지 않고 결과인
+ *   `TimeoutError` 부터 재현한다. 검사할 것은 "상한만큼 기다리는가"가 아니라
+ *   "타임아웃을 기억하고 다음에 건너뛰는가"이기 때문이다.
  * @param {boolean} [opts.hangDisk] 홈 루트 리스팅이 영영 답하지 않는다.
  *   cancelDuringScan 과 달리 마감시한 타이머도 터뜨리지 않는다 — 캐시가 그려
  *   준 화면만이 유일한 화면이 되게 한다.
@@ -212,6 +218,7 @@ async function mountPopup(opts = {}) {
     breakDom = null,
     langPref = null,
     sessionCache = null,
+    timeoutDirs = [],
     hangDisk = false,
     settleUntil = null,
   } = opts;
@@ -366,6 +373,11 @@ async function mountPopup(opts = {}) {
       if (/^\/[A-Za-z]:\//.test(p)) p = p.slice(1);
       fetched.push(p);
       if (denyDirs.includes(p)) throw new TypeError('Failed to fetch');
+      // 상한이 지나 끊긴 읽기. AbortSignal.timeout 이 던지는 것과 같은 모양이라야
+      // fileurl.js 가 "없는 경로"와 구별할 수 있다.
+      if (timeoutDirs.some((d) => p === d || p.startsWith(`${d}/`))) {
+        throw Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
+      }
       // 영영 오지 않는 응답. 진짜 Chromium 에서도 열거할 수 없는 디렉터리는
       // reject 하지 않고 그냥 멈춰 있다(docs/why.md §2.3).
       if ((cancelDuringScan || hangDisk) && p === '/Users/') return new Promise(() => {});
@@ -630,6 +642,51 @@ test('자기 탐지는 세션 캐시로 nonce 왕복을 건너뛴다', async () 
   assert.equal(app.text('.card-self .uuid-text'), DEVICE_B, '캐시된 자기 프로필로 카드를 그려야 합니다');
   // 왕복을 건너뛰었으니 표식을 쓰지도 않았다.
   assert.equal(app.store.has(NONCE_KEY), false, 'nonce 를 다시 쓰면 왕복을 건너뛴 것이 아닙니다');
+});
+
+test('응답하지 않는 디렉터리는 기억해 두고 다음 검사에서 건너뛴다', async () => {
+  // macOS 는 크롬이 다른 브라우저의 데이터 폴더를 읽는 것을 TCC 로 막으면서
+  // 거부 대신 **침묵한다**. 그런 곳은 물을 때마다 상한(LIST_TIMEOUT_MS)만큼
+  // 헛기다린다 — 실측에서 Brave·Edge 둘 때문에 첫 화면이 5초 밀렸다.
+  // 한 번 겪었으면 그 세션 동안은 묻지 않아야 한다.
+  const { fs, selfProfileDir } = standardFs();
+  const braveDir = `${BRAVE_DIR}/Default`;
+  // Brave 디렉터리는 존재하지만(부모 리스팅에 보인다) 그 안은 영영 답하지 않는다.
+  fs.addFile(`${braveDir}/Preferences`, '{}');
+
+  const app = await mountPopup({
+    fs,
+    selfProfileDir,
+    timeoutDirs: [BRAVE_DIR],
+    settleUntil: ({ sessionStore }) => sessionStore.has('__cici_scan'),
+  });
+
+  // 첫 검사는 그 디렉터리를 실제로 열어 보고 상한까지 기다린다.
+  assert.ok(
+    app.fetched.some((p) => p.startsWith(BRAVE_DIR)),
+    '첫 검사는 그 디렉터리를 시도해 봐야 합니다',
+  );
+  const saved = app.sessionStore.get('__cici_scan');
+  assert.ok(
+    (saved.stalled ?? []).some((p) => p === BRAVE_DIR),
+    `무응답 디렉터리를 캐시에 남겨야 합니다: ${JSON.stringify(saved.stalled)}`,
+  );
+
+  // 다음 팝업은 아예 묻지 않는다.
+  const again = await mountPopup({
+    fs,
+    selfProfileDir,
+    timeoutDirs: [BRAVE_DIR],
+    sessionCache: saved,
+    settleUntil: ({ sessionStore }) => sessionStore.get('__cici_scan') !== saved,
+  });
+  assert.deepEqual(
+    again.fetched.filter((p) => p.startsWith(BRAVE_DIR)),
+    [],
+    '기억해 둔 디렉터리를 다시 열었습니다',
+  );
+  // 그러면서도 결과는 그대로다.
+  assert.equal(again.text('.card-self .uuid-text'), DEVICE_B);
 });
 
 test('깨진 세션 캐시는 무시하고 정상 검사로 그린다', async () => {

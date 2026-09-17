@@ -25,7 +25,13 @@
  * 그대로 박힌다(그 반대도 마찬가지다).
  */
 
-import { resetDirCache, resetFetchStats, snapshotFetchStats } from './lib/fileurl.js';
+import {
+  getStalledDirs,
+  resetDirCache,
+  resetFetchStats,
+  setStalledDirs,
+  snapshotFetchStats,
+} from './lib/fileurl.js';
 import { detectPlatform, listProfileDirs, readProfileMeta, locateSelf, writeNonce } from './lib/locate.js';
 import { readBridge } from './lib/read.js';
 
@@ -438,10 +444,15 @@ async function readScanCache() {
   try {
     const got = await globalThis.chrome?.storage?.session?.get(SCAN_CACHE_KEY);
     const hit = got?.[SCAN_CACHE_KEY];
-    if (!hit || typeof hit !== 'object' || hit.v !== 1 || !validScanData(hit.data)) return null;
+    if (!hit || typeof hit !== 'object' || hit.v !== 1) return null;
+    const stalled = Array.isArray(hit.stalled) ? hit.stalled.filter((p) => typeof p === 'string') : [];
+    // 그릴 결과가 없어도(지난 검사가 프로필을 못 찾았어도) 무응답 목록은 쓸모가
+    // 있다. 그 목록만 들고 돌아간다.
+    if (!validScanData(hit.data)) return { data: null, selfProfileDir: null, stalled };
     return {
       data: hit.data,
       selfProfileDir: typeof hit.selfProfileDir === 'string' ? hit.selfProfileDir : null,
+      stalled,
     };
   } catch {
     return null;
@@ -463,11 +474,15 @@ async function writeScanCache(data) {
     const session = globalThis.chrome?.storage?.session;
     if (!session) return;
     if (data.truncated) return;
+    // 응답하지 않는 디렉터리 목록은 결과가 비어도 남길 값이지만, 키를 따로
+    // 만들지 않고 이 캐시에 얹는다(저장하는 값이 늘면 개인정보 문서도 늘어난다).
+    const stalled = getStalledDirs();
     if (data.rows.length === 0) {
-      await session.remove(SCAN_CACHE_KEY);
+      if (stalled.length === 0) await session.remove(SCAN_CACHE_KEY);
+      else await session.set({ [SCAN_CACHE_KEY]: { v: 1, data: null, selfProfileDir: null, stalled } });
       return;
     }
-    await session.set({ [SCAN_CACHE_KEY]: { v: 1, data, selfProfileDir: cachedSelfDir } });
+    await session.set({ [SCAN_CACHE_KEY]: { v: 1, data, selfProfileDir: cachedSelfDir, stalled } });
   } catch {
     // 캐시가 안 돼도 검사는 이미 끝났다. 다음 팝업이 조금 느릴 뿐이다.
   }
@@ -604,6 +619,9 @@ async function collect() {
   // 디렉터리 목록 캐시를 비운다. "다시 검사"는 그 사이에 바뀐 디스크를 봐야 한다.
   resetDirCache();
   resetFetchStats();
+  // 이번 검사가 처음부터 건너뛰는 디렉터리 수. 계측 줄에 적어, 4초가 사라진
+  // 이유가 "빨라져서"가 아니라 "묻지 않아서"임을 알아볼 수 있게 한다.
+  const skippedDirs = getStalledDirs().length;
   const scanStart = nowMs();
 
   const deadline = makeDeadline(SCAN_BUDGET_MS);
@@ -638,7 +656,12 @@ async function collect() {
     const enumMs = nowMs() - enumStart;
 
     if (!Array.isArray(profiles) || profiles.length === 0) {
-      logScanTiming(nowMs() - scanStart, 0, { enumerate: enumMs });
+      logScanTiming(
+        nowMs() - scanStart,
+        0,
+        { enumerate: enumMs },
+        skippedDirs > 0 ? [`skipped ${skippedDirs}`] : [],
+      );
       // `noted` 를 함께 실어 보낸다. "정말 하나도 없다"와 "검사가 잘려서 못
       // 찾았다"는 사용자가 취할 행동이 완전히 다르다.
       return { rows: [], selfFound: false, warnings, truncated: noted };
@@ -738,7 +761,7 @@ async function collect() {
       nowMs() - scanStart,
       rows.length,
       { enumerate: enumMs, self: selfMs, bridge: bridgeMs, meta: metaMs },
-      cachedSelf !== null ? ['self-cache'] : [],
+      [...(cachedSelf !== null ? ['self-cache'] : []), ...(skippedDirs > 0 ? [`skipped ${skippedDirs}`] : [])],
     );
 
     return { rows, selfFound: rows.some((r) => r.isSelf), warnings, truncated: noted };
@@ -1320,12 +1343,16 @@ async function boot() {
   const cache = await readScanCache();
   if (cache) {
     cachedSelfDir = cache.selfProfileDir;
-    try {
-      render(cache.data);
-      renderedJson = JSON.stringify(cache.data);
-    } catch {
-      // 캐시가 화면을 못 그리면 없는 셈 친다. 곧바로 정식 검사가 따라온다.
-      renderedJson = '';
+    // 응답하지 않는 디렉터리를 먼저 알려 준다. 이번 검사는 그곳을 건너뛴다.
+    setStalledDirs(cache.stalled);
+    if (cache.data !== null) {
+      try {
+        render(cache.data);
+        renderedJson = JSON.stringify(cache.data);
+      } catch {
+        // 캐시가 화면을 못 그리면 없는 셈 친다. 곧바로 정식 검사가 따라온다.
+        renderedJson = '';
+      }
     }
   }
   run();

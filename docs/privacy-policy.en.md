@@ -41,7 +41,7 @@ The extension stores **three values** in its own extension storage.
 | --- | --- | --- | --- |
 | `__cici_nonce` | `chrome.storage.local` | A randomly generated UUID (e.g. `3f2a…`) | Determining **which Chrome profile** the extension is running in |
 | `__cici_lang` | `chrome.storage.local` | The display language the user picked (e.g. `en`) | Keeping the popup's language choice for the next popup |
-| `__cici_scan` | `chrome.storage.session` | The last scan result — exactly what the popup renders (profile names, account emails, UUIDs) | A cache so the popup can show the previous result instantly when reopened. A fresh scan always re-runs behind it |
+| `__cici_scan` | `chrome.storage.session` | The last scan result — exactly what the popup renders (profile names, account emails, UUIDs) — plus the paths of directories that never answered | A cache so the popup can show the previous result instantly when reopened. A fresh scan always re-runs behind it. The path list exists so folders that did not respond are not asked again (it holds nothing beyond the targets in §4) |
 
 There is no API that tells an extension which profile it lives in. So every time the popup
 opens, it generates a fresh nonce, writes it to its own storage, and scans the profiles for
