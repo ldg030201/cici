@@ -202,6 +202,34 @@ function timeoutOptions(ms) {
 }
 
 /**
+ * 계측: 이번 검사에서 나간 fetch 의 횟수·바이트·누적 시간.
+ *
+ * Chromium 은 한 문서의 `file://` 요청을 직렬로 처리하므로(popup.js 의
+ * `SCAN_BUDGET_MS` 주석 참고) 검사 시간은 대체로 **fetch 횟수 × 개당
+ * 시간**이다. 그 두 값을 여기서 세지 않으면 "왜 느린가"에 답할 방법이 없다.
+ * `ms` 는 개별 fetch 의 소요 시간 합이라, 요청이 정말 직렬이라면 전체 검사
+ * 시간과 얼추 같고, 병렬이라면 그보다 커진다 — 그 차이 자체가 진단이다.
+ */
+const fetchStats = { count: 0, bytes: 0, ms: 0 };
+
+/** 계측을 0 에서 다시 시작한다. 검사를 새로 시작할 때 부른다. */
+export function resetFetchStats() {
+  fetchStats.count = 0;
+  fetchStats.bytes = 0;
+  fetchStats.ms = 0;
+}
+
+/** @returns {{count: number, bytes: number, ms: number}} 지금까지의 합계 사본 */
+export function snapshotFetchStats() {
+  return { ...fetchStats };
+}
+
+/** performance.now 가 없는 런타임(아주 오래된 테스트 환경)을 대비한다. */
+function now() {
+  return globalThis.performance?.now?.() ?? Date.now();
+}
+
+/**
  * 이 모듈에서 `fetch` 를 부르는 **유일한** 곳.
  *
  * 바이트로 읽든 텍스트로 읽든 나머지는 똑같다: 타임아웃을 걸고, reject 를 우리
@@ -222,18 +250,27 @@ function timeoutOptions(ms) {
  * @returns {Promise<T>}
  */
 async function fetchAs(url, timeoutMs, readBody) {
-  let res;
+  const started = now();
+  fetchStats.count += 1;
   try {
-    res = await fetch(url, timeoutOptions(timeoutMs));
-  } catch (err) {
-    throw fetchFailure(url, err);
-  }
-  // status 0 은 file:// 의 정상값이다. 400 이상은 http(s) 로 쓰일 때만 의미가 있다.
-  if (res.status >= 400) throw new Error(`${url} responded with ${res.status}`);
-  try {
-    return await readBody(res);
-  } catch (err) {
-    throw new Error(`cannot read the body of ${url} (${errorMessage(err)})`);
+    let res;
+    try {
+      res = await fetch(url, timeoutOptions(timeoutMs));
+    } catch (err) {
+      throw fetchFailure(url, err);
+    }
+    // status 0 은 file:// 의 정상값이다. 400 이상은 http(s) 로 쓰일 때만 의미가 있다.
+    if (res.status >= 400) throw new Error(`${url} responded with ${res.status}`);
+    try {
+      const body = await readBody(res);
+      if (body instanceof Uint8Array) fetchStats.bytes += body.byteLength;
+      else if (typeof body === 'string') fetchStats.bytes += body.length;
+      return body;
+    } catch (err) {
+      throw new Error(`cannot read the body of ${url} (${errorMessage(err)})`);
+    }
+  } finally {
+    fetchStats.ms += now() - started;
   }
 }
 

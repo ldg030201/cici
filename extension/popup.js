@@ -20,7 +20,7 @@
  * 그대로 박힌다(그 반대도 마찬가지다).
  */
 
-import { resetDirCache } from './lib/fileurl.js';
+import { resetDirCache, resetFetchStats, snapshotFetchStats } from './lib/fileurl.js';
 import { detectPlatform, listProfileDirs, readProfileMeta, locateSelf, writeNonce } from './lib/locate.js';
 import { readBridge } from './lib/read.js';
 
@@ -433,6 +433,39 @@ function abortScan() {
   if (currentDeadline) currentDeadline.fire();
 }
 
+/** performance.now 가 없는 런타임(테스트 등)을 대비한다. */
+function nowMs() {
+  return globalThis.performance?.now?.() ?? Date.now();
+}
+
+/**
+ * 계측 한 줄을 콘솔에 남긴다. 사람에게 보이는 화면이 아니라 DevTools 의
+ * Verbose 레벨에만 나오므로(console.debug) 영어로 적는다 — `lib/*.js` 의 에러
+ * 문구와 같은 이유다. 검사가 느리다는 제보가 오면 이 줄이 첫 단서다:
+ * enumerate/self/bridge/meta 는 동시에 돌므로 합이 total 보다 클 수 있고,
+ * fetch 의 ms 합이 total 과 비슷하면 병목은 직렬 file:// 읽기다.
+ *
+ * @param {number} total 검사 전체(ms)
+ * @param {number} profiles 찾은 프로필 수
+ * @param {Record<string, number>} phases 단계별 소요(ms)
+ * @param {string[]} [notes] 덧붙일 표식 ("self-cache" 등)
+ */
+function logScanTiming(total, profiles, phases, notes = []) {
+  try {
+    const s = snapshotFetchStats();
+    const phaseText = Object.entries(phases)
+      .map(([name, ms]) => `${name} ${Math.round(ms)}ms`)
+      .join(', ');
+    const extra = notes.length > 0 ? ` [${notes.join(', ')}]` : '';
+    console.debug(
+      `[cici] scan ${Math.round(total)}ms · ${profiles} profile(s) · ` +
+        `${s.count} reads ${(s.bytes / 1024).toFixed(1)}KB ${Math.round(s.ms)}ms (${phaseText})${extra}`,
+    );
+  } catch {
+    // 계측이 검사를 죽이면 안 된다.
+  }
+}
+
 /**
  * 프로필 열거 → 자기 탐지 + bridge 조회를 한 번에.
  * 개별 실패는 경고로 흡수하고, 전체가 죽지 않게 한다.
@@ -443,6 +476,8 @@ async function collect() {
 
   // 디렉터리 목록 캐시를 비운다. "다시 검사"는 그 사이에 바뀐 디스크를 봐야 한다.
   resetDirCache();
+  resetFetchStats();
+  const scanStart = nowMs();
 
   const deadline = makeDeadline(SCAN_BUDGET_MS);
   currentDeadline = deadline;
@@ -468,16 +503,25 @@ async function collect() {
       warnings.push(warningFromError(err));
     }
 
+    const enumStart = nowMs();
     const profiles = await withDeadline(listProfileDirs(platform, warnings), deadline, [], noteTimeout);
+    const enumMs = nowMs() - enumStart;
 
     if (!Array.isArray(profiles) || profiles.length === 0) {
+      logScanTiming(nowMs() - scanStart, 0, { enumerate: enumMs });
       // `noted` 를 함께 실어 보낸다. "정말 하나도 없다"와 "검사가 잘려서 못
       // 찾았다"는 사용자가 취할 행동이 완전히 다르다.
       return { rows: [], selfFound: false, warnings, truncated: noted };
     }
 
+    // 세 갈래는 동시에 돈다. 각자의 소요 시간은 "병렬 구간 시작"부터 잰다 —
+    // 합이 total 을 넘으면 그만큼 겹쳐 돌았다는 뜻이다.
+    const parallelStart = nowMs();
+    let selfMs = 0;
+    let bridgeMs = 0;
+    let metaMs = 0;
     const [self, bridges, metas] = await Promise.all([
-      nonce === null
+      (nonce === null
         ? Promise.resolve(null)
         : withDeadline(
             Promise.resolve()
@@ -489,7 +533,10 @@ async function collect() {
             deadline,
             null,
             noteTimeout,
-          ),
+          )
+      ).finally(() => {
+        selfMs = nowMs() - parallelStart;
+      }),
       Promise.all(
         // 프로필마다 따로 끊는다. 하나가 멈춰도 나머지는 그대로 나온다.
         profiles.map((p) =>
@@ -505,8 +552,12 @@ async function collect() {
             noteTimeout,
           ),
         ),
-      ),
-      withDeadline(loadMetas(profiles, warnings), deadline, new Map(), noteTimeout),
+      ).finally(() => {
+        bridgeMs = nowMs() - parallelStart;
+      }),
+      withDeadline(loadMetas(profiles, warnings), deadline, new Map(), noteTimeout).finally(() => {
+        metaMs = nowMs() - parallelStart;
+      }),
     ]);
 
     const selfDir = self && typeof self.profileDir === 'string' ? self.profileDir : null;
@@ -530,6 +581,13 @@ async function collect() {
         bridge,
         isSelf: selfDir !== null && p.profileDir === selfDir,
       };
+    });
+
+    logScanTiming(nowMs() - scanStart, rows.length, {
+      enumerate: enumMs,
+      self: selfMs,
+      bridge: bridgeMs,
+      meta: metaMs,
     });
 
     return { rows, selfFound: rows.some((r) => r.isSelf), warnings, truncated: noted };
