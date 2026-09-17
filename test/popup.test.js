@@ -1162,6 +1162,41 @@ test('언어를 고르면 저장되고, 정적·동적 텍스트가 그 자리�
   assertNoKeyLeak(app, zh);
 });
 
+test('언어를 바꿔도 디스크를 다시 읽지 않는다', async () => {
+  // 예전에는 언어를 고를 때마다 검사를 통째로 다시 돌렸다. 프로필이 여럿인
+  // 컴퓨터에서는 메뉴를 고르고 몇 초를 기다려야 했다 — 언어가 바뀌었다고
+  // 디스크가 바뀐 것은 아니므로 다시 그리기만 하면 된다.
+  const { fs, selfProfileDir } = standardFs();
+  const app = await mountPopup({ fs, selfProfileDir });
+
+  const before = app.fetched.length;
+  await app.change('#lang-select', 'ja');
+
+  // 카탈로그는 확장 패키지(chrome-extension://)에서 오므로 file:// 읽기는 0이어야 한다.
+  const added = app.fetched.slice(before);
+  assert.deepEqual(added, [], `언어 전환이 디스크를 다시 읽었습니다: ${added.slice(0, 3).join(', ')}`);
+  // 그래도 화면은 바뀌어 있어야 한다.
+  assert.equal(app.doc.lang, 'ja');
+  assert.equal(app.text('.card-self .uuid-text'), DEVICE_B, '결과는 그대로 남아야 합니다');
+});
+
+test('언어 단추는 지금 보고 있는 언어의 국기를 보여 준다', async () => {
+  // 지구본은 "언어를 바꿀 수 있다"까지만 말하고 "지금 무슨 언어인가"는 말하지
+  // 않는다. 화면 글자를 못 읽는 사람에게 정작 필요한 정보가 그것이다.
+  const { fs, selfProfileDir } = standardFs();
+  const app = await mountPopup({ fs, selfProfileDir });
+
+  // 브라우저 언어(ko)로 시작한다.
+  assert.equal(app.text('#lang-flag'), '🇰🇷');
+
+  await app.change('#lang-select', 'ja');
+  assert.equal(app.text('#lang-flag'), '🇯🇵');
+
+  // 디렉터리 이름에 밑줄이 든 로케일(zh_CN)도 htmlLang(zh-CN)과 이어져야 한다.
+  await app.change('#lang-select', 'zh_CN');
+  assert.equal(app.text('#lang-flag'), '🇨🇳');
+});
+
 test('저장된 언어가 없는 로케일이면 조용히 브라우저 언어로 물러선다', async () => {
   // _locales 에서 지워진 로케일이 저장소에 남아 있던 경우다. 언어 설정 때문에
   // 팝업이 죽거나, 셀렉터가 실제와 다른 상태를 표시하면 안 된다.

@@ -30,7 +30,7 @@
  */
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -262,8 +262,59 @@ const PROBE = `(() => {
  * @param {{settleTimeoutMs?: number, waitScanLog?: boolean}} [options]
  * @returns {Promise<{state: object, firstPaintMs: number, scanLogs: string[]}>}
  */
+/**
+ * 시각 검증용 가짜 검사 결과. **전부 가짜 값이다** — 실제 UUID·이메일·프로필
+ * 이름은 저장소에 절대 들어가지 않는다.
+ *
+ * 이것을 세션 캐시에 심으면 팝업이 그대로 그린다. 그래서 이 머신에 프로필이
+ * 몇 개 있든, 목록이 넘치는 화면·현재 프로필 카드·페어링 안 된 프로필까지
+ * 한 장에 담아 눈으로 확인할 수 있다.
+ */
+const DEMO_SCAN = (() => {
+  const mk = (dirName, label, sublabel, deviceId, isSelf, extra = {}) => ({
+    browserName: extra.browserName ?? 'Google Chrome',
+    userDataDir: '/Users/you/Library/Application Support/Google/Chrome',
+    profileDir: `/Users/you/Library/Application Support/Google/Chrome/${dirName}`,
+    profileDirName: dirName,
+    label,
+    sublabel,
+    bridge: {
+      extensionId: extra.extensionId ?? (deviceId ? 'fcoeoabgfenejglbffodgkkbkcdhcgfn' : null),
+      deviceId,
+      displayName: extra.displayName ?? null,
+      unreadable: false,
+      readFailed: false,
+      warnings: [],
+    },
+    isSelf,
+  });
+  const rows = [
+    mk('Default', '개인', 'you@example.com · Default', '11111111-2222-4333-8444-555555555555', true, {
+      displayName: '내 노트북',
+    }),
+    mk('Profile 1', '회사', 'work@example.com · Profile 1', '4f2a9c81-3b5d-4e77-9a10-2c6b8d0e1f34', false),
+    mk('Profile 2', '테스트', 'test@example.com · Profile 2', '99999999-8888-4777-8666-555555555555', false),
+    mk('Profile 3', '페어링 전', 'Profile 3', null, false),
+    mk('Profile 4', '확장 없음', 'Profile 4', null, false, { extensionId: null }),
+    mk('Default', 'Brave 프로필', 'Default', 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', false, {
+      browserName: 'Brave',
+    }),
+  ];
+  return {
+    v: 1,
+    data: { rows, selfFound: true, warnings: [], truncated: false },
+    selfProfileDir: rows[0].profileDir,
+  };
+})();
+
 async function openPopup(port, popupUrl, options = {}) {
-  const { settleTimeoutMs = 60000, waitScanLog = true } = options;
+  const {
+    settleTimeoutMs = 60000,
+    waitScanLog = true,
+    shotPath = null,
+    lang = null,
+    seedDemo = false,
+  } = options;
   const started = Date.now();
   const res = await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(popupUrl)}`, {
     method: 'PUT',
@@ -272,6 +323,14 @@ async function openPopup(port, popupUrl, options = {}) {
   const target = await res.json();
 
   const cdp = await Cdp.connect(target.webSocketDebuggerUrl);
+  // 가짜 결과를 세션 캐시에 심는다. 이 탭은 곧 버리고, 다음에 여는 팝업이
+  // 그것을 첫 화면으로 그린다.
+  if (seedDemo) {
+    await cdp.send('Runtime.evaluate', {
+      expression: `chrome.storage.session.set(${JSON.stringify({ __cici_scan: DEMO_SCAN })})`,
+      awaitPromise: true,
+    });
+  }
   /** @type {string[]} 팝업의 [cici] 계측 로그 (개인정보 없음: 횟수·바이트·ms 뿐) */
   const scanLogs = [];
   cdp.onEvent = (method, params) => {
@@ -308,9 +367,47 @@ async function openPopup(port, popupUrl, options = {}) {
     state = JSON.parse(result.value);
   }
 
+  // 언어를 바꿔 보라는 주문이 있으면 바꾸고, 그 전환에 걸린 시간을 잰다.
+  // 예전에는 언어를 고를 때마다 검사를 통째로 다시 돌려서 몇 초가 걸렸다.
+  let langSwitchMs = -1;
+  if (lang !== null) {
+    const s = Date.now();
+    await cdp.send('Runtime.evaluate', {
+      expression: `(async () => {
+        const sel = document.getElementById('lang-select');
+        sel.value = ${JSON.stringify(lang)};
+        sel.dispatchEvent(new Event('change'));
+        // 리스너가 async 다. 카탈로그 fetch 와 다시 그리기가 끝날 때까지 기다린다.
+        for (let i = 0; i < 400; i++) {
+          await new Promise((r) => setTimeout(r, 5));
+          if (document.documentElement.getAttribute('lang') === ${JSON.stringify(lang.replace('_', '-'))}) break;
+        }
+      })()`,
+      awaitPromise: true,
+    });
+    langSwitchMs = Date.now() - s;
+  }
+
+  // 눈으로 볼 수 있게 화면을 남긴다. 레이아웃이 어긋나는 것은 단언문이 아니라
+  // 그림에서 먼저 보인다.
+  if (shotPath) {
+    const { data } = await cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
+    await writeFile(shotPath, Buffer.from(data, 'base64'));
+  }
+
+  // 헤더 배치를 실제 좌표로 확인한다 — "지구본이 한복판에 떠 있다" 같은 문제는
+  // 이 숫자로만 잡힌다.
+  const { result: geo } = await cdp.send('Runtime.evaluate', {
+    expression: `(() => {
+      const r = (id) => { const e = document.getElementById(id); if (!e) return null; const b = e.getBoundingClientRect(); return {l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width)}; };
+      return JSON.stringify({ flag: r('lang-flag'), refresh: r('btn-refresh'), body: Math.round(document.body.getBoundingClientRect().width), flagText: document.getElementById('lang-flag')?.textContent ?? '' });
+    })()`,
+    returnByValue: true,
+  });
+
   cdp.close();
   await fetch(`http://127.0.0.1:${port}/json/close/${target.id}`).catch(() => {});
-  return { state, firstPaintMs, scanLogs };
+  return { state, firstPaintMs, scanLogs, langSwitchMs, geo: JSON.parse(geo.value) };
 }
 
 // ---------------------------------------------------------------------------
@@ -327,9 +424,15 @@ const profileDir =
     ? givenProfileDir
     : await mkdtemp(path.join(os.tmpdir(), 'cici-e2e-'));
 
+// 화면 갈무리를 둘 곳. 레이아웃 문제는 단언문보다 그림에서 먼저 보인다.
+const shotDir = typeof args.get('shots') === 'string' ? args.get('shots') : path.join(os.tmpdir(), 'cici-shots');
+await rm(shotDir, { recursive: true, force: true });
+await mkdir(shotDir, { recursive: true });
+
 console.log(`크롬:   ${chrome}`);
 console.log(`확장 id: ${extId}`);
 console.log(`프로필: ${profileDir}`);
+console.log(`갈무리: ${shotDir}`);
 
 let failed = false;
 const check = (ok, label, detail = '') => {
@@ -350,11 +453,33 @@ const check = (ok, label, detail = '') => {
   const { port, stop } = await launchChrome(chrome, profileDir);
   try {
     // --- B. 콜드 스캔 (세션 캐시 없음) -------------------------------------
-    const cold = await openPopup(port, popupUrl);
+    const cold = await openPopup(port, popupUrl, { shotPath: path.join(shotDir, 'popup.png') });
     check(cold.state.panel === 'result', 'B. 콜드 스캔 → 결과 화면 도달', `panel=${cold.state.panel}`);
     check(cold.scanLogs.length > 0, 'B. 검사 계측이 찍힌다');
     console.log(`      첫 화면까지 ${cold.firstPaintMs}ms · 프로필 ${cold.state.rows + (cold.state.selfUuid ? 1 : 0)}개`);
     for (const line of cold.scanLogs) console.log(`      ${line}`);
+
+    // --- B2. 헤더 배치 ------------------------------------------------------
+    // 언어 단추와 새로고침은 오른쪽 끝에 **서로 붙어** 있어야 한다. 예전에는
+    // `.hd` 의 space-between 이 셋을 흩어 놓아 언어 단추가 헤더 한복판에 떴다.
+    const { flag, refresh, body, flagText } = cold.geo;
+    if (flag && refresh) {
+      const gap = refresh.l - flag.r;
+      check(gap >= 0 && gap <= 14, 'B2. 언어 단추가 새로고침에 붙어 있다', `간격 ${gap}px`);
+      check(body - refresh.r <= 20, 'B2. 조작부가 오른쪽 끝에 있다', `오른쪽 여백 ${body - refresh.r}px`);
+      check(flagText.trim() !== '', 'B2. 현재 언어를 표시한다', `표시=${JSON.stringify(flagText)}`);
+    } else {
+      check(false, 'B2. 헤더 요소를 찾지 못했다');
+    }
+
+    // --- B3. 언어 전환 속도 -------------------------------------------------
+    const switched = await openPopup(port, popupUrl, {
+      lang: 'ja',
+      shotPath: path.join(shotDir, 'popup-ja.png'),
+      waitScanLog: false,
+    });
+    check(switched.langSwitchMs >= 0 && switched.langSwitchMs < 1000, 'B3. 언어 전환이 즉시다', `${switched.langSwitchMs}ms`);
+    check(switched.geo.flagText.trim() !== '', 'B3. 바꾼 언어가 단추에 반영된다', `표시=${JSON.stringify(switched.geo.flagText)}`);
 
     // --- C. 같은 세션에서 팝업 재오픈 (세션 캐시) --------------------------
     const warm = await openPopup(port, popupUrl);
@@ -369,6 +494,29 @@ const check = (ok, label, detail = '') => {
     } else {
       console.log('      (콜드가 프로필을 못 찾아 캐시 비교는 건너뜀 — 실제 크롬 실행 간섭)');
     }
+
+    // --- D. 시각 검증 -------------------------------------------------------
+    // 이 머신에 프로필이 몇 개 있든, 가짜 결과를 세션 캐시에 심어 **목록이 넘치는
+    // 실제 화면**을 그린다. 레이아웃 문제는 단언문이 아니라 이 그림에서 보인다.
+    // 재검사가 이 화면을 덮기 전에 찍어야 하므로 계측 로그를 기다리지 않는다.
+    await openPopup(port, popupUrl, { seedDemo: true, waitScanLog: false, settleTimeoutMs: 20000 });
+    // 앞 장면이 언어를 바꿔 두었고 그 선택은 저장된다(그게 정상 동작이다).
+    // 그림은 언어별로 따로 남겨야 비교가 되므로 여기서 명시적으로 정한다.
+    const demo = await openPopup(port, popupUrl, {
+      waitScanLog: false,
+      lang: 'ko',
+      shotPath: path.join(shotDir, 'demo.png'),
+      settleTimeoutMs: 20000,
+    });
+    check(demo.state.rows > 0, 'D. 시각 검증용 화면을 그렸다', `목록 ${demo.state.rows}줄`);
+    const demoJa = await openPopup(port, popupUrl, {
+      waitScanLog: false,
+      lang: 'ja',
+      shotPath: path.join(shotDir, 'demo-ja.png'),
+      settleTimeoutMs: 20000,
+    });
+    check(demoJa.geo.flagText.includes('🇯🇵'), 'D. 언어를 바꾼 화면도 남겼다', `표시=${demoJa.geo.flagText}`);
+    console.log(`      그림: ${shotDir}`);
   } finally {
     await stop();
   }

@@ -125,6 +125,38 @@ async function applyLangChoice(value) {
 }
 
 /**
+ * 언어 단추에 **지금 보고 있는 언어**의 국기를 그린다.
+ *
+ * 지구본은 "언어를 바꿀 수 있다"까지만 말하고 "지금 무슨 언어인가"는 말하지
+ * 않는다. 화면 글자를 못 읽는 사람에게 정작 필요한 정보가 그것이다.
+ *
+ * 국기 글자의 출처는 `popup.html` 의 `<option>` 들이다 — 목록에 이미 언어마다
+ * 국기가 붙어 있으므로, 여기서 같은 표를 코드에 또 적으면 둘이 갈라진다.
+ * 어느 언어인지는 카탈로그가 스스로 말하는 `htmlLang` 으로 정한다. `auto` 일
+ * 때도 그 값은 **실제로 그려진 언어**라서, 브라우저 언어가 `_locales` 에 없어
+ * 영어(default_locale)로 떨어진 경우에도 영국/미국기가 정직하게 나온다.
+ */
+function updateLangFlag() {
+  const node = byId('lang-flag');
+  if (!node) return;
+  const lang = t('htmlLang');
+  const select = byId('lang-select');
+  // `.options` 가 아니라 querySelectorAll 을 쓴다 — 어느 DOM 구현에서나 있다.
+  const options = select ? [...select.querySelectorAll('option')] : [];
+  const valueOf = (o) => String(o.getAttribute('value') ?? '').toLowerCase();
+  // `htmlLang` 은 BCP 47(zh-CN)이고 option value 는 디렉터리 이름(zh_CN)이다.
+  const wanted = String(lang).replace(/-/g, '_').toLowerCase();
+  const hit =
+    options.find((o) => valueOf(o) === wanted) ?? options.find((o) => valueOf(o) === wanted.split('_')[0]);
+  // 옵션 텍스트의 맨 앞 이모지(또는 지역표시 문자 두 글자)만 떼어 쓴다.
+  const flag = hit
+    ? (/^\s*(\p{Regional_Indicator}{2}|\p{Extended_Pictographic})/u.exec(hit.textContent ?? '')?.[1] ?? '')
+    : '';
+  // 국기를 못 고르면 언어 코드를 대문자로 보여 준다. 빈 상자보다는 낫다.
+  node.textContent = flag || String(lang).slice(0, 5).toUpperCase();
+}
+
+/**
  * 로케일 문자열. 사용자가 고른 카탈로그가 먼저고, 다음이 브라우저 언어이며,
  * 그래도 없으면 팝업이 비지 않도록 키 이름으로 되돌린다.
  * @param {string} key
@@ -227,6 +259,7 @@ function applyStaticI18n() {
   // 그래서 카탈로그가 스스로 자기 언어를 말하게 한다.
   const lang = t('htmlLang');
   if (lang && lang !== 'htmlLang') document.documentElement.setAttribute('lang', lang);
+  updateLangFlag();
 }
 
 let toastTimer = 0;
@@ -963,6 +996,13 @@ let resultShown = false;
 let renderedJson = '';
 
 /**
+ * 마지막으로 그린 데이터 그 자체. 언어를 바꿀 때 이것만 다시 그리면 되므로
+ * 디스크를 다시 읽지 않는다 — 예전에는 언어를 고를 때마다 검사를 통째로 다시
+ * 돌려서, 프로필이 여럿인 컴퓨터에서는 메뉴를 고르고 몇 초를 기다려야 했다.
+ */
+let lastData = null;
+
+/**
  * 검사가 끝났음을 스크린리더에 알린다. 문장은 render() 가 그리는 화면과 같은
  * 데이터에서 나온다 — 재검사 결과가 화면과 같아서 다시 그리지 않을 때도 "끝났다"
  * 는 말은 가야 하므로(announce() 의 주석), 이 부분만 render() 에서 떼어 두었다.
@@ -985,8 +1025,9 @@ function announceData(data) {
  * @param {{rows: Row[], selfFound: boolean, warnings: Array<{code: string, params: string[]}>}} data
  */
 function render(data) {
-  // 결과가 보이는 화면에는 언제나 "다시 검사"가 함께 있다 — 캐시를 그린 첫
-  // 화면에서도 재검사가 도는 중임을 이 버튼의 회전이 말해 준다.
+  lastData = data;
+  // 접근 안내 화면이 숨겨 두었을 수 있다. 결과가 보이는 화면에는 언제나
+  // "다시 검사"가 함께 있다.
   byId('btn-refresh').hidden = false;
   const selfSlot = byId('self-slot');
   const othersSlot = byId('others-slot');
@@ -1240,9 +1281,16 @@ function wire() {
     await applyLangChoice(value);
     applyStaticI18n();
     // 동적 텍스트(카드·목록·경고)는 그릴 때 t() 를 부르므로 다시 그려야 바뀐다.
-    // 데이터가 같아도 언어가 바뀌었으니 "같으면 안 그린다" 비교를 무효로 한다.
-    renderedJson = '';
-    if (!running) await run();
+    // **다시 그리기만 한다.** 언어가 바뀌었다고 디스크가 바뀐 것은 아니므로
+    // 검사를 다시 돌릴 이유가 없다(그렇게 했더니 메뉴를 고를 때마다 몇 초씩
+    // 걸렸다). 아직 결과가 없을 때만 검사를 시작한다.
+    if (lastData !== null) {
+      render(lastData);
+      renderedJson = JSON.stringify(lastData);
+    } else if (!running) {
+      renderedJson = '';
+      await run();
+    }
   });
 }
 

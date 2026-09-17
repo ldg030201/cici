@@ -25,9 +25,6 @@
   --danger-fg: #a02020;
   --danger-bg: #fbeaea;
   --danger-line: #eec9c9;
-  /* 목록이 더 있다는 것을 알리는 아래쪽 그림자. */
-  --scroll-shade: rgba(24, 20, 16, 0.14);
-
   --radius: 10px;
   --radius-sm: 7px;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
@@ -55,7 +52,6 @@
     --danger-fg: #f09a9a;
     --danger-bg: #2e1d1d;
     --danger-line: #4a2c2c;
-    --scroll-shade: rgba(0, 0, 0, 0.45);
   }
 }
 
@@ -109,15 +105,28 @@ body {
 .hd {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
   gap: 8px;
   padding: 13px 14px 11px;
   border-bottom: 1px solid var(--line);
   background: var(--card);
 }
 
+/*
+ * 제목이 남는 폭을 전부 먹고, 조작부(.hd-actions)를 오른쪽 끝으로 민다.
+ * `justify-content: space-between` 으로 하면 안 된다 — 자식이 셋이라 언어 단추가
+ * 제목과 새로고침 **사이 한복판**에 떠 버린다(실제로 그렇게 보였다).
+ */
 .hd-text {
+  flex: 1;
   min-width: 0;
+}
+
+/* 조작부는 서로 붙어 있는 한 덩어리다. */
+.hd-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .hd-title {
@@ -163,10 +172,10 @@ body {
 }
 
 /*
- * 헤더의 표시 언어 메뉴. 겉모습은 지구본 아이콘 버튼(.icon-btn 과 같은 크기)
- * 이고, 실제 컨트롤은 그 위를 통째로 덮은 투명한 네이티브 <select> 다.
- * 이렇게 하면 클릭 시 브라우저의 진짜 드롭다운이 열리고, 포커스·키보드·
- * 스크린리더 동작을 하나도 다시 구현할 필요가 없다.
+ * 헤더의 표시 언어 메뉴. 겉모습은 **지금 보고 있는 언어의 국기** 버튼
+ * (.icon-btn 과 같은 크기)이고, 실제 컨트롤은 그 위를 통째로 덮은 투명한
+ * 네이티브 <select> 다. 이렇게 하면 클릭 시 브라우저의 진짜 드롭다운이 열리고,
+ * 포커스·키보드·스크린리더 동작을 하나도 다시 구현할 필요가 없다.
  */
 .lang-wrap {
   position: relative;
@@ -180,6 +189,21 @@ body {
   border-radius: var(--radius-sm);
   background: var(--card);
   color: var(--fg-muted);
+}
+
+/*
+ * 국기 글자. 이모지 폰트가 국기를 그리는 곳(macOS 등)에서는 깃발이, 그리지 않는
+ * 곳(윈도우)에서는 "KR" 같은 두 글자가 나온다. 뒤쪽은 폭이 더 넓으므로 글자
+ * 크기를 줄여 28px 상자 안에 넣고, 잘리더라도 상자 밖으로는 새지 않게 한다.
+ */
+.lang-flag {
+  display: block;
+  overflow: hidden;
+  max-width: 24px;
+  font-size: 14px;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .lang-wrap:hover {
@@ -230,35 +254,10 @@ body {
 }
 
 /*
- * 프로필이 많으면 목록이 아래에서 잘린다. 잘린 자리에 그라디언트를 깔아
- * "더 있다"는 것을 보여 준다. 스크롤 타임라인을 쓰므로
- *   - 스크롤할 것이 없으면 타임라인이 비활성이라 기본값 opacity:0 → 안 보이고,
- *   - 끝까지 내리면 사라진다.
- * 지원하지 않는 브라우저에서는 계속 안 보일 뿐이라 안전하다(manifest 하한은 116).
+ * 목록이 잘리는 자리에 그라디언트를 깔았던 적이 있다. 뺐다 — 반투명한 띠가
+ * 마지막 줄과 푸터 사이에 떠서, 목록이 더 있다는 뜻이 아니라 바닥이 붕 떠
+ * 보였다. 스크롤할 것이 있다는 신호는 스크롤바가 이미 하고 있다.
  */
-#main::after {
-  content: '';
-  display: block;
-  position: sticky;
-  bottom: 0;
-  height: 22px;
-  margin-top: -22px;
-  pointer-events: none;
-  opacity: 0;
-  background: linear-gradient(to top, var(--scroll-shade), rgba(0, 0, 0, 0));
-  animation: main-scroll-fade linear both;
-  animation-timeline: scroll(nearest block);
-}
-
-@keyframes main-scroll-fade {
-  0%,
-  88% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
-}
 
 .panel {
   display: block;
