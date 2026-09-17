@@ -585,6 +585,9 @@ function logScanTiming(total, profiles, phases, notes = []) {
       `[cici] scan ${Math.round(total)}ms · ${profiles} profile(s) · ` +
         `${s.count} reads ${(s.bytes / 1024).toFixed(1)}KB ${Math.round(s.ms)}ms (${phaseText})${extra}`,
     );
+    // 오래 걸린 읽기는 따로, 한 줄씩. 검사가 느리다는 제보에서 **어느 디렉터리
+    // 때문인지**는 이 줄에만 있다.
+    for (const slow of s.slow) console.debug(`[cici] slow read ${slow.ms}ms ${slow.path}`);
   } catch {
     // 계측이 검사를 죽이면 안 된다.
   }

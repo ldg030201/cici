@@ -210,18 +210,46 @@ function timeoutOptions(ms) {
  * `ms` 는 개별 fetch 의 소요 시간 합이라, 요청이 정말 직렬이라면 전체 검사
  * 시간과 얼추 같고, 병렬이라면 그보다 커진다 — 그 차이 자체가 진단이다.
  */
-const fetchStats = { count: 0, bytes: 0, ms: 0 };
+const fetchStats = { count: 0, bytes: 0, ms: 0, slow: [] };
+
+/**
+ * 이보다 오래 걸린 읽기는 따로 적어 둔다. 정상적인 리스팅은 1ms 안팎이고 가장
+ * 큰 `.ldb` 도 몇 ms 라, 이 선을 넘는 것은 그 자체로 이상 신호다.
+ */
+const SLOW_READ_MS = 500;
 
 /** 계측을 0 에서 다시 시작한다. 검사를 새로 시작할 때 부른다. */
 export function resetFetchStats() {
   fetchStats.count = 0;
   fetchStats.bytes = 0;
   fetchStats.ms = 0;
+  fetchStats.slow = [];
 }
 
-/** @returns {{count: number, bytes: number, ms: number}} 지금까지의 합계 사본 */
+/**
+ * @returns {{count: number, bytes: number, ms: number, slow: Array<{path: string, ms: number}>}}
+ *   지금까지의 합계 사본. `slow` 는 오래 걸린 읽기들이다.
+ */
 export function snapshotFetchStats() {
-  return { ...fetchStats };
+  return { ...fetchStats, slow: [...fetchStats.slow] };
+}
+
+/**
+ * 진단에 적을 만큼만 남긴 경로. 홈 아래 경로는 사용자 이름이 들어가므로 통째로
+ * 적지 않고, 어느 디렉터리인지 알아볼 수 있는 **뒤쪽 세 조각**만 쓴다.
+ *
+ * @param {string} url `file://` URL
+ * @returns {string}
+ */
+function shortPath(url) {
+  let decoded = url;
+  try {
+    decoded = decodeURIComponent(url);
+  } catch {
+    // 인코딩이 깨졌으면 원문 그대로 줄인다
+  }
+  const parts = decoded.replace(/^file:\/\//, '').split('/').filter(Boolean);
+  return (parts.length > 3 ? '…/' : '/') + parts.slice(-3).join('/');
 }
 
 /** performance.now 가 없는 런타임(아주 오래된 테스트 환경)을 대비한다. */
@@ -270,7 +298,14 @@ async function fetchAs(url, timeoutMs, readBody) {
       throw new Error(`cannot read the body of ${url} (${errorMessage(err)})`);
     }
   } finally {
-    fetchStats.ms += now() - started;
+    const took = now() - started;
+    fetchStats.ms += took;
+    // 느린 읽기는 경로와 함께 남긴다. "검사가 느리다"는 제보에서 **어느
+    // 디렉터리가** 원인인지는 이 목록에만 있다. 개수는 묶어 두어(상위 몇 개)
+    // 로그가 길어지지 않게 한다.
+    if (took >= SLOW_READ_MS && fetchStats.slow.length < 5) {
+      fetchStats.slow.push({ path: shortPath(url), ms: Math.round(took) });
+    }
   }
 }
 
