@@ -2,12 +2,17 @@
  * cici 팝업 진입점.
  *
  * 동작 순서
- *   1) chrome.extension.isAllowedFileSchemeAccess() 로 파일 URL 접근 여부를 **먼저** 본다.
+ *   1) 지난 검사 결과가 세션 캐시(chrome.storage.session)에 있으면 **그것부터
+ *      즉시 그린다.** 검사는 디스크를 처음부터 다시 훑는 일이라 프로필이 많은
+ *      컴퓨터에서는 몇 초씩 걸리는데, 그 결과는 브라우저를 껐다 켜기 전에는
+ *      거의 바뀌지 않기 때문이다.
+ *   2) chrome.extension.isAllowedFileSchemeAccess() 로 파일 URL 접근 여부를 **먼저** 본다.
  *      토글이 꺼져 있으면 file:// fetch 가 TypeError("Failed to fetch") 로 실패하는데,
  *      이 에러는 "디렉터리가 없음"과 구별이 불가능하다. 그래서 이 확인이 반드시 앞에 온다.
- *   2) 접근이 있으면 프로필을 열거하고, nonce 왕복으로 현재 프로필을 찾고,
- *      각 프로필의 bridgeDeviceId 를 읽는다.
- *   3) 현재 프로필 카드를 맨 위에 크게, 나머지는 조밀한 목록으로 그린다.
+ *   3) 접근이 있으면 프로필을 열거하고, nonce 왕복으로 현재 프로필을 찾고,
+ *      각 프로필의 bridgeDeviceId 를 읽는다. 캐시를 그려 뒀어도 이 재검사는
+ *      항상 돌고, 결과가 캐시와 다를 때만 화면을 갈아 끼운다(stale-while-revalidate).
+ *   4) 현재 프로필 카드를 맨 위에 크게, 나머지는 조밀한 목록으로 그린다.
  *
  * 파일 접근 토글을 켜거나 끄면 크롬이 확장을 리로드하므로 열려 있던 팝업 문서는 죽는다.
  * 그래서 그 자리에서 자동 복구하지 않고 "켠 뒤 팝업을 다시 열어 주세요"라고만 안내한다.
@@ -39,8 +44,9 @@ const byId = (id) => document.getElementById(id);
 // 사용자가 헤더에서 언어를 고르면, 그 로케일의 messages.json 을 확장 패키지에서
 // 직접 읽어 t() 가 chrome.i18n 보다 먼저 보게 한다. 'auto' 는 브라우저 언어
 // 그대로다. 선택은 chrome.storage.local 에 남는다 — 이 확장이 자기 저장소에
-// 쓰는 값은 자기 탐지용 난수(lib/locate.js)와 이 설정, 둘뿐이다(개인정보
-// 문서가 이 사실을 그대로 말하므로, 여기에 키를 더하면 그 문서도 고쳐야 한다).
+// 쓰는 값은 자기 탐지용 난수(lib/locate.js), 이 설정, 그리고 검사 결과 캐시
+// (chrome.storage.session, 아래 SCAN_CACHE_KEY) 셋뿐이다(개인정보 문서가 이
+// 사실을 그대로 나열하므로, 여기에 키를 더하거나 빼면 그 문서도 고쳐야 한다).
 
 const LANG_PREF_KEY = '__cici_lang';
 
@@ -350,6 +356,91 @@ function settingsUrl() {
 }
 
 // ---------------------------------------------------------------------------
+// 검사 결과 캐시 (stale-while-revalidate)
+//
+// 검사는 디스크를 처음부터 다시 훑는 일이고, Chromium 의 file:// 로더는 한
+// 문서의 요청을 직렬로 처리하므로 프로필이 많은 컴퓨터에서는 몇 초씩 걸린다.
+// 그런데 그 결과(UUID·프로필 목록)는 브라우저를 껐다 켜기 전에는 거의 바뀌지
+// 않는다. 그래서 마지막 결과를 chrome.storage.session 에 두고, 팝업이 열리면
+// 캐시부터 즉시 그린 뒤(체감 0초) 검사를 뒤에서 다시 돌린다.
+//
+// local 이 아니라 **session** 인 이유: 메모리에만 있어 디스크에 아무것도 남지
+// 않고, 브라우저를 끄면 사라진다. 캐시를 "정답"으로 믿지는 않는다 — 재페어링
+// 으로 UUID 가 바뀌거나 프로필이 늘어나는 일은 세션 안에서도 생기므로, 재검사가
+// 항상 따라붙고 결과가 다르면 화면을 갈아 끼운다. "다시 검사" 버튼은 예전처럼
+// 언제나 디스크를 새로 읽는다.
+
+/** 마지막 검사 결과를 넣어 두는 `chrome.storage.session` 키. */
+const SCAN_CACHE_KEY = '__cici_scan';
+
+/**
+ * 이번 브라우저 세션에서 자기 프로필로 **확인된** 디렉터리. null 이면 아직
+ * 모른다. 팝업과 프로필은 1:1 이라 같은 세션 안에서 이 답이 바뀔 방법이 없고,
+ * 이 값이 있으면 nonce 왕복(모든 프로필의 우리 저장소 LevelDB 읽기)을 통째로
+ * 건너뛸 수 있다.
+ */
+let cachedSelfDir = null;
+
+/**
+ * 캐시에서 꺼낸 데이터가 render() 가 그릴 수 있는 모양인지.
+ * 캐시는 우리 확장만 쓰는 저장소지만, 확장 업데이트로 모양이 바뀐 옛 캐시가
+ * 남아 있을 수 있다(v 필드가 1차 방어, 이 검사가 2차다).
+ *
+ * @param {unknown} data
+ * @returns {boolean}
+ */
+function validScanData(data) {
+  if (!data || typeof data !== 'object') return false;
+  if (!Array.isArray(data.rows) || !Array.isArray(data.warnings)) return false;
+  return data.rows.every(
+    (r) => r && typeof r === 'object' && typeof r.label === 'string' && r.bridge && typeof r.bridge === 'object',
+  );
+}
+
+/**
+ * @returns {Promise<{data: object, selfProfileDir: string|null}|null>}
+ *   캐시가 없거나, 못 읽거나, 모양이 이상하면 null.
+ */
+async function readScanCache() {
+  try {
+    const got = await globalThis.chrome?.storage?.session?.get(SCAN_CACHE_KEY);
+    const hit = got?.[SCAN_CACHE_KEY];
+    if (!hit || typeof hit !== 'object' || hit.v !== 1 || !validScanData(hit.data)) return null;
+    return {
+      data: hit.data,
+      selfProfileDir: typeof hit.selfProfileDir === 'string' ? hit.selfProfileDir : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 검사 결과를 캐시에 남긴다.
+ *
+ * 잘린 검사(truncated)는 남기지 않는다 — 다음 팝업의 첫 화면이 "검사가
+ * 잘렸습니다"가 되면 캐시가 있으나 마나다. 확인된 빈 결과(프로필 0개)는 낡은
+ * 캐시를 **지운다**. 지우지 않으면 이제는 없는 프로필 목록이 열 때마다 깜빡
+ * 보인다.
+ *
+ * @param {{rows: Row[], truncated?: boolean}} data collect() 의 결과
+ */
+async function writeScanCache(data) {
+  try {
+    const session = globalThis.chrome?.storage?.session;
+    if (!session) return;
+    if (data.truncated) return;
+    if (data.rows.length === 0) {
+      await session.remove(SCAN_CACHE_KEY);
+      return;
+    }
+    await session.set({ [SCAN_CACHE_KEY]: { v: 1, data, selfProfileDir: cachedSelfDir } });
+  } catch {
+    // 캐시가 안 돼도 검사는 이미 끝났다. 다음 팝업이 조금 느릴 뿐이다.
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 수집
 
 /**
@@ -496,11 +587,14 @@ async function collect() {
     // 자기 표식을 **디렉터리를 훑기 전에** 남긴다. 확장을 갓 설치한 프로필에는
     // 우리 저장소 디렉터리가 아직 없고, 그건 이 write 가 만든다. 목록을 먼저
     // 읽으면 없는 상태가 캐시에 굳어서 첫 팝업이 자기를 놓친다(실측 확인).
+    // 자기 프로필을 이미 아는 세션에서는 왕복 자체가 없으므로 쓰지도 않는다.
     let nonce = null;
-    try {
-      nonce = await writeNonce();
-    } catch (err) {
-      warnings.push(warningFromError(err));
+    if (cachedSelfDir === null) {
+      try {
+        nonce = await writeNonce();
+      } catch (err) {
+        warnings.push(warningFromError(err));
+      }
     }
 
     const enumStart = nowMs();
@@ -514,6 +608,22 @@ async function collect() {
       return { rows: [], selfFound: false, warnings, truncated: noted };
     }
 
+    // 자기 탐지 캐시. 지난 검사에서 nonce 왕복으로 확인한 자기 프로필이 신선한
+    // 목록에 그대로 있으면 그 답을 재사용한다 — 같은 팝업이 다른 프로필에서 돌
+    // 수는 없기 때문이다. 목록에 없으면(열거가 잘렸거나 캐시가 이상하면) 지금
+    // 표식을 남기고 정직하게 다시 찾는다. 표식을 이렇게 늦게 쓰는 것은 이
+    // 경로에서는 안전하다: 우리 저장소 디렉터리는 지난 실행이 이미 만들었고,
+    // 캐시되는 것은 디렉터리 **목록**뿐이라 파일 내용은 늘 새로 읽는다.
+    const cachedSelf =
+      cachedSelfDir !== null && profiles.some((p) => p.profileDir === cachedSelfDir) ? cachedSelfDir : null;
+    if (cachedSelfDir !== null && cachedSelf === null) {
+      try {
+        nonce = await writeNonce();
+      } catch (err) {
+        warnings.push(warningFromError(err));
+      }
+    }
+
     // 세 갈래는 동시에 돈다. 각자의 소요 시간은 "병렬 구간 시작"부터 잰다 —
     // 합이 total 을 넘으면 그만큼 겹쳐 돌았다는 뜻이다.
     const parallelStart = nowMs();
@@ -521,19 +631,21 @@ async function collect() {
     let bridgeMs = 0;
     let metaMs = 0;
     const [self, bridges, metas] = await Promise.all([
-      (nonce === null
-        ? Promise.resolve(null)
-        : withDeadline(
-            Promise.resolve()
-              .then(() => locateSelf(profiles, nonce, warnings))
-              .catch((err) => {
-                warnings.push(warningFromError(err));
-                return null;
-              }),
-            deadline,
-            null,
-            noteTimeout,
-          )
+      (cachedSelf !== null
+        ? Promise.resolve({ profileDir: cachedSelf, nonce: '' })
+        : nonce === null
+          ? Promise.resolve(null)
+          : withDeadline(
+              Promise.resolve()
+                .then(() => locateSelf(profiles, nonce, warnings))
+                .catch((err) => {
+                  warnings.push(warningFromError(err));
+                  return null;
+                }),
+              deadline,
+              null,
+              noteTimeout,
+            )
       ).finally(() => {
         selfMs = nowMs() - parallelStart;
       }),
@@ -561,6 +673,9 @@ async function collect() {
     ]);
 
     const selfDir = self && typeof self.profileDir === 'string' ? self.profileDir : null;
+    // nonce 왕복까지 마친 확정 답만 캐시한다. 다음 검사(그리고 다음 팝업)가
+    // 왕복을 건너뛰는 근거다.
+    if (selfDir !== null) cachedSelfDir = selfDir;
 
     /** @type {Row[]} */
     const rows = profiles.map((p, i) => {
@@ -583,12 +698,12 @@ async function collect() {
       };
     });
 
-    logScanTiming(nowMs() - scanStart, rows.length, {
-      enumerate: enumMs,
-      self: selfMs,
-      bridge: bridgeMs,
-      meta: metaMs,
-    });
+    logScanTiming(
+      nowMs() - scanStart,
+      rows.length,
+      { enumerate: enumMs, self: selfMs, bridge: bridgeMs, meta: metaMs },
+      cachedSelf !== null ? ['self-cache'] : [],
+    );
 
     return { rows, selfFound: rows.some((r) => r.isSelf), warnings, truncated: noted };
   } finally {
@@ -841,10 +956,38 @@ function renderRow(row) {
   return item;
 }
 
+/** 지금 화면에 검사 결과가 그려져 있나(캐시든 실검사든). 로딩 화면 여부를 가른다. */
+let resultShown = false;
+
+/** 마지막으로 그린 데이터의 직렬화본. 같은 결과를 같은 언어로 다시 그리는 일을 막는다. */
+let renderedJson = '';
+
+/**
+ * 검사가 끝났음을 스크린리더에 알린다. 문장은 render() 가 그리는 화면과 같은
+ * 데이터에서 나온다 — 재검사 결과가 화면과 같아서 다시 그리지 않을 때도 "끝났다"
+ * 는 말은 가야 하므로(announce() 의 주석), 이 부분만 render() 에서 떼어 두었다.
+ *
+ * @param {{rows: Row[], truncated?: boolean}} data
+ */
+function announceData(data) {
+  if (data.rows.length === 0) {
+    announce(data.truncated ? t('scanCutShortTitle') : t('noProfilesTitle'));
+    return;
+  }
+  const self = data.rows.find((r) => r.isSelf) ?? null;
+  const others = data.rows.length - (self ? 1 : 0);
+  announce(
+    self ? t('statusScanned', [self.label, String(others)]) : t('statusScannedNoSelf', [String(others)]),
+  );
+}
+
 /**
  * @param {{rows: Row[], selfFound: boolean, warnings: Array<{code: string, params: string[]}>}} data
  */
 function render(data) {
+  // 결과가 보이는 화면에는 언제나 "다시 검사"가 함께 있다 — 캐시를 그린 첫
+  // 화면에서도 재검사가 도는 중임을 이 버튼의 회전이 말해 준다.
+  byId('btn-refresh').hidden = false;
   const selfSlot = byId('self-slot');
   const othersSlot = byId('others-slot');
   const selfLabel = byId('self-label');
@@ -872,7 +1015,8 @@ function render(data) {
     // 이 화면에는 결과가 한 줄도 없다. 유일한 단서를 접어 두면 안 된다.
     renderWarnings(data.warnings, { open: cut });
     show('result');
-    announce(title);
+    resultShown = true;
+    announceData(data);
     return;
   }
 
@@ -904,11 +1048,8 @@ function render(data) {
 
   renderWarnings(data.warnings);
   show('result');
-  announce(
-    self
-      ? t('statusScanned', [self.label, String(others.length)])
-      : t('statusScannedNoSelf', [String(others.length)]),
-  );
+  resultShown = true;
+  announceData(data);
 }
 
 /**
@@ -939,6 +1080,10 @@ function renderNeedAccess() {
   byId('settings-url').textContent = url;
   byId('btn-refresh').hidden = true;
   show('access');
+  // 결과 화면이 아니다. 다음 검사는 로딩부터 다시 시작하고, 화면 생략 비교도
+  // 처음부터 한다.
+  resultShown = false;
+  renderedJson = '';
   announce(t('needFileAccessTitle'));
 }
 
@@ -987,6 +1132,8 @@ let errorDetails = '';
 
 /** @param {unknown} err */
 function renderFatal(err) {
+  resultShown = false;
+  renderedJson = '';
   try {
     errorDetails = err instanceof Error && err.stack ? err.stack : messageOf(err);
     byId('error-text').textContent = errorDetails;
@@ -1029,7 +1176,9 @@ async function run() {
       return;
     }
 
-    show('loading');
+    // 캐시가 이미 그려져 있으면 로딩 화면으로 갈아엎지 않는다. 재검사는 뒤에서
+    // 돌고, 그동안은 "다시 검사" 버튼의 회전(aria-busy)이 진행 중임을 말한다.
+    if (!resultShown) show('loading');
     const data = await collect();
 
     // API 를 못 써서 그냥 시도한 경우, 결과가 비었다면 십중팔구 토글이 꺼진 것이다.
@@ -1038,8 +1187,16 @@ async function run() {
       return;
     }
 
-    refresh.hidden = false;
-    render(data);
+    const json = JSON.stringify(data);
+    if (json !== renderedJson) {
+      render(data);
+      renderedJson = json;
+    } else {
+      // 화면은 그대로 두지만, 재검사를 시킨 사용자에게 "끝났고 그대로다"라는
+      // 말은 가야 한다(announce() 의 주석 — 침묵은 아무 일도 없던 것과 같다).
+      announceData(data);
+    }
+    await writeScanCache(data);
   } catch (err) {
     renderFatal(err);
   } finally {
@@ -1083,7 +1240,8 @@ function wire() {
     await applyLangChoice(value);
     applyStaticI18n();
     // 동적 텍스트(카드·목록·경고)는 그릴 때 t() 를 부르므로 다시 그려야 바뀐다.
-    // 검사 실측이 13~50ms 라 결과를 캐시해 두는 것보다 다시 도는 쪽이 단순하다.
+    // 데이터가 같아도 언어가 바뀌었으니 "같으면 안 그린다" 비교를 무효로 한다.
+    renderedJson = '';
     if (!running) await run();
   });
 }
@@ -1104,6 +1262,20 @@ async function boot() {
   } catch (err) {
     renderFatal(err);
     return;
+  }
+
+  // 지난 검사 결과가 세션 캐시에 있으면 그것부터 그린다. run() 은 그 위에서
+  // 재검사를 돌리고, 결과가 달라졌을 때만 화면을 갈아 끼운다.
+  const cache = await readScanCache();
+  if (cache) {
+    cachedSelfDir = cache.selfProfileDir;
+    try {
+      render(cache.data);
+      renderedJson = JSON.stringify(cache.data);
+    } catch {
+      // 캐시가 화면을 못 그리면 없는 셈 친다. 곧바로 정식 검사가 따라온다.
+      renderedJson = '';
+    }
   }
   run();
 }

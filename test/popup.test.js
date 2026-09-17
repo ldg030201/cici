@@ -186,6 +186,17 @@ function standardFs() {
  * @param {string} [opts.breakDom] 이 id 의 요소를 지워서 렌더링을 죽인다(오류 화면 확인용).
  * @param {string} [opts.langPref] chrome.storage.local 에 미리 저장돼 있는 표시 언어.
  *   지난 팝업에서 언어를 골라 둔 사용자의 모습이다.
+ * @param {object|null} [opts.sessionCache] chrome.storage.session 에 미리 들어 있는
+ *   검사 결과 캐시. 같은 브라우저 세션에서 팝업을 두 번째 여는 사용자의 모습이다.
+ * @param {boolean} [opts.hangDisk] 홈 루트 리스팅이 영영 답하지 않는다.
+ *   cancelDuringScan 과 달리 마감시한 타이머도 터뜨리지 않는다 — 캐시가 그려
+ *   준 화면만이 유일한 화면이 되게 한다.
+ * @param {(ctx: {doc: object, sessionStore: Map<string, unknown>, store: Map<string, unknown>, fetched: string[], text: (selector: string) => string|null}) => boolean} [opts.settleUntil]
+ *   패널이 보이는 것에 더해 이 조건까지 참이 될 때까지 기다린다. 캐시를 먼저
+ *   그리는 흐름에서는 패널이 **재검사보다 먼저** 보이므로, "패널이 보인다"만으로
+ *   기다림을 끝내면 뒤이은 재검사가 스텁이 풀린 진짜 전역 위에서 돌게 된다.
+ *   캐시를 넣는 테스트는 재검사가 끝났음(또는 멈출 곳에 도달했음)을 말하는
+ *   조건을 반드시 함께 넣어야 한다.
  */
 async function mountPopup(opts = {}) {
   const {
@@ -200,6 +211,9 @@ async function mountPopup(opts = {}) {
     cancelDuringScan = false,
     breakDom = null,
     langPref = null,
+    sessionCache = null,
+    hangDisk = false,
+    settleUntil = null,
   } = opts;
 
   const html = await readFile(path.join(EXT, 'popup.html'), 'utf8');
@@ -222,6 +236,9 @@ async function mountPopup(opts = {}) {
 
   const store = new Map();
   if (langPref !== null) store.set('__cici_lang', langPref);
+  /** chrome.storage.session 흉내. 실제와 같이 메모리뿐이다. */
+  const sessionStore = new Map();
+  if (sessionCache !== null) sessionStore.set('__cici_scan', sessionCache);
   const chromeStub = {
     runtime: {
       id: SELF_ID,
@@ -297,6 +314,17 @@ async function mountPopup(opts = {}) {
           addLevelDb(fs, dir, [[NONCE_KEY, JSON.stringify(nonce)]], 2);
         },
       },
+      session: {
+        async get(key) {
+          return { [key]: sessionStore.get(key) };
+        },
+        async set(obj) {
+          for (const [k, v] of Object.entries(obj)) sessionStore.set(k, v);
+        },
+        async remove(key) {
+          sessionStore.delete(key);
+        },
+      },
     };
   }
 
@@ -340,7 +368,7 @@ async function mountPopup(opts = {}) {
       if (denyDirs.includes(p)) throw new TypeError('Failed to fetch');
       // 영영 오지 않는 응답. 진짜 Chromium 에서도 열거할 수 없는 디렉터리는
       // reject 하지 않고 그냥 멈춰 있다(docs/why.md §2.3).
-      if (cancelDuringScan && p === '/Users/') return new Promise(() => {});
+      if ((cancelDuringScan || hangDisk) && p === '/Users/') return new Promise(() => {});
       const isDirRequest = p.endsWith('/');
       const dir = isDirRequest ? p.replace(/\/+$/, '') : p;
       const kids = fs.children(dir);
@@ -356,15 +384,26 @@ async function mountPopup(opts = {}) {
   const settled = () =>
     ['access', 'result', 'error'].some((n) => doc.getElementById(`panel-${n}`)?.hidden === false);
 
+  const untilCtx = {
+    doc,
+    sessionStore,
+    store,
+    fetched,
+    /** @param {string} selector */
+    text: (selector) => doc.querySelector(selector)?.textContent ?? null,
+  };
+  const until = settleUntil ?? (() => true);
+
   /** popup.js 의 async 실행이 끝날 때까지 진짜 타이머로 기다린다. */
   const waitSettled = async () => {
-    for (let i = 0; i < 500 && !settled(); i++) {
+    for (let i = 0; i < 500 && !(settled() && until(untilCtx)); i++) {
       // 마감시한도 popup.js 가 setTimeout 으로 걸어 둔 것이다. 실제로 터뜨려야
       // "검사가 잘렸다" 경로를 밟는다.
       if (cancelDuringScan) for (const fn of timers.splice(0)) fn();
       await new Promise((resolve) => realSetTimeout(resolve, 0));
     }
     assert.ok(settled(), '팝업이 어떤 화면에도 도달하지 못했습니다 (로딩에서 멈춤)');
+    assert.ok(until(untilCtx), 'settleUntil 조건이 500틱 안에 참이 되지 않았습니다');
   };
 
   // 검사 사이의 격리는 **여기서만** 한다. 끝나고 비우면 안 된다 — "다시 검사"가
@@ -387,6 +426,7 @@ async function mountPopup(opts = {}) {
     openedTabs,
     clipboard,
     store,
+    sessionStore,
     timers,
     /** 지금 보이는 패널 이름 */
     panel: () => ['loading', 'access', 'result', 'error'].find((n) => doc.getElementById(`panel-${n}`)?.hidden === false),
@@ -498,6 +538,110 @@ test('여러 브라우저 계열의 프로필을 한 화면에 모은다', async
   assert.equal(app.text('.card-self .browser'), 'Google Chrome');
   assert.equal(app.text('#others-slot .row-browser'), 'Brave');
   assert.equal(app.text('#others-slot .row-uuid'), DEVICE_B);
+});
+
+// ---------------------------------------------------------------------------
+// 1.5 세션 캐시 (stale-while-revalidate)
+// ---------------------------------------------------------------------------
+
+/**
+ * 정상 검사를 한 번 돌려, **진짜 코드가 쓴** 세션 캐시 값을 얻는다.
+ * 캐시 모양을 테스트가 손으로 지어내면, popup.js 가 모양을 바꿔도 이 테스트들이
+ * 낡은 모양으로 계속 통과한다 — 그래서 반드시 실물을 쓴다.
+ */
+async function capturedScanCache() {
+  const { fs, selfProfileDir } = standardFs();
+  const app = await mountPopup({
+    fs,
+    selfProfileDir,
+    settleUntil: ({ sessionStore }) => sessionStore.has('__cici_scan'),
+  });
+  const saved = app.sessionStore.get('__cici_scan');
+  assert.ok(saved, '검사가 끝나면 세션 캐시가 남아야 합니다');
+  return saved;
+}
+
+test('검사가 끝나면 결과와 자기 프로필을 세션 캐시에 남긴다', async () => {
+  const saved = await capturedScanCache();
+  assert.equal(saved.v, 1);
+  assert.equal(saved.data.rows.length, 2);
+  assert.equal(saved.selfProfileDir, `${CHROME_DIR}/Profile 1`);
+  // 캐시는 화면에 그리는 값과 같은 것을 담는다 — UUID 가 그대로 들어 있다.
+  assert.ok(saved.data.rows.some((r) => r.bridge.deviceId === DEVICE_B));
+});
+
+test('세션 캐시가 있으면 디스크가 멈춰 있어도 즉시 그린다', async () => {
+  const saved = await capturedScanCache();
+
+  // 디스크는 영영 답하지 않는다. 그런데도 결과 화면이 나온다면 그건 캐시다.
+  // 재검사가 멈출 곳(홈 루트 리스팅)에 실제로 도달할 때까지는 기다린다 —
+  // 그 전에 스텁을 걷으면 재검사가 진짜 전역 위에서 돌아 버린다.
+  const app = await mountPopup({
+    sessionCache: saved,
+    hangDisk: true,
+    settleUntil: ({ fetched }) => fetched.includes('/Users/'),
+  });
+  assert.equal(app.panel(), 'result', `결과 화면이어야 합니다 (지금: ${app.panel()})`);
+  assert.equal(app.text('.card-self .uuid-text'), DEVICE_B);
+  // 재검사가 도는 중이라는 사실은 "다시 검사" 버튼의 회전이 말한다.
+  assert.equal(app.doc.getElementById('btn-refresh').hidden, false);
+  assert.equal(app.doc.getElementById('btn-refresh').getAttribute('aria-busy'), 'true');
+});
+
+test('재검사 결과가 캐시와 다르면 화면과 캐시를 갱신한다', async () => {
+  const saved = await capturedScanCache();
+
+  // 그 사이 재페어링으로 자기 프로필의 UUID 가 바뀌었다.
+  const NEW_DEVICE = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+  const fs = new FakeFs();
+  addProfile(fs, CHROME_DIR, 'Default', { deviceId: DEVICE_A, displayName: '내 노트북' });
+  addProfile(fs, CHROME_DIR, 'Profile 1', { deviceId: NEW_DEVICE, selfStorage: true });
+  addLocalState(fs, CHROME_DIR, {
+    Default: { name: 'Personal', user_name: 'you@example.com' },
+    'Profile 1': { name: 'Work', user_name: 'work@example.com' },
+  });
+
+  const app = await mountPopup({
+    fs,
+    selfProfileDir: `${CHROME_DIR}/Profile 1`,
+    sessionCache: saved,
+    settleUntil: ({ text }) => text('.card-self .uuid-text') === NEW_DEVICE,
+  });
+  assert.equal(app.text('.card-self .uuid-text'), NEW_DEVICE);
+  const updated = app.sessionStore.get('__cici_scan');
+  assert.ok(
+    updated.data.rows.some((r) => r.bridge.deviceId === NEW_DEVICE),
+    '캐시도 새 값으로 갱신돼야 합니다',
+  );
+});
+
+test('자기 탐지는 세션 캐시로 nonce 왕복을 건너뛴다', async () => {
+  const saved = await capturedScanCache();
+  const { fs } = standardFs();
+
+  // selfProfileDir: null — storage.set 이 디스크에 표식을 남기지 않으므로,
+  // nonce 왕복이 실제로 돌았다면 자기 프로필을 찾지 못했을 것이다.
+  const app = await mountPopup({
+    fs,
+    selfProfileDir: null,
+    sessionCache: saved,
+    settleUntil: ({ sessionStore }) => sessionStore.get('__cici_scan') !== saved,
+  });
+  assert.equal(app.text('.card-self .uuid-text'), DEVICE_B, '캐시된 자기 프로필로 카드를 그려야 합니다');
+  // 왕복을 건너뛰었으니 표식을 쓰지도 않았다.
+  assert.equal(app.store.has(NONCE_KEY), false, 'nonce 를 다시 쓰면 왕복을 건너뛴 것이 아닙니다');
+});
+
+test('깨진 세션 캐시는 무시하고 정상 검사로 그린다', async () => {
+  const { fs, selfProfileDir } = standardFs();
+  const app = await mountPopup({
+    fs,
+    selfProfileDir,
+    // v 는 맞는데 알맹이가 render() 가 그릴 수 없는 모양이다(옛 버전의 잔재 등).
+    sessionCache: { v: 1, data: { rows: 'garbage', warnings: [] }, selfProfileDir: null },
+  });
+  assert.equal(app.panel(), 'result');
+  assert.equal(app.text('.card-self .uuid-text'), DEVICE_B);
 });
 
 // ---------------------------------------------------------------------------
