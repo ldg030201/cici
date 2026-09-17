@@ -314,6 +314,7 @@ async function openPopup(port, popupUrl, options = {}) {
     shotPath = null,
     lang = null,
     seedDemo = false,
+    forceLoading = false,
   } = options;
   const started = Date.now();
   const res = await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(popupUrl)}`, {
@@ -380,6 +381,29 @@ async function openPopup(port, popupUrl, options = {}) {
     langSwitchMs = Date.now() - s;
   }
 
+  // 로딩(스켈레톤) 화면은 평소 순식간에 지나가 눈으로 잡을 수가 없다. 검사가
+  // 끝난 뒤 그 패널만 도로 띄워서 배치와 색을 본다(움직임은 아래 skeleton 값으로
+  // 확인한다 — 정지 화면으로는 알 수 없다).
+  let skeleton = null;
+  if (forceLoading) {
+    const { result } = await cdp.send('Runtime.evaluate', {
+      expression: `(() => {
+        for (const n of document.querySelectorAll('.panel')) n.hidden = n.id !== 'panel-loading';
+        const el = document.querySelector('.skeleton .sk');
+        if (!el) return 'null';
+        const s = getComputedStyle(el);
+        return JSON.stringify({
+          timing: s.animationTimingFunction,
+          repeat: s.backgroundRepeat,
+          duration: s.animationDuration,
+          delays: [...document.querySelectorAll('.skeleton .sk')].map((n) => getComputedStyle(n).animationDelay),
+        });
+      })()`,
+      returnByValue: true,
+    });
+    skeleton = JSON.parse(result.value ?? 'null');
+  }
+
   // 눈으로 볼 수 있게 화면을 남긴다. 레이아웃이 어긋나는 것은 단언문이 아니라
   // 그림에서 먼저 보인다.
   if (shotPath) {
@@ -436,6 +460,7 @@ async function openPopup(port, popupUrl, options = {}) {
     langSwitchMs,
     geo: JSON.parse(geo.value),
     cache: JSON.parse(cached.value ?? 'null'),
+    skeleton,
   };
 }
 
@@ -562,6 +587,25 @@ const check = (ok, label, detail = '') => {
       settleTimeoutMs: 20000,
     });
     check(demoJa.geo.flagText.includes('🇯🇵'), 'D. 언어를 바꾼 화면도 남겼다', `표시=${demoJa.geo.flagText}`);
+
+    // --- E. 로딩(스켈레톤) 화면 --------------------------------------------
+    // 반짝임이 이어져 보이려면: 가속·감속이 없어야 루프가 맞물리는 지점에서
+    // 멈칫하지 않고, 배경이 타일링되지 않아야 경계가 튀지 않으며, 조각마다
+    // 시작이 어긋나야 셋이 한 줄기로 흐른다.
+    const loading = await openPopup(port, popupUrl, {
+      waitScanLog: false,
+      forceLoading: true,
+      shotPath: path.join(shotDir, 'loading.png'),
+      settleTimeoutMs: 20000,
+    });
+    if (loading.skeleton) {
+      const { timing, repeat, delays } = loading.skeleton;
+      check(timing === 'linear', 'E. 반짝임에 가속·감속이 없다', `timing=${timing}`);
+      check(repeat === 'no-repeat', 'E. 배경이 타일링되지 않는다', `repeat=${repeat}`);
+      check(new Set(delays).size === delays.length, 'E. 조각마다 시작이 어긋난다', `delays=${delays.join(' ')}`);
+    } else {
+      check(false, 'E. 스켈레톤을 찾지 못했다');
+    }
     console.log(`      그림: ${shotDir}`);
   } finally {
     await stop();

@@ -355,11 +355,42 @@ body {
   margin-top: 12px;
 }
 
+/*
+ * 스켈레톤의 반짝임. 밝은 띠 하나가 왼쪽에서 오른쪽으로 지나간다.
+ * 이어져 보이게 하려면 네 가지가 필요하다 — 예전에는 넷 다 어긋나 있었다.
+ *
+ *  - `linear`: `ease-in-out` 은 양 끝에서 느려지므로, 루프가 맞물리는 지점마다
+ *    멈칫한다. 끝없이 도는 움직임에 가속·감속을 주면 반드시 티가 난다.
+ *  - `no-repeat` + `background-color`: 배경이 타일링되면 타일 경계가 툭 튄다.
+ *    띠는 한 장뿐이고, 그것이 없는 자리는 바탕색이 채운다.
+ *  - 그라디언트 양 끝을 바탕색으로: 띠가 화면 밖에서 들어와 밖으로 나가므로
+ *    루프가 되감기는 순간에 보이는 것이 양쪽 모두 바탕색이라 티가 나지 않는다.
+ *  - 조각마다 조금씩 늦게 시작: 셋이 동시에 번쩍이면 따로 노는 판 셋이 되고,
+ *    밀어 두면 위에서 아래로 흐르는 한 줄기가 된다.
+ */
 .sk {
   border-radius: var(--radius-sm);
-  background: linear-gradient(90deg, var(--line-strong) 25%, var(--card) 50%, var(--line-strong) 75%);
-  background-size: 220% 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
+  background-color: var(--line-strong);
+  background-image: linear-gradient(
+    90deg,
+    var(--line-strong) 0%,
+    var(--line-strong) 35%,
+    var(--card) 50%,
+    var(--line-strong) 65%,
+    var(--line-strong) 100%
+  );
+  background-size: 300% 100%;
+  background-repeat: no-repeat;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* 한 줄기로 흐르게 하는 시차. 조각 높이가 다르므로 간격도 일정하지 않다. */
+.skeleton .sk:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.skeleton .sk:nth-child(3) {
+  animation-delay: 0.26s;
 }
 
 .sk-card {
@@ -372,12 +403,17 @@ body {
   margin-bottom: 7px;
 }
 
+/*
+ * 300% 짜리 배경에서 `150%` 는 띠가 요소 왼쪽 **밖**, `-150%` 는 오른쪽 밖이다
+ * (퍼센트 위치는 `요소폭 - 배경폭` 을 기준으로 재므로 방향이 뒤집혀 보인다).
+ * 그래서 이 구간은 띠가 화면을 한 번 가로지르고 완전히 빠져나가는 딱 한 바퀴다.
+ */
 @keyframes shimmer {
   from {
-    background-position: 120% 0;
+    background-position: 150% 0;
   }
   to {
-    background-position: -20% 0;
+    background-position: -150% 0;
   }
 }
 
